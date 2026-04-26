@@ -26,6 +26,7 @@ import {
   getLastCompletedSetsForExercise,
   getOrCreateSession,
   getSetLogsForSession,
+  getSkippedExerciseIds,
   skipCatchupItem,
 } from '../../src/db/queries';
 import { fetchRecentWorkoutMetrics, type HealthMetrics } from '../../src/health';
@@ -76,20 +77,24 @@ export default function SessionScreen() {
       return;
     }
     const sid = await getOrCreateSession(day, sessionDate);
-    const [ex, logs] = await Promise.all([
+    const [ex, logs, skippedIds] = await Promise.all([
       getExercisesByDay(day),
       getSetLogsForSession(sid),
+      getSkippedExerciseIds(sessionDate),
     ]);
+    const filtered = ex.filter((e) => !skippedIds.has(e.id));
     const lastMap: Record<number, string | null> = {};
     await Promise.all(
-      ex.map(async (e) => {
+      filtered.map(async (e) => {
         const last = await getLastCompletedSetsForExercise(e.id, sid);
-        const b = bestSet(last);
-        lastMap[e.id] = b?.weight_lb != null && b.reps != null ? `${b.weight_lb} lb × ${b.reps}` : null;
+        const b = bestSet(last, e.type === 'bodyweight');
+        lastMap[e.id] = e.type === 'bodyweight'
+          ? b?.reps != null ? `${b.reps} reps` : null
+          : b?.weight_lb != null && b.reps != null ? `${b.weight_lb} lb × ${b.reps}` : null;
       }),
     );
     setSessionId(sid);
-    setExercises(ex);
+    setExercises(filtered);
     setSetLogs(logs);
     setLastBestMap(lastMap);
   }, [day, sessionDate]);

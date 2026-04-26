@@ -56,6 +56,8 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       name TEXT NOT NULL,
       calories REAL NOT NULL,
       protein_g REAL NOT NULL,
+      fat_g REAL NOT NULL DEFAULT 0,
+      carbs_g REAL NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL
     );
 
@@ -65,7 +67,9 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS nutrition_goals (
       date TEXT PRIMARY KEY,
       calorie_goal REAL NOT NULL,
-      protein_goal REAL NOT NULL
+      protein_goal REAL NOT NULL,
+      fat_goal REAL NOT NULL DEFAULT 80,
+      carbs_goal REAL NOT NULL DEFAULT 250
     );
 
     CREATE TABLE IF NOT EXISTS measurements (
@@ -130,6 +134,10 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
   await addColumnIfMissing(db, 'set_logs', 'drop_reps', 'INTEGER');
   await addColumnIfMissing(db, 'measurements', 'weight_lb', 'REAL');
   await addColumnIfMissing(db, 'measurements', 'body_fat_pct', 'REAL');
+  await addColumnIfMissing(db, 'food_entries', 'fat_g', 'REAL NOT NULL DEFAULT 0');
+  await addColumnIfMissing(db, 'food_entries', 'carbs_g', 'REAL NOT NULL DEFAULT 0');
+  await addColumnIfMissing(db, 'nutrition_goals', 'fat_goal', 'REAL NOT NULL DEFAULT 80');
+  await addColumnIfMissing(db, 'nutrition_goals', 'carbs_goal', 'REAL NOT NULL DEFAULT 250');
 
   // Prune skip records older than one week — they only apply to the current week
   const pruneDate = toISO(new Date(Date.now() - 7 * 86_400_000));

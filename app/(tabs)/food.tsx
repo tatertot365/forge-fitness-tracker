@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { Flame, Pencil, Plus, Trash2, X, Zap } from 'lucide-react-native';
+import { Droplets, Flame, Layers, Pencil, Plus, Trash2, X, Zap } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
   Alert,
@@ -53,6 +53,8 @@ export default function FoodScreen() {
   const [name, setName] = useState('');
   const [calInput, setCalInput] = useState('');
   const [proteinInput, setProteinInput] = useState('');
+  const [fatInput, setFatInput] = useState('');
+  const [carbsInput, setCarbsInput] = useState('');
 
   const [goalSheet, setGoalSheet] = useState(false);
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null);
@@ -81,29 +83,28 @@ export default function FoodScreen() {
 
   const totalCals = entries.reduce((s, e) => s + e.calories, 0);
   const totalProtein = entries.reduce((s, e) => s + e.protein_g, 0);
+  const totalFat = entries.reduce((s, e) => s + e.fat_g, 0);
+  const totalCarbs = entries.reduce((s, e) => s + e.carbs_g, 0);
 
   const clearForm = () => {
     setName('');
     setCalInput('');
     setProteinInput('');
+    setFatInput('');
+    setCarbsInput('');
   };
 
   const onAdd = async () => {
     const cal = Number(calInput);
     const prot = Number(proteinInput);
-    if (name.trim() === '') {
-      Alert.alert('Enter a food name');
-      return;
-    }
-    if (!Number.isFinite(cal) || cal < 0) {
-      Alert.alert('Enter valid calories');
-      return;
-    }
-    if (!Number.isFinite(prot) || prot < 0) {
-      Alert.alert('Enter valid protein');
-      return;
-    }
-    await addFoodEntry({ date: today, name: name.trim(), calories: cal, protein_g: prot });
+    const fat = fatInput.trim() === '' ? 0 : Number(fatInput);
+    const carbs = carbsInput.trim() === '' ? 0 : Number(carbsInput);
+    if (name.trim() === '') { Alert.alert('Enter a food name'); return; }
+    if (!Number.isFinite(cal) || cal < 0) { Alert.alert('Enter valid calories'); return; }
+    if (!Number.isFinite(prot) || prot < 0) { Alert.alert('Enter valid protein'); return; }
+    if (!Number.isFinite(fat) || fat < 0) { Alert.alert('Enter valid fat'); return; }
+    if (!Number.isFinite(carbs) || carbs < 0) { Alert.alert('Enter valid carbs'); return; }
+    await addFoodEntry({ date: today, name: name.trim(), calories: cal, protein_g: prot, fat_g: fat, carbs_g: carbs });
     hapticSuccess();
     Keyboard.dismiss();
     clearForm();
@@ -117,6 +118,8 @@ export default function FoodScreen() {
       name: r.name,
       calories: r.calories,
       protein_g: r.protein_g,
+      fat_g: r.fat_g,
+      carbs_g: r.carbs_g,
     });
     load();
   };
@@ -136,15 +139,15 @@ export default function FoodScreen() {
     ]);
   };
 
-  const onSaveEdit = async (id: number, patch: { name: string; calories: number; protein_g: number }) => {
+  const onSaveEdit = async (id: number, patch: { name: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }) => {
     await updateFoodEntry(id, patch);
     hapticSuccess();
     setEditEntry(null);
     load();
   };
 
-  const onSaveGoal = async (cal: number, prot: number) => {
-    await setNutritionGoal(today, { calorie_goal: cal, protein_goal: prot });
+  const onSaveGoal = async (cal: number, prot: number, fat: number, carbs: number) => {
+    await setNutritionGoal(today, { calorie_goal: cal, protein_goal: prot, fat_goal: fat, carbs_goal: carbs });
     hapticSuccess();
     setGoalSheet(false);
     load();
@@ -188,6 +191,24 @@ export default function FoodScreen() {
           unit="g"
           color={colors.teal}
         />
+        <View style={{ height: 14 }} />
+        <GoalRow
+          icon={<Droplets size={14} color={colors.amber} strokeWidth={2} />}
+          label="Fat"
+          value={totalFat}
+          goal={goal?.fat_goal ?? 0}
+          unit="g"
+          color={colors.amber}
+        />
+        <View style={{ height: 14 }} />
+        <GoalRow
+          icon={<Layers size={14} color={colors.purple} strokeWidth={2} />}
+          label="Carbs"
+          value={totalCarbs}
+          goal={goal?.carbs_goal ?? 0}
+          unit="g"
+          color={colors.purple}
+        />
       </Card>
 
       <SectionLabel>Log food</SectionLabel>
@@ -224,6 +245,30 @@ export default function FoodScreen() {
             />
           </View>
         </View>
+        <View style={styles.formRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.formLabel}>Fat (g)</Text>
+            <TextInput
+              value={fatInput}
+              onChangeText={setFatInput}
+              keyboardType="decimal-pad"
+              style={styles.input}
+              placeholder="7"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.formLabel}>Carbs (g)</Text>
+            <TextInput
+              value={carbsInput}
+              onChangeText={setCarbsInput}
+              keyboardType="decimal-pad"
+              style={styles.input}
+              placeholder="0"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+        </View>
         <Pressable
           onPress={onAdd}
           style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
@@ -251,7 +296,7 @@ export default function FoodScreen() {
                   {r.name}
                 </Text>
                 <Text style={styles.recentMeta}>
-                  {Math.round(r.calories)} cal · {Math.round(r.protein_g)}g
+                  {Math.round(r.calories)} cal · P {Math.round(r.protein_g)}g · F {Math.round(r.fat_g)}g · C {Math.round(r.carbs_g)}g
                 </Text>
               </Pressable>
             ))}
@@ -407,7 +452,7 @@ function SwipeableFoodRow({
           <Text style={styles.entryName} numberOfLines={1}>
             {entry.name}
           </Text>
-          <Text style={styles.entryMeta}>{Math.round(entry.protein_g)}g protein</Text>
+          <Text style={styles.entryMeta}>P {Math.round(entry.protein_g)}g · F {Math.round(entry.fat_g)}g · C {Math.round(entry.carbs_g)}g</Text>
         </View>
         <Text style={styles.entryCal}>
           {Math.round(entry.calories).toLocaleString()}
@@ -429,30 +474,32 @@ function GoalSheet({
   visible: boolean;
   current: NutritionGoal | null;
   onClose: () => void;
-  onSave: (cal: number, prot: number) => void;
+  onSave: (cal: number, prot: number, fat: number, carbs: number) => void;
 }) {
   const [calInput, setCalInput] = useState('');
   const [proteinInput, setProteinInput] = useState('');
+  const [fatInput, setFatInput] = useState('');
+  const [carbsInput, setCarbsInput] = useState('');
 
   React.useEffect(() => {
     if (visible && current) {
       setCalInput(String(Math.round(current.calorie_goal)));
       setProteinInput(String(Math.round(current.protein_goal)));
+      setFatInput(String(Math.round(current.fat_goal)));
+      setCarbsInput(String(Math.round(current.carbs_goal)));
     }
   }, [visible, current]);
 
   const save = () => {
     const c = Number(calInput);
     const p = Number(proteinInput);
-    if (!Number.isFinite(c) || c <= 0) {
-      Alert.alert('Enter a valid calorie goal');
-      return;
-    }
-    if (!Number.isFinite(p) || p <= 0) {
-      Alert.alert('Enter a valid protein goal');
-      return;
-    }
-    onSave(c, p);
+    const f = Number(fatInput);
+    const cb = Number(carbsInput);
+    if (!Number.isFinite(c) || c <= 0) { Alert.alert('Enter a valid calorie goal'); return; }
+    if (!Number.isFinite(p) || p <= 0) { Alert.alert('Enter a valid protein goal'); return; }
+    if (!Number.isFinite(f) || f < 0) { Alert.alert('Enter a valid fat goal'); return; }
+    if (!Number.isFinite(cb) || cb < 0) { Alert.alert('Enter a valid carbs goal'); return; }
+    onSave(c, p, f, cb);
   };
 
   return (
@@ -469,24 +516,26 @@ function GoalSheet({
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
-          <Text style={styles.formLabel}>Calorie goal</Text>
-          <TextInput
-            value={calInput}
-            onChangeText={setCalInput}
-            keyboardType="number-pad"
-            style={styles.input}
-            placeholder="2500"
-            placeholderTextColor={colors.textMuted}
-          />
-          <Text style={[styles.formLabel, { marginTop: 10 }]}>Protein goal (g)</Text>
-          <TextInput
-            value={proteinInput}
-            onChangeText={setProteinInput}
-            keyboardType="number-pad"
-            style={styles.input}
-            placeholder="180"
-            placeholderTextColor={colors.textMuted}
-          />
+          <View style={styles.formRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Calories</Text>
+              <TextInput value={calInput} onChangeText={setCalInput} keyboardType="number-pad" style={styles.input} placeholder="2500" placeholderTextColor={colors.textMuted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Protein (g)</Text>
+              <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="number-pad" style={styles.input} placeholder="180" placeholderTextColor={colors.textMuted} />
+            </View>
+          </View>
+          <View style={[styles.formRow, { marginTop: 10 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Fat (g)</Text>
+              <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="number-pad" style={styles.input} placeholder="80" placeholderTextColor={colors.textMuted} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Carbs (g)</Text>
+              <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="number-pad" style={styles.input} placeholder="250" placeholderTextColor={colors.textMuted} />
+            </View>
+          </View>
           <Pressable
             onPress={save}
             style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
@@ -508,17 +557,21 @@ function EditFoodSheet({
 }: {
   entry: FoodEntry | null;
   onClose: () => void;
-  onSave: (id: number, patch: { name: string; calories: number; protein_g: number }) => void;
+  onSave: (id: number, patch: { name: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }) => void;
 }) {
   const [name, setName] = useState('');
   const [calInput, setCalInput] = useState('');
   const [proteinInput, setProteinInput] = useState('');
+  const [fatInput, setFatInput] = useState('');
+  const [carbsInput, setCarbsInput] = useState('');
 
   React.useEffect(() => {
     if (entry) {
       setName(entry.name);
       setCalInput(String(entry.calories));
       setProteinInput(String(entry.protein_g));
+      setFatInput(String(entry.fat_g));
+      setCarbsInput(String(entry.carbs_g));
     }
   }, [entry]);
 
@@ -526,19 +579,14 @@ function EditFoodSheet({
     if (!entry) return;
     const c = Number(calInput);
     const p = Number(proteinInput);
-    if (name.trim() === '') {
-      Alert.alert('Enter a name');
-      return;
-    }
-    if (!Number.isFinite(c) || c < 0) {
-      Alert.alert('Enter valid calories');
-      return;
-    }
-    if (!Number.isFinite(p) || p < 0) {
-      Alert.alert('Enter valid protein');
-      return;
-    }
-    onSave(entry.id, { name: name.trim(), calories: c, protein_g: p });
+    const f = fatInput.trim() === '' ? 0 : Number(fatInput);
+    const cb = carbsInput.trim() === '' ? 0 : Number(carbsInput);
+    if (name.trim() === '') { Alert.alert('Enter a name'); return; }
+    if (!Number.isFinite(c) || c < 0) { Alert.alert('Enter valid calories'); return; }
+    if (!Number.isFinite(p) || p < 0) { Alert.alert('Enter valid protein'); return; }
+    if (!Number.isFinite(f) || f < 0) { Alert.alert('Enter valid fat'); return; }
+    if (!Number.isFinite(cb) || cb < 0) { Alert.alert('Enter valid carbs'); return; }
+    onSave(entry.id, { name: name.trim(), calories: c, protein_g: p, fat_g: f, carbs_g: cb });
   };
 
   return (
@@ -589,6 +637,28 @@ function EditFoodSheet({
               />
             </View>
           </View>
+          <View style={[styles.formRow, { marginTop: 10 }]}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Fat (g)</Text>
+              <TextInput
+                value={fatInput}
+                onChangeText={setFatInput}
+                keyboardType="decimal-pad"
+                style={styles.input}
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.formLabel}>Carbs (g)</Text>
+              <TextInput
+                value={carbsInput}
+                onChangeText={setCarbsInput}
+                keyboardType="decimal-pad"
+                style={styles.input}
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
+          </View>
           <Pressable
             onPress={save}
             style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
@@ -631,6 +701,8 @@ function DayHistorySheet({
 
   const totalCals = entries.reduce((s, e) => s + e.calories, 0);
   const totalProtein = entries.reduce((s, e) => s + e.protein_g, 0);
+  const totalFat = entries.reduce((s, e) => s + e.fat_g, 0);
+  const totalCarbs = entries.reduce((s, e) => s + e.carbs_g, 0);
 
   return (
     <Modal
@@ -648,8 +720,9 @@ function DayHistorySheet({
               {goal ? (
                 <Text style={styles.sheetSubtitle}>
                   {Math.round(totalCals).toLocaleString()} / {Math.round(goal.calorie_goal).toLocaleString()} cal
-                  {' · '}
-                  {Math.round(totalProtein)} / {Math.round(goal.protein_goal)}g protein
+                  {' · '}P {Math.round(totalProtein)} / {Math.round(goal.protein_goal)}g
+                  {' · '}F {Math.round(totalFat)} / {Math.round(goal.fat_goal)}g
+                  {' · '}C {Math.round(totalCarbs)} / {Math.round(goal.carbs_goal)}g
                 </Text>
               ) : null}
             </View>
@@ -670,7 +743,7 @@ function DayHistorySheet({
                     <Text style={styles.entryName} numberOfLines={1}>
                       {e.name}
                     </Text>
-                    <Text style={styles.entryMeta}>{Math.round(e.protein_g)}g protein</Text>
+                    <Text style={styles.entryMeta}>P {Math.round(e.protein_g)}g · F {Math.round(e.fat_g)}g · C {Math.round(e.carbs_g)}g</Text>
                   </View>
                   <Text style={styles.entryCal}>
                     {Math.round(e.calories).toLocaleString()}
@@ -704,9 +777,13 @@ function NutritionTrendChart({
 
   const maxCal = Math.max(1, ...data.map((d) => Math.max(d.calories, d.calorie_goal)));
   const maxProt = Math.max(1, ...data.map((d) => Math.max(d.protein_g, d.protein_goal)));
+  const maxFat = Math.max(1, ...data.map((d) => Math.max(d.fat_g, d.fat_goal)));
+  const maxCarbs = Math.max(1, ...data.map((d) => Math.max(d.carbs_g, d.carbs_goal)));
 
   const latestCalGoal = data[data.length - 1]?.calorie_goal ?? 0;
   const latestProtGoal = data[data.length - 1]?.protein_goal ?? 0;
+  const latestFatGoal = data[data.length - 1]?.fat_goal ?? 0;
+  const latestCarbsGoal = data[data.length - 1]?.carbs_goal ?? 0;
 
   const calChart = (
     <View>
@@ -817,6 +894,116 @@ function NutritionTrendChart({
           ))}
         </View>
       </View>
+    </View>
+  );
+
+  const fatChart = (
+    <View style={{ marginTop: 14 }}>
+      <View style={styles.chartHeader}>
+        <View style={styles.chartLabelRow}>
+          <Droplets size={12} color={colors.amber} strokeWidth={2} />
+          <Text style={styles.chartLabel}>Fat</Text>
+        </View>
+        <Text style={styles.chartGoal}>goal {Math.round(latestFatGoal)}g</Text>
+      </View>
+      <View>
+        <Svg width={chartWidth} height={chartHeight}>
+          {latestFatGoal > 0 ? (
+            <Line
+              x1={pad}
+              x2={chartWidth - pad}
+              y1={pad + (1 - latestFatGoal / maxFat) * (chartHeight - pad * 2)}
+              y2={pad + (1 - latestFatGoal / maxFat) * (chartHeight - pad * 2)}
+              stroke={colors.borderStrong}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+          ) : null}
+          {data.map((d, i) => {
+            const valH = (d.fat_g / maxFat) * (chartHeight - pad * 2);
+            const x = pad + i * barSlot + (barSlot - barWidth) / 2;
+            const y = chartHeight - pad - valH;
+            const over = d.fat_g > d.fat_goal && d.fat_goal > 0;
+            return (
+              <Rect
+                key={d.date}
+                x={x}
+                y={y}
+                width={barWidth}
+                height={Math.max(d.fat_g > 0 ? 2 : 0, valH)}
+                rx={1.5}
+                fill={over ? colors.warning : colors.amber}
+                opacity={d.fat_g === 0 ? 0.2 : 1}
+              />
+            );
+          })}
+        </Svg>
+        <View style={[styles.tapRow, { width: chartWidth, height: chartHeight }]}>
+          {data.map((d) => (
+            <Pressable
+              key={d.date}
+              onPress={() => onTapDay(d.date)}
+              style={{ width: barSlot, height: '100%' }}
+              hitSlop={4}
+            />
+          ))}
+        </View>
+      </View>
+    </View>
+  );
+
+  const carbsChart = (
+    <View style={{ marginTop: 14 }}>
+      <View style={styles.chartHeader}>
+        <View style={styles.chartLabelRow}>
+          <Layers size={12} color={colors.purple} strokeWidth={2} />
+          <Text style={styles.chartLabel}>Carbs</Text>
+        </View>
+        <Text style={styles.chartGoal}>goal {Math.round(latestCarbsGoal)}g</Text>
+      </View>
+      <View>
+        <Svg width={chartWidth} height={chartHeight}>
+          {latestCarbsGoal > 0 ? (
+            <Line
+              x1={pad}
+              x2={chartWidth - pad}
+              y1={pad + (1 - latestCarbsGoal / maxCarbs) * (chartHeight - pad * 2)}
+              y2={pad + (1 - latestCarbsGoal / maxCarbs) * (chartHeight - pad * 2)}
+              stroke={colors.borderStrong}
+              strokeWidth={1}
+              strokeDasharray="3 3"
+            />
+          ) : null}
+          {data.map((d, i) => {
+            const valH = (d.carbs_g / maxCarbs) * (chartHeight - pad * 2);
+            const x = pad + i * barSlot + (barSlot - barWidth) / 2;
+            const y = chartHeight - pad - valH;
+            const met = d.carbs_g >= d.carbs_goal && d.carbs_g > 0;
+            return (
+              <Rect
+                key={d.date}
+                x={x}
+                y={y}
+                width={barWidth}
+                height={Math.max(d.carbs_g > 0 ? 2 : 0, valH)}
+                rx={1.5}
+                fill={met ? colors.green : colors.purple}
+                opacity={d.carbs_g === 0 ? 0.2 : 1}
+              />
+            );
+          })}
+        </Svg>
+        <View style={[styles.tapRow, { width: chartWidth, height: chartHeight }]}>
+          {data.map((d) => (
+            <Pressable
+              key={d.date}
+              onPress={() => onTapDay(d.date)}
+              style={{ width: barSlot, height: '100%' }}
+              hitSlop={4}
+            />
+          ))}
+        </View>
+      </View>
       <View style={styles.xAxis}>
         {data.map((d, i) => (
           <Text
@@ -834,6 +1021,8 @@ function NutritionTrendChart({
     <View>
       {calChart}
       {protChart}
+      {fatChart}
+      {carbsChart}
     </View>
   );
 }

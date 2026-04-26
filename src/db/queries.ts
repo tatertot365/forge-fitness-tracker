@@ -776,25 +776,29 @@ export async function getCatchupItems(reference: Date = new Date()): Promise<Cat
 
 const DEFAULT_CALORIE_GOAL = 2500;
 const DEFAULT_PROTEIN_GOAL = 180;
+const DEFAULT_FAT_GOAL = 80;
+const DEFAULT_CARBS_GOAL = 250;
 
 export async function addFoodEntry(input: {
   date: string;
   name: string;
   calories: number;
   protein_g: number;
+  fat_g: number;
+  carbs_g: number;
 }): Promise<number> {
   const db = await getDb();
   const result = await db.runAsync(
-    `INSERT INTO food_entries (date, name, calories, protein_g, created_at)
-     VALUES (?, ?, ?, ?, ?)`,
-    [input.date, input.name.trim(), input.calories, input.protein_g, new Date().toISOString()],
+    `INSERT INTO food_entries (date, name, calories, protein_g, fat_g, carbs_g, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [input.date, input.name.trim(), input.calories, input.protein_g, input.fat_g, input.carbs_g, new Date().toISOString()],
   );
   return result.lastInsertRowId as number;
 }
 
 export async function updateFoodEntry(
   id: number,
-  patch: { name?: string; calories?: number; protein_g?: number },
+  patch: { name?: string; calories?: number; protein_g?: number; fat_g?: number; carbs_g?: number },
 ): Promise<void> {
   const db = await getDb();
   const row = await db.getFirstAsync<FoodEntry>(
@@ -803,11 +807,13 @@ export async function updateFoodEntry(
   );
   if (!row) return;
   await db.runAsync(
-    `UPDATE food_entries SET name = ?, calories = ?, protein_g = ? WHERE id = ?`,
+    `UPDATE food_entries SET name = ?, calories = ?, protein_g = ?, fat_g = ?, carbs_g = ? WHERE id = ?`,
     [
       patch.name !== undefined ? patch.name.trim() : row.name,
       patch.calories !== undefined ? patch.calories : row.calories,
       patch.protein_g !== undefined ? patch.protein_g : row.protein_g,
+      patch.fat_g !== undefined ? patch.fat_g : row.fat_g,
+      patch.carbs_g !== undefined ? patch.carbs_g : row.carbs_g,
       id,
     ],
   );
@@ -832,6 +838,8 @@ export async function getFoodRecents(limit: number = 8): Promise<FoodRecent[]> {
     `SELECT name,
             calories,
             protein_g,
+            fat_g,
+            carbs_g,
             created_at AS last_used_at
      FROM food_entries fe
      WHERE fe.id = (
@@ -853,25 +861,29 @@ export async function getNutritionGoalForDate(date: string): Promise<NutritionGo
     [date],
   );
   if (row) return row;
-  return { date, calorie_goal: DEFAULT_CALORIE_GOAL, protein_goal: DEFAULT_PROTEIN_GOAL };
+  return { date, calorie_goal: DEFAULT_CALORIE_GOAL, protein_goal: DEFAULT_PROTEIN_GOAL, fat_goal: DEFAULT_FAT_GOAL, carbs_goal: DEFAULT_CARBS_GOAL };
 }
 
 export async function setNutritionGoal(
   date: string,
-  patch: { calorie_goal?: number; protein_goal?: number },
+  patch: { calorie_goal?: number; protein_goal?: number; fat_goal?: number; carbs_goal?: number },
 ): Promise<void> {
   const current = await getNutritionGoalForDate(date);
   const next = {
     calorie_goal: patch.calorie_goal ?? current.calorie_goal,
     protein_goal: patch.protein_goal ?? current.protein_goal,
+    fat_goal: patch.fat_goal ?? current.fat_goal,
+    carbs_goal: patch.carbs_goal ?? current.carbs_goal,
   };
   const db = await getDb();
   await db.runAsync(
-    `INSERT INTO nutrition_goals (date, calorie_goal, protein_goal) VALUES (?, ?, ?)
+    `INSERT INTO nutrition_goals (date, calorie_goal, protein_goal, fat_goal, carbs_goal) VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(date) DO UPDATE SET
        calorie_goal = excluded.calorie_goal,
-       protein_goal = excluded.protein_goal`,
-    [date, next.calorie_goal, next.protein_goal],
+       protein_goal = excluded.protein_goal,
+       fat_goal = excluded.fat_goal,
+       carbs_goal = excluded.carbs_goal`,
+    [date, next.calorie_goal, next.protein_goal, next.fat_goal, next.carbs_goal],
   );
 }
 
@@ -890,10 +902,12 @@ export async function getDailyNutritionTotals(
   const latest = dates[dates.length - 1];
 
   const [rows, allGoals] = await Promise.all([
-    db.getAllAsync<{ date: string; calories: number; protein_g: number }>(
+    db.getAllAsync<{ date: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }>(
       `SELECT date,
               COALESCE(SUM(calories), 0) AS calories,
-              COALESCE(SUM(protein_g), 0) AS protein_g
+              COALESCE(SUM(protein_g), 0) AS protein_g,
+              COALESCE(SUM(fat_g), 0) AS fat_g,
+              COALESCE(SUM(carbs_g), 0) AS carbs_g
        FROM food_entries
        WHERE date >= ?
        GROUP BY date`,
@@ -920,8 +934,12 @@ export async function getDailyNutritionTotals(
       date: d,
       calories: agg?.calories ?? 0,
       protein_g: agg?.protein_g ?? 0,
+      fat_g: agg?.fat_g ?? 0,
+      carbs_g: agg?.carbs_g ?? 0,
       calorie_goal: goal.calorie_goal,
       protein_goal: goal.protein_goal,
+      fat_goal: goal.fat_goal ?? DEFAULT_FAT_GOAL,
+      carbs_goal: goal.carbs_goal ?? DEFAULT_CARBS_GOAL,
     });
   }
   return out;

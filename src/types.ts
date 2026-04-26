@@ -66,6 +66,8 @@ export type FoodEntry = {
   name: string;
   calories: number;
   protein_g: number;
+  fat_g: number;
+  carbs_g: number;
   created_at: string;
 };
 
@@ -73,12 +75,16 @@ export type NutritionGoal = {
   date: string;
   calorie_goal: number;
   protein_goal: number;
+  fat_goal: number;
+  carbs_goal: number;
 };
 
 export type FoodRecent = {
   name: string;
   calories: number;
   protein_g: number;
+  fat_g: number;
+  carbs_g: number;
   last_used_at: string;
 };
 
@@ -86,8 +92,12 @@ export type DailyNutritionTotal = {
   date: string;
   calories: number;
   protein_g: number;
+  fat_g: number;
+  carbs_g: number;
   calorie_goal: number;
   protein_goal: number;
+  fat_goal: number;
+  carbs_goal: number;
 };
 
 export type Measurement = {

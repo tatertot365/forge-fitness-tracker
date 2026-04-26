@@ -306,7 +306,7 @@ export default function ExerciseDetailScreen() {
                     <Text style={[styles.setNum, { width: 32 }]}>{r.setNumber}</Text>
                     {exercise?.type === 'bodyweight' ? (
                       <View style={[styles.bwBadge, { flex: 1 }]}>
-                        <Text style={styles.bwBadgeText}>Body weight</Text>
+                        <Text style={styles.bwBadgeText}>Bodyweight</Text>
                       </View>
                     ) : (
                       <TextInput
@@ -602,7 +602,7 @@ function EditExerciseSheet({
                       type === t && styles.segmentTextActive,
                     ]}
                   >
-                    {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Body weight'}
+                    {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Bodyweight'}
                   </Text>
                 </Pressable>
               ))}

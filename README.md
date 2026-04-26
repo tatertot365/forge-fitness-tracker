@@ -21,7 +21,7 @@ A personal training companion built with React Native and Expo. Forge runs entir
   - Normal — weight + reps
   - Drop set — primary weight/reps + drop weight/reps in one row
   - Superset — link two exercises and navigate between them with a tap
-  - Bodyweight — reps only, no weight column; displayed with a "Body weight" badge
+  - Bodyweight — reps only, no weight column; displayed with a "Bodyweight" badge
 - **Beat this** — shows your best set from the last time you did that exercise; tap to see full history with a sparkline
 - **Rest timer** — auto-starts on set completion, counts up in the background
 - **Exercise management** — add exercises from a searchable library or create new ones; set name, sets, rep range, notes, and type; duplicate or delete from the edit sheet

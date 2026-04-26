@@ -304,7 +304,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                         ]}
                       >
                         <Text style={[styles.segmentText, type === t && styles.segmentTextActive]}>
-                          {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Body weight'}
+                          {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Bodyweight'}
                         </Text>
                       </Pressable>
                     ))}

@@ -31,10 +31,21 @@ yarn-error.*
 *.pem
 
 # local env files
+.env
 .env*.local
 
 # typescript
 *.tsbuildinfo
+
+# editor
+.vscode/
+.idea/
+
+# Supabase
+supabase/.temp/
+
+# Claude Code
+.claude/settings.local.json
 
 # generated native folders
 /ios

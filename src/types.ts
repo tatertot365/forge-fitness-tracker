@@ -30,6 +30,7 @@ export type Exercise = {
   muscle_group: MuscleGroup;
   name: string;
   sets: number;
+  warmup_sets: number;
   rep_range: string;
   notes: string | null;
   sort_order: number;

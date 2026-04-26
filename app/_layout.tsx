@@ -18,7 +18,7 @@ export default function RootLayout() {
           <Stack.Screen name="exercise/[id]" />
           <Stack.Screen name="plan" />
         </Stack>
-        <StatusBar style="dark" />
+        <StatusBar style="light" />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

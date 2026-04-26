@@ -43,6 +43,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
 
   const [name, setName] = useState('');
   const [sets, setSets] = useState(3);
+  const [warmupSets, setWarmupSets] = useState(0);
   const [repRange, setRepRange] = useState('8–12');
   const [notes, setNotes] = useState('');
   const [type, setType] = useState<ExerciseType>('normal');
@@ -60,6 +61,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
     setSelected(null);
     setName('');
     setSets(3);
+    setWarmupSets(0);
     setRepRange('8–12');
     setNotes('');
     setType('normal');
@@ -76,6 +78,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
     setName(ex.name);
     setType(ex.type === 'superset' ? 'normal' : (ex.type as ExerciseType));
     setSets(ex.sets ?? 3);
+    setWarmupSets(ex.warmup_sets ?? 0);
     setRepRange(ex.rep_range ?? '8–12');
     setNotes('');
   };
@@ -87,6 +90,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
     if (m === 'new') {
       setName('');
       setSets(3);
+      setWarmupSets(0);
       setRepRange('8–12');
       setNotes('');
       setType('normal');
@@ -107,6 +111,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
         muscle_group: muscleGroup,
         name: trimmed,
         sets,
+        warmup_sets: warmupSets,
         rep_range: repRange.trim() || '8–12',
         notes: notes.trim() ? notes.trim() : null,
         accent_color: muscleAccent[muscleGroup] ?? colors.primary,
@@ -266,6 +271,23 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                     <Text style={styles.stepperValue}>{sets}</Text>
                     <Pressable
                       onPress={() => setSets((s) => Math.min(10, s + 1))}
+                      style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+                    >
+                      <Plus size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <Text style={styles.fieldLabel}>Warmup sets</Text>
+                  <View style={styles.stepperRow}>
+                    <Pressable
+                      onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
+                      style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+                    >
+                      <Minus size={16} color={colors.text} />
+                    </Pressable>
+                    <Text style={styles.stepperValue}>{warmupSets}</Text>
+                    <Pressable
+                      onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
                       style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
                     >
                       <Plus size={16} color={colors.text} />

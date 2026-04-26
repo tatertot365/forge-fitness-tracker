@@ -79,6 +79,7 @@ export async function updateExercise(
   patch: {
     name?: string;
     sets?: number;
+    warmup_sets?: number;
     rep_range?: string;
     notes?: string | null;
     type?: ExerciseType;
@@ -89,11 +90,12 @@ export async function updateExercise(
   if (!ex) return;
   await db.runAsync(
     `UPDATE exercises
-     SET name = ?, sets = ?, rep_range = ?, notes = ?, type = ?
+     SET name = ?, sets = ?, warmup_sets = ?, rep_range = ?, notes = ?, type = ?
      WHERE id = ?`,
     [
       patch.name ?? ex.name,
       patch.sets ?? ex.sets,
+      patch.warmup_sets !== undefined ? patch.warmup_sets : ex.warmup_sets,
       patch.rep_range ?? ex.rep_range,
       patch.notes !== undefined ? patch.notes : ex.notes,
       patch.type ?? ex.type,
@@ -165,6 +167,7 @@ export async function createExercise(input: {
   muscle_group: MuscleGroup;
   name: string;
   sets: number;
+  warmup_sets?: number;
   rep_range: string;
   notes?: string | null;
   accent_color: string;
@@ -192,13 +195,14 @@ export async function createExercise(input: {
     insertAt = (tail?.max_order ?? -1) + 1;
   }
   const result = await db.runAsync(
-    `INSERT INTO exercises (day, muscle_group, name, sets, rep_range, notes, sort_order, accent_color, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO exercises (day, muscle_group, name, sets, warmup_sets, rep_range, notes, sort_order, accent_color, type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.day,
       input.muscle_group,
       input.name,
       input.sets,
+      input.warmup_sets ?? 0,
       input.rep_range,
       input.notes ?? null,
       insertAt,
@@ -523,6 +527,18 @@ export async function findExercisesByName(name: string): Promise<Exercise[]> {
   return db.getAllAsync<Exercise>(
     'SELECT * FROM exercises WHERE LOWER(name) = LOWER(?)',
     [name.trim()],
+  );
+}
+
+export async function deleteSetLog(
+  sessionId: number,
+  exerciseId: number,
+  setNumber: number,
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'DELETE FROM set_logs WHERE session_id = ? AND exercise_id = ? AND set_number = ?',
+    [sessionId, exerciseId, setNumber],
   );
 }
 
@@ -928,6 +944,8 @@ export async function getDailyNutritionTotals(
       date: d,
       calorie_goal: DEFAULT_CALORIE_GOAL,
       protein_goal: DEFAULT_PROTEIN_GOAL,
+      fat_goal: DEFAULT_FAT_GOAL,
+      carbs_goal: DEFAULT_CARBS_GOAL,
     };
     const agg = byDate.get(d);
     out.push({

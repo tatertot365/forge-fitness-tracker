@@ -23,6 +23,7 @@ import { SetCheckButton } from '../../src/components/SetCheckButton';
 import {
   bestSet,
   deleteExercise,
+  deleteSetLog,
   duplicateExercise,
   getAllUniqueExercises,
   getExercise,
@@ -52,6 +53,12 @@ type Row = {
   completed: boolean;
 };
 
+type WarmupRow = {
+  setNumber: number; // negative: -1 = W1, -2 = W2, etc.
+  weight: string;
+  reps: string;
+};
+
 export default function ExerciseDetailScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string; sessionId?: string; date?: string }>();
@@ -62,6 +69,7 @@ export default function ExerciseDetailScreen() {
   const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
+  const [warmupRows, setWarmupRows] = useState<WarmupRow[]>([]);
   const [beatThis, setBeatThis] = useState<string | null>(null);
   const [history, setHistory] = useState<ExerciseSessionHistory[]>([]);
   const [editOpen, setEditOpen] = useState(false);
@@ -102,8 +110,35 @@ export default function ExerciseDetailScreen() {
           : null,
     );
 
+    // Split warmup (negative set_number) from working logs
+    const warmupLogs = currentLogs
+      .filter((l) => l.set_number < 0)
+      .sort((a, b) => b.set_number - a.set_number); // -1 first (W1), -2 second (W2)…
+    const workingLogs = currentLogs.filter((l) => l.set_number > 0);
+
+    if (warmupLogs.length > 0) {
+      setWarmupRows(
+        warmupLogs.map((l) => ({
+          setNumber: l.set_number,
+          weight: l.weight_lb != null ? String(l.weight_lb) : '',
+          reps: l.reps != null ? String(l.reps) : '',
+        })),
+      );
+    } else if (ex.warmup_sets > 0) {
+      // Auto-seed rows from the exercise default — not saved to DB until the user types
+      setWarmupRows(
+        Array.from({ length: ex.warmup_sets }, (_, i) => ({
+          setNumber: -(i + 1),
+          weight: '',
+          reps: '',
+        })),
+      );
+    } else {
+      setWarmupRows([]);
+    }
+
     const currentBySet = new Map<number, SetLog>();
-    for (const l of currentLogs) currentBySet.set(l.set_number, l);
+    for (const l of workingLogs) currentBySet.set(l.set_number, l);
 
     const nextRows: Row[] = [];
     for (let i = 1; i <= ex.sets; i++) {
@@ -177,6 +212,38 @@ export default function ExerciseDetailScreen() {
     );
   };
 
+  const updateWarmupRow = (idx: number, patch: Partial<WarmupRow>) => {
+    setWarmupRows((prev) => {
+      const next = prev.slice();
+      next[idx] = { ...next[idx], ...patch };
+      return next;
+    });
+  };
+
+  const persistWarmup = async (idx: number) => {
+    if (!sessionId || !exercise) return;
+    const r = warmupRows[idx];
+    const toNum = (s: string) => (s.trim() === '' ? null : Number(s));
+    await upsertSetLog(sessionId, exercise.id, r.setNumber, {
+      weight_lb: toNum(r.weight),
+      reps: toNum(r.reps),
+      completed: 0,
+    });
+  };
+
+  const addWarmupRow = () => {
+    const minNum = warmupRows.length > 0 ? Math.min(...warmupRows.map((r) => r.setNumber)) : 0;
+    setWarmupRows((prev) => [...prev, { setNumber: minNum - 1, weight: '', reps: '' }]);
+  };
+
+  const removeWarmupRow = async (idx: number) => {
+    const r = warmupRows[idx];
+    if (sessionId && exercise) {
+      await deleteSetLog(sessionId, exercise.id, r.setNumber);
+    }
+    setWarmupRows((prev) => prev.filter((_, i) => i !== idx));
+  };
+
   const toggleComplete = async (idx: number) => {
     const next = !rows[idx].completed;
     updateRow(idx, { completed: next });
@@ -234,7 +301,12 @@ export default function ExerciseDetailScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={0}
       >
-        <View style={styles.body}>
+        <ScrollView
+          style={styles.body}
+          contentContainerStyle={styles.bodyContent}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
           <Pressable
             onPress={() => setHistoryOpen(true)}
             style={({ pressed }) => pressed && { opacity: 0.85 }}
@@ -279,6 +351,81 @@ export default function ExerciseDetailScreen() {
           {exercise?.notes ? (
             <Text style={styles.notes}>{exercise.notes}</Text>
           ) : null}
+
+          <SectionLabel>Warmup</SectionLabel>
+
+          <View style={styles.tableHeader}>
+            <Text style={[styles.headCell, { width: 32 }]}>Set</Text>
+            {exercise?.type !== 'bodyweight' ? (
+              <Text style={[styles.headCell, { flex: 1 }]}>Weight (lb)</Text>
+            ) : (
+              <View style={{ flex: 1 }} />
+            )}
+            <Text style={[styles.headCell, { flex: 1 }]}>Reps</Text>
+            <View style={{ width: 32 }} />
+          </View>
+
+          <Card padded={false}>
+            {warmupRows.map((r, idx) => {
+              const isLast = idx === warmupRows.length - 1;
+              return (
+                <View key={r.setNumber} style={!isLast && styles.rowDivider}>
+                  <View style={styles.tableRow}>
+                    <Text style={[styles.setNum, { width: 32, color: colors.primary }]}>
+                      W{idx + 1}
+                    </Text>
+                    {exercise?.type === 'bodyweight' ? (
+                      <View style={[styles.bwBadge, { flex: 1 }]}>
+                        <Text style={styles.bwBadgeText}>Bodyweight</Text>
+                      </View>
+                    ) : (
+                      <TextInput
+                        value={r.weight}
+                        onChangeText={(t) => updateWarmupRow(idx, { weight: t })}
+                        onBlur={() => persistWarmup(idx)}
+                        keyboardType="decimal-pad"
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="—"
+                        placeholderTextColor={colors.textMuted}
+                        returnKeyType="next"
+                      />
+                    )}
+                    <TextInput
+                      value={r.reps}
+                      onChangeText={(t) => updateWarmupRow(idx, { reps: t })}
+                      onBlur={() => persistWarmup(idx)}
+                      keyboardType="number-pad"
+                      style={[styles.input, { flex: 1 }]}
+                      placeholder="—"
+                      placeholderTextColor={colors.textMuted}
+                      returnKeyType="done"
+                    />
+                    <Pressable
+                      onPress={() => removeWarmupRow(idx)}
+                      hitSlop={8}
+                      style={({ pressed }) => [
+                        { width: 32, alignItems: 'center' },
+                        pressed && { opacity: 0.5 },
+                      ]}
+                    >
+                      <X size={14} color={colors.textMuted} />
+                    </Pressable>
+                  </View>
+                </View>
+              );
+            })}
+            <Pressable
+              onPress={addWarmupRow}
+              style={({ pressed }) => [
+                styles.addWarmupRow,
+                warmupRows.length > 0 && styles.addWarmupRowBorder,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Plus size={13} color={colors.primary} strokeWidth={2.5} />
+              <Text style={styles.addWarmupText}>Add warmup set</Text>
+            </Pressable>
+          </Card>
 
           <SectionLabel>Sets</SectionLabel>
 
@@ -378,7 +525,7 @@ export default function ExerciseDetailScreen() {
           >
             <Text style={styles.saveBtnText}>Save & back</Text>
           </Pressable>
-        </View>
+        </ScrollView>
       </KeyboardAvoidingView>
 
       {exercise ? (
@@ -435,6 +582,7 @@ function EditExerciseSheet({
 }) {
   const [name, setName] = useState(exercise.name);
   const [sets, setSets] = useState(exercise.sets);
+  const [warmupSets, setWarmupSets] = useState(exercise.warmup_sets);
   const [repRange, setRepRange] = useState(exercise.rep_range);
   const [notes, setNotes] = useState(exercise.notes ?? '');
   const [type, setType] = useState<ExerciseType>(exercise.type);
@@ -462,6 +610,7 @@ function EditExerciseSheet({
       await updateExercise(exercise.id, {
         name: trimmedName,
         sets,
+        warmup_sets: warmupSets,
         rep_range: repRange.trim() || exercise.rep_range,
         notes: notes.trim() ? notes.trim() : null,
         type,
@@ -559,6 +708,23 @@ function EditExerciseSheet({
               <Text style={styles.stepperValue}>{sets}</Text>
               <Pressable
                 onPress={() => setSets((s) => Math.min(10, s + 1))}
+                style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+              >
+                <Plus size={16} color={colors.text} />
+              </Pressable>
+            </View>
+
+            <Text style={styles.fieldLabel}>Warmup sets</Text>
+            <View style={styles.stepperRow}>
+              <Pressable
+                onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
+                style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+              >
+                <Minus size={16} color={colors.text} />
+              </Pressable>
+              <Text style={styles.stepperValue}>{warmupSets}</Text>
+              <Pressable
+                onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
                 style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
               >
                 <Plus size={16} color={colors.text} />
@@ -714,7 +880,10 @@ const styles = StyleSheet.create({
   body: {
     flex: 1,
     paddingHorizontal: 16,
+  },
+  bodyContent: {
     paddingTop: 8,
+    paddingBottom: 32,
   },
 
   beatCard: {
@@ -791,6 +960,23 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 8,
     backgroundColor: colors.background,
+  },
+
+  addWarmupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    paddingHorizontal: 16,
+  },
+  addWarmupRowBorder: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
+  addWarmupText: {
+    fontSize: 13,
+    color: colors.primary,
+    fontWeight: '600',
   },
 
   restWrap: {

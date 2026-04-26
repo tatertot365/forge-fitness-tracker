@@ -134,6 +134,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
   await addColumnIfMissing(db, 'set_logs', 'drop_reps', 'INTEGER');
   await addColumnIfMissing(db, 'measurements', 'weight_lb', 'REAL');
   await addColumnIfMissing(db, 'measurements', 'body_fat_pct', 'REAL');
+  await addColumnIfMissing(db, 'exercises', 'warmup_sets', 'INTEGER NOT NULL DEFAULT 0');
   await addColumnIfMissing(db, 'food_entries', 'fat_g', 'REAL NOT NULL DEFAULT 0');
   await addColumnIfMissing(db, 'food_entries', 'carbs_g', 'REAL NOT NULL DEFAULT 0');
   await addColumnIfMissing(db, 'nutrition_goals', 'fat_goal', 'REAL NOT NULL DEFAULT 80');

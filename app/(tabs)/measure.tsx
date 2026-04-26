@@ -92,7 +92,6 @@ export default function MeasureScreen() {
     setLatest(l);
     setPrior(p);
     setHistory(h);
-    if (l) setInputs(measurementToInputs(l));
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -115,6 +114,7 @@ export default function MeasureScreen() {
     }
     await upsertMeasurement(todayISO(), parsed);
     Keyboard.dismiss();
+    setInputs(EMPTY_INPUTS);
     load();
   };
 

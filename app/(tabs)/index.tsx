@@ -1,6 +1,7 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { AlertTriangle, Clock, Heart, Pencil, Plus, X, XCircle } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
+import Svg, { Circle as SvgCircle } from 'react-native-svg';
 import {
   Alert,
   Dimensions,
@@ -30,13 +31,17 @@ import {
   getCompletedSetCountForSession,
   getDayPlans,
   getExercisesByDay,
+  getFoodEntriesForDate,
   getMuscleGroupSetsThisWeek,
+  getNutritionGoalForDate,
   getPhase,
   getSessionsForWeek,
   getSkippedDaysThisWeek,
   getWeekSetLogCounts,
   isHealthKitAsked,
+  latestMeasurement,
   markHealthKitAsked,
+  measurementOneWeekAgo,
   setCardioInfo,
   setPhase as saveBasePhase,
   skipCatchupItem,
@@ -51,8 +56,10 @@ import {
   DAYS,
   MUSCLE_LABEL,
   type CatchupItem,
+  type DailyNutritionTotal,
   type Day,
   type DayPlan,
+  type Measurement,
   type MuscleGroup,
   type Phase,
   type Session,
@@ -82,9 +89,11 @@ export default function TodayScreen() {
   const [weekLogCounts, setWeekLogCounts] = useState<Record<Day, number> | null>(null);
   const [cardioInfo, setCardioInfo] = useState<CardioInfo>({ name: 'Incline treadmill walk', description: '12° / 3 mph / 20–30 min' });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
+  const [todayNutrition, setTodayNutrition] = useState<DailyNutritionTotal | null>(null);
+  const [bodyStats, setBodyStats] = useState<{ latest: Measurement | null; prev: Measurement | null }>({ latest: null, prev: null });
 
   const load = useCallback(async () => {
-    const [p, c, w, cc, ex, plans, hkAsked, skips, logCounts, ci, mgSets] = await Promise.all([
+    const [p, c, w, cc, ex, plans, hkAsked, skips, logCounts, ci, mgSets, foodEntries, nutritionGoal, latestM, prevM] = await Promise.all([
       getPhase(),
       getCatchupItems(),
       getSessionsForWeek(),
@@ -96,6 +105,10 @@ export default function TodayScreen() {
       getWeekSetLogCounts(),
       getCardioInfo(),
       getMuscleGroupSetsThisWeek(),
+      getFoodEntriesForDate(todayDate),
+      getNutritionGoalForDate(todayDate),
+      latestMeasurement(),
+      measurementOneWeekAgo(),
     ]);
     const todaySessionId = w[today]?.id;
     const completedSets = todaySessionId
@@ -114,6 +127,18 @@ export default function TodayScreen() {
     setWeekLogCounts(logCounts);
     setCardioInfo(ci);
     setMuscleGroupSets(mgSets);
+    setTodayNutrition({
+      date: todayDate,
+      calories: foodEntries.reduce((s, e) => s + e.calories, 0),
+      protein_g: foodEntries.reduce((s, e) => s + e.protein_g, 0),
+      fat_g: foodEntries.reduce((s, e) => s + e.fat_g, 0),
+      carbs_g: foodEntries.reduce((s, e) => s + e.carbs_g, 0),
+      calorie_goal: nutritionGoal.calorie_goal,
+      protein_goal: nutritionGoal.protein_goal,
+      fat_goal: nutritionGoal.fat_goal,
+      carbs_goal: nutritionGoal.carbs_goal,
+    });
+    setBodyStats({ latest: latestM, prev: prevM });
   }, [today]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -230,6 +255,16 @@ export default function TodayScreen() {
           ) : null}
         </View>
       </Pressable>
+
+      {/* ── At-a-glance cards ── */}
+      <MacroRingCard
+        data={todayNutrition}
+        onPress={() => router.push('/food' as any)}
+      />
+      <BodyStatsCard
+        data={bodyStats}
+        onPress={() => router.push('/measure' as any)}
+      />
 
       {/* ── Apple Health connect ── */}
       {showHealthConnect ? (
@@ -625,6 +660,176 @@ function MuscleGroupGrid({ sets }: { sets: Partial<Record<MuscleGroup, number>> 
   );
 }
 
+// ── Macro ring card ───────────────────────────────────────────────────────────
+
+const RING_SIZE = 56;
+const RING_STROKE = 5;
+const RING_RADIUS = (RING_SIZE - RING_STROKE) / 2;
+const RING_CIRC = 2 * Math.PI * RING_RADIUS;
+
+function MacroRingCard({
+  data,
+  onPress,
+}: {
+  data: DailyNutritionTotal | null;
+  onPress: () => void;
+}) {
+  const macros = [
+    { key: 'cal', label: 'Kcal', value: data?.calories ?? 0, goal: data?.calorie_goal ?? 2500, color: colors.primary },
+    { key: 'pro', label: 'Protein', value: data?.protein_g ?? 0, goal: data?.protein_goal ?? 180, color: colors.purple },
+    { key: 'fat', label: 'Fat', value: data?.fat_g ?? 0, goal: data?.fat_goal ?? 80, color: colors.amber },
+    { key: 'carb', label: 'Carbs', value: data?.carbs_g ?? 0, goal: data?.carbs_goal ?? 250, color: colors.teal },
+  ];
+
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+      <Card style={{ marginTop: 12 }}>
+        <View style={styles.glanceHeader}>
+          <Text style={styles.glanceTitle}>Today's nutrition</Text>
+          <Text style={styles.glanceNav}>Food →</Text>
+        </View>
+        <View style={styles.macroRingRow}>
+          {macros.map((m) => {
+            const pct = m.goal > 0 ? Math.min(1, m.value / m.goal) : 0;
+            const filled = pct * RING_CIRC;
+            const displayVal = m.value >= 1000
+              ? `${(m.value / 1000).toFixed(1)}k`
+              : String(Math.round(m.value));
+            const displayGoal = m.goal >= 1000
+              ? `${(m.goal / 1000).toFixed(1)}k`
+              : String(m.goal);
+            return (
+              <View key={m.key} style={styles.macroCell}>
+                <View style={{ width: RING_SIZE, height: RING_SIZE }}>
+                  <Svg width={RING_SIZE} height={RING_SIZE}>
+                    <SvgCircle
+                      cx={RING_SIZE / 2}
+                      cy={RING_SIZE / 2}
+                      r={RING_RADIUS}
+                      stroke="rgba(255,255,255,0.10)"
+                      strokeWidth={RING_STROKE}
+                      fill="none"
+                    />
+                    <SvgCircle
+                      cx={RING_SIZE / 2}
+                      cy={RING_SIZE / 2}
+                      r={RING_RADIUS}
+                      stroke={m.color}
+                      strokeWidth={RING_STROKE}
+                      fill="none"
+                      strokeDasharray={`${filled} ${RING_CIRC}`}
+                      strokeLinecap="round"
+                      rotation={-90}
+                      origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
+                    />
+                  </Svg>
+                  <View style={[StyleSheet.absoluteFillObject, styles.ringCenter]}>
+                    <Text style={[styles.ringValue, { color: m.color }]}>{displayVal}</Text>
+                  </View>
+                </View>
+                <Text style={styles.ringLabel}>{m.label}</Text>
+                <Text style={styles.ringGoal}>/ {displayGoal}</Text>
+              </View>
+            );
+          })}
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
+// ── Body stats card ───────────────────────────────────────────────────────────
+
+function BodyStatsCard({
+  data,
+  onPress,
+}: {
+  data: { latest: Measurement | null; prev: Measurement | null };
+  onPress: () => void;
+}) {
+  const { latest, prev } = data;
+
+  const weightDelta =
+    latest?.weight_lb != null && prev?.weight_lb != null
+      ? +(latest.weight_lb - prev.weight_lb).toFixed(1)
+      : null;
+  const bfDelta =
+    latest?.body_fat_pct != null && prev?.body_fat_pct != null
+      ? +(latest.body_fat_pct - prev.body_fat_pct).toFixed(1)
+      : null;
+  const sw =
+    latest?.shoulders_in != null && latest?.waist_in != null
+      ? (latest.shoulders_in / latest.waist_in).toFixed(2)
+      : null;
+
+  return (
+    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+      <Card style={{ marginTop: 10 }}>
+        <View style={styles.glanceHeader}>
+          <Text style={styles.glanceTitle}>Body stats</Text>
+          <Text style={styles.glanceNav}>Measure →</Text>
+        </View>
+        <View style={styles.statRow}>
+          <StatCell
+            label="Weight"
+            value={latest?.weight_lb != null ? `${latest.weight_lb} lb` : '—'}
+            delta={weightDelta}
+            invertGood={false}
+          />
+          <View style={styles.statDivider} />
+          <StatCell
+            label="Body fat"
+            value={latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : '—'}
+            delta={bfDelta}
+            invertGood
+          />
+          <View style={styles.statDivider} />
+          <StatCell
+            label="S:W ratio"
+            value={sw ?? '—'}
+            delta={null}
+          />
+        </View>
+      </Card>
+    </Pressable>
+  );
+}
+
+function StatCell({
+  label,
+  value,
+  delta,
+  invertGood = false,
+}: {
+  label: string;
+  value: string;
+  delta: number | null;
+  invertGood?: boolean;
+}) {
+  const isPositive = delta !== null && delta > 0;
+  const isGood = invertGood ? !isPositive : isPositive;
+  const deltaColor =
+    delta === null || delta === 0
+      ? colors.textMuted
+      : isGood
+        ? colors.green
+        : colors.red;
+
+  return (
+    <View style={styles.statCell}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      {delta !== null && delta !== 0 ? (
+        <Text style={[styles.statDelta, { color: deltaColor }]}>
+          {delta > 0 ? '+' : ''}{delta}
+        </Text>
+      ) : (
+        <Text style={[styles.statDelta, { color: colors.textMuted }]}>—</Text>
+      )}
+    </View>
+  );
+}
+
 // ── Styles ────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
@@ -784,6 +989,89 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 2,
+    fontVariant: ['tabular-nums'],
+  },
+
+  // At-a-glance shared
+  glanceHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 14,
+  },
+  glanceTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+  },
+  glanceNav: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+
+  // Macro rings
+  macroRingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  macroCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 5,
+  },
+  ringCenter: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ringValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+  },
+  ringLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+  },
+  ringGoal: {
+    fontSize: 10,
+    color: colors.textMuted,
+    fontVariant: ['tabular-nums'],
+  },
+
+  // Body stats
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  statDivider: {
+    width: StyleSheet.hairlineWidth,
+    height: 44,
+    backgroundColor: colors.border,
+    marginHorizontal: 4,
+  },
+  statCell: {
+    flex: 1,
+    alignItems: 'center',
+    gap: 3,
+  },
+  statLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  statDelta: {
+    fontSize: 11,
+    fontWeight: '500',
     fontVariant: ['tabular-nums'],
   },
 

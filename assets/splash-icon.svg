@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1284 2778" width="1284" height="2778">
+  <rect x="0" y="0" width="1284" height="2778" fill="#f5efe2"/>
+  <!-- Centered anvil silhouette in navy. Anvil ~864 wide on a 1024 source, scaled to ~520 here -->
+  <g transform="translate(382 1129) scale(0.508)">
+    <path
+      fill="#0c2952"
+      d="
+        M 80 348
+        C 152 296 240 260 304 244
+        L 920 244
+        Q 944 244 944 268
+        L 944 402
+        Q 944 426 920 426
+        L 800 426
+        C 700 488 700 538 800 600
+        Q 824 600 844 624
+        L 844 794
+        Q 844 820 820 820
+        L 204 820
+        Q 180 820 180 794
+        L 180 624
+        Q 200 600 224 600
+        C 324 538 324 488 224 426
+        L 200 426
+        C 162 416 122 388 80 348
+        Z"
+    />
+  </g>
+</svg>

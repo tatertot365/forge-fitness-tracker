@@ -8,10 +8,10 @@ A personal training companion built with React Native and Expo. Forge runs entir
 
 ### Home
 - **Phase switcher** — toggle between Cut, Maintain, and Bulk to adjust cardio targets and display context across the app
-- **Today's session card** — shows the day's training focus, exercise count, and total planned sets; updates live to show sets-done progress once a session is in progress (e.g. "8 / 30 sets done") and switches to "Resume" or "✓ Done" states accordingly
+- **Today's session card** — shows the day's training focus, exercise count, and total planned sets; once a session is started it shows live sets-done progress (e.g. "8 / 30 sets done"), a "Resume" CTA, or "✓ Done" when all sets are complete
 - **Catch-up queue** — surfaces any sets missed from earlier in the week, with age indicators and per-exercise skip controls; swipe left to dismiss
 - **Weekly split strip** — 7-day overview with colour-coded dots (complete, in-progress, missed, skipped, rest)
-- **Muscle volume grid** — shows completed sets per muscle group for the current week, appears once training begins
+- **Muscle volume grid** — 2-column grid showing completed sets per muscle group for the current week; only visible once at least one set has been logged
 - **Cardio tracker** — configurable cardio exercise with a weekly session counter and progress bar; target adjusts automatically based on current phase
 
 ### Training
@@ -21,7 +21,7 @@ A personal training companion built with React Native and Expo. Forge runs entir
   - Normal — weight + reps
   - Drop set — primary weight/reps + drop weight/reps in one row
   - Superset — link two exercises and navigate between them with a tap
-  - Bodyweight — reps only, no weight column
+  - Bodyweight — reps only, no weight column; displayed with a "Body weight" badge
 - **Beat this** — shows your best set from the last time you did that exercise; tap to see full history with a sparkline
 - **Rest timer** — auto-starts on set completion, counts up in the background
 - **Exercise management** — add exercises from a searchable library or create new ones; set name, sets, rep range, notes, and type; duplicate or delete from the edit sheet
@@ -30,9 +30,12 @@ A personal training companion built with React Native and Expo. Forge runs entir
 - Manage which days are training days vs rest days, and set a custom focus label per day (e.g. "Push day — heavy")
 
 ### Food Log
-- Log meals by name, calories, and protein; recent entries surface as quick-add suggestions
-- Daily totals with configurable calorie and protein goals
-- Goals carry forward until you change them
+- Log meals by name, calories, protein, fat, and carbs (fat and carbs are optional — default to 0 if left blank)
+- Recent entries surface as quick-add chips showing full macro breakdown
+- Daily summary card with progress bars for all four macros
+- Configurable calorie, protein, fat, and carbs goals — carry forward until you change them
+- 14-day trend charts for calories, protein, fat, and carbs; tap any bar to see that day's full entry list
+- History sheet shows per-entry macro breakdown and daily totals vs goals
 
 ### Measurements
 - Log body stats: weight (lb), body fat %, shoulders, waist, arms (flexed), chest, and quads (in)
@@ -104,7 +107,7 @@ src/
 
 ```bash
 # 1. Clone the repo
-git clone <your-repo-url>
+git clone https://github.com/tatertot365/forge-fitness-tracker.git
 cd personal-trainer-app
 
 # 2. Install dependencies
@@ -177,8 +180,8 @@ Tables:
 | `exercises` | Exercise definitions (name, sets, rep range, type, muscle group, day) |
 | `sessions` | One row per training day per date |
 | `set_logs` | Individual set entries (weight, reps, completed flag) |
-| `food_entries` | Daily food log |
-| `nutrition_goals` | Calorie/protein targets (carry-forward by date) |
+| `food_entries` | Daily food log (calories, protein, fat, carbs) |
+| `nutrition_goals` | Calorie, protein, fat, and carbs targets (carry-forward by date) |
 | `measurements` | Body stats snapshots |
 | `cardio_sessions` | Cardio log entries |
 | `day_plans` | Which days are training days and their focus label |

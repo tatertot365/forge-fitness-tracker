@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ChevronLeft } from 'lucide-react-native';
+import { BookOpen, ChevronLeft } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   KeyboardAvoidingView,
@@ -83,6 +83,13 @@ export default function PlanScreen() {
             {enabledCount} training day{enabledCount === 1 ? '' : 's'} per week
           </Text>
         </View>
+        <Pressable
+          onPress={() => router.push('/library' as any)}
+          hitSlop={10}
+          style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
+        >
+          <BookOpen size={20} color={colors.primary} strokeWidth={1.75} />
+        </Pressable>
       </View>
 
       <KeyboardAvoidingView

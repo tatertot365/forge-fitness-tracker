@@ -17,6 +17,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="exercise/[id]" />
           <Stack.Screen name="plan" />
+          <Stack.Screen name="library" />
         </Stack>
         <StatusBar style="light" />
       </SafeAreaProvider>

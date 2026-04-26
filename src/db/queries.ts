@@ -251,6 +251,27 @@ export async function deleteExercise(id: number): Promise<void> {
   await db.runAsync('DELETE FROM exercises WHERE id = ?', [id]);
 }
 
+export async function deleteExercisesByName(name: string): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: number; superset_partner_id: number | null }>(
+    'SELECT id, superset_partner_id FROM exercises WHERE LOWER(name) = LOWER(?)',
+    [name.trim()],
+  );
+  for (const ex of rows) {
+    if (ex.superset_partner_id) {
+      await db.runAsync(
+        `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+        [ex.superset_partner_id],
+      );
+    }
+  }
+  const ids = rows.map((r) => r.id);
+  if (ids.length === 0) return;
+  const ph = ids.map(() => '?').join(',');
+  await db.runAsync(`DELETE FROM set_logs WHERE exercise_id IN (${ph})`, ids);
+  await db.runAsync('DELETE FROM exercises WHERE LOWER(name) = LOWER(?)', [name.trim()]);
+}
+
 export async function duplicateExercise(id: number): Promise<number | null> {
   const db = await getDb();
   const ex = await getExercise(id);
@@ -510,6 +531,13 @@ async function getSiblingInfo(
     ids: rows.map((r) => r.id),
     isBodyweight: nameRow.type === 'bodyweight',
   };
+}
+
+export async function getAllExercises(): Promise<Exercise[]> {
+  const db = await getDb();
+  return db.getAllAsync<Exercise>(
+    'SELECT * FROM exercises ORDER BY sort_order ASC',
+  );
 }
 
 export async function getAllUniqueExercises(): Promise<Exercise[]> {

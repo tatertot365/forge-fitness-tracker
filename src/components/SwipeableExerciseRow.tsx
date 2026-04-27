@@ -8,7 +8,7 @@ import { colors } from '../theme/colors';
 import { hapticTap } from '../utils/haptics';
 
 type Props = {
-  onDelete: () => void;
+  onDelete?: () => void;
   onSkip: () => void;
   children: React.ReactNode;
 };
@@ -23,7 +23,7 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
   const handleDelete = () => {
     hapticTap();
     close();
-    onDelete();
+    onDelete?.();
   };
 
   const handleSkip = () => {
@@ -33,7 +33,7 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
   };
 
   const renderRight = () => (
-    <View style={styles.actions}>
+    <View style={[styles.actions, !onDelete && { width: ACTION_WIDTH }]}>
       <Pressable
         onPress={handleSkip}
         style={({ pressed }) => [
@@ -45,17 +45,19 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
         <SkipForward size={18} color="#FFFFFF" strokeWidth={2} />
         <Text style={styles.actionLabel}>Skip</Text>
       </Pressable>
-      <Pressable
-        onPress={handleDelete}
-        style={({ pressed }) => [
-          styles.action,
-          { backgroundColor: colors.red },
-          pressed && { opacity: 0.85 },
-        ]}
-      >
-        <Trash2 size={18} color="#FFFFFF" strokeWidth={2} />
-        <Text style={styles.actionLabel}>Delete</Text>
-      </Pressable>
+      {onDelete ? (
+        <Pressable
+          onPress={handleDelete}
+          style={({ pressed }) => [
+            styles.action,
+            { backgroundColor: colors.red },
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Trash2 size={18} color="#FFFFFF" strokeWidth={2} />
+          <Text style={styles.actionLabel}>Delete</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 

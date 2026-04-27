@@ -1,7 +1,9 @@
+import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useFocusEffect } from 'expo-router';
-import { Droplets, Flame, Layers, Pencil, Plus, Trash2, X, Zap } from 'lucide-react-native';
+import { Calculator, Droplets, Flame, Layers, Pencil, Plus, ScanLine, Trash2, X, Zap } from 'lucide-react-native';
 import React, { useCallback, useRef, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   Dimensions,
   Keyboard,
@@ -43,6 +45,7 @@ import {
 } from '../../src/types';
 import { todayISO } from '../../src/utils/date';
 import { hapticSelect, hapticSuccess, hapticTap } from '../../src/utils/haptics';
+import { lookupBarcode, type FoodFactsResult } from '../../src/utils/openFoodFacts';
 
 export default function FoodScreen() {
   const [goal, setGoal] = useState<NutritionGoal | null>(null);
@@ -59,6 +62,9 @@ export default function FoodScreen() {
   const [goalSheet, setGoalSheet] = useState(false);
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
+  const [calcSheet, setCalcSheet] = useState(false);
+  const [scannerVisible, setScannerVisible] = useState(false);
+  const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
 
   const today = todayISO();
 
@@ -276,6 +282,22 @@ export default function FoodScreen() {
           <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
           <Text style={styles.addBtnText}>Add</Text>
         </Pressable>
+        <View style={styles.secondaryBtnRow}>
+          <Pressable
+            onPress={() => { hapticTap(); setCalcSheet(true); }}
+            style={({ pressed }) => [styles.calcBtn, { flex: 1 }, pressed && { opacity: 0.85 }]}
+          >
+            <Calculator size={14} color={colors.primary} strokeWidth={2} />
+            <Text style={styles.calcBtnText}>Calculate macros</Text>
+          </Pressable>
+          <Pressable
+            onPress={() => { hapticTap(); setScannerVisible(true); }}
+            style={({ pressed }) => [styles.calcBtn, { flex: 1 }, pressed && { opacity: 0.85 }]}
+          >
+            <ScanLine size={14} color={colors.primary} strokeWidth={2} />
+            <Text style={styles.calcBtnText}>Scan barcode</Text>
+          </Pressable>
+        </View>
       </Card>
 
       {recents.length > 0 ? (
@@ -352,7 +374,436 @@ export default function FoodScreen() {
         date={historyDate}
         onClose={() => setHistoryDate(null)}
       />
+
+      <MacroCalculatorSheet
+        visible={calcSheet}
+        onClose={() => setCalcSheet(false)}
+        onAdd={async (entry) => {
+          await addFoodEntry({ date: today, ...entry });
+          hapticSuccess();
+          setCalcSheet(false);
+          load();
+        }}
+      />
+
+      <BarcodeScannerModal
+        visible={scannerVisible}
+        onClose={() => setScannerVisible(false)}
+        onScanned={async (barcode) => {
+          setScannerVisible(false);
+          try {
+            const result = await lookupBarcode(barcode);
+            if (!result.found) {
+              Alert.alert(
+                'Product not found',
+                'This barcode isn\'t in the Open Food Facts database. Enter the nutrition manually.',
+                [{ text: 'OK' }],
+              );
+              if (result.productName) setName(result.productName);
+              return;
+            }
+            setScanResult(result);
+          } catch (e: any) {
+            Alert.alert('Error', e.message ?? 'Could not look up barcode.');
+          }
+        }}
+      />
+
+      <BarcodeResultSheet
+        result={scanResult}
+        onClose={() => setScanResult(null)}
+        onAdd={async (entry) => {
+          await addFoodEntry({ date: today, ...entry });
+          hapticSuccess();
+          setScanResult(null);
+          load();
+        }}
+      />
     </Screen>
+  );
+}
+
+// ─── Barcode scanner modal ────────────────────────────────────────────
+
+function BarcodeScannerModal({
+  visible,
+  onClose,
+  onScanned,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onScanned: (barcode: string) => void;
+}) {
+  const [permission, requestPermission] = useCameraPermissions();
+  const scanned = useRef(false);
+
+  React.useEffect(() => {
+    if (visible) {
+      scanned.current = false;
+      if (!permission?.granted) requestPermission();
+    }
+  }, [visible]);
+
+  if (!visible) return null;
+
+  if (!permission?.granted) {
+    return (
+      <Modal visible animationType="slide" onRequestClose={onClose}>
+        <View style={scan.container}>
+          <Text style={scan.deniedText}>Camera access is required to scan barcodes.</Text>
+          <Pressable onPress={onClose} style={scan.closeBtn}>
+            <Text style={scan.closeBtnText}>Close</Text>
+          </Pressable>
+        </View>
+      </Modal>
+    );
+  }
+
+  return (
+    <Modal visible animationType="slide" onRequestClose={onClose}>
+      <View style={scan.container}>
+        <CameraView
+          style={StyleSheet.absoluteFill}
+          facing="back"
+          onBarcodeScanned={(result) => {
+            if (scanned.current) return;
+            scanned.current = true;
+            onScanned(result.data);
+          }}
+          barcodeScannerSettings={{ barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128', 'code39'] }}
+        />
+        {/* Overlay */}
+        <View style={scan.overlay}>
+          <View style={scan.topShade} />
+          <View style={scan.middleRow}>
+            <View style={scan.sideShade} />
+            <View style={scan.window}>
+              <View style={[scan.corner, scan.tl]} />
+              <View style={[scan.corner, scan.tr]} />
+              <View style={[scan.corner, scan.bl]} />
+              <View style={[scan.corner, scan.br]} />
+            </View>
+            <View style={scan.sideShade} />
+          </View>
+          <View style={scan.bottomShade}>
+            <Text style={scan.hint}>Point at a barcode</Text>
+            <Pressable
+              onPress={onClose}
+              style={({ pressed }) => [scan.cancelBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={scan.cancelBtnText}>Cancel</Text>
+            </Pressable>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+// ─── Barcode result sheet ─────────────────────────────────────────────
+
+function BarcodeResultSheet({
+  result,
+  onClose,
+  onAdd,
+}: {
+  result: FoodFactsResult | null;
+  onClose: () => void;
+  onAdd: (entry: { name: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }) => void;
+}) {
+  const [servingsInput, setServingsInput] = useState('1');
+
+  React.useEffect(() => {
+    if (result?.found) setServingsInput('1');
+  }, [result]);
+
+  if (!result?.found) return null;
+
+  const servings = parseFloat(servingsInput) || 0;
+  const totalCals = Math.round(result.caloriesPerServing * servings);
+  const totalProtein = Math.round(result.proteinPerServing * servings * 10) / 10;
+  const totalFat = Math.round(result.fatPerServing * servings * 10) / 10;
+  const totalCarbs = Math.round(result.carbsPerServing * servings * 10) / 10;
+  const hasResult = servings > 0;
+
+  const save = () => {
+    if (!hasResult) { Alert.alert('Enter a valid serving amount'); return; }
+    onAdd({ name: result.productName, calories: totalCals, protein_g: totalProtein, fat_g: totalFat, carbs_g: totalCarbs });
+  };
+
+  return (
+    <Modal visible transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.sheetBackdrop}
+      >
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.sheetTitle} numberOfLines={2}>{result.productName}</Text>
+              <Text style={styles.sheetSubtitle}>1 serving = {result.servingDescription}</Text>
+            </View>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <X size={20} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          {/* Per-serving nutrition facts */}
+          <View style={brs.factsCard}>
+            <Text style={brs.factsTitle}>Per serving</Text>
+            <View style={brs.factsRow}>
+              <View style={brs.factItem}>
+                <Text style={brs.factValue}>{result.caloriesPerServing}</Text>
+                <Text style={brs.factLabel}>cal</Text>
+              </View>
+              <View style={brs.factItem}>
+                <Text style={brs.factValue}>{result.proteinPerServing}g</Text>
+                <Text style={brs.factLabel}>protein</Text>
+              </View>
+              <View style={brs.factItem}>
+                <Text style={brs.factValue}>{result.fatPerServing}g</Text>
+                <Text style={brs.factLabel}>fat</Text>
+              </View>
+              <View style={brs.factItem}>
+                <Text style={brs.factValue}>{result.carbsPerServing}g</Text>
+                <Text style={brs.factLabel}>carbs</Text>
+              </View>
+            </View>
+          </View>
+
+          <Text style={styles.formLabel}>How many servings?</Text>
+          <TextInput
+            value={servingsInput}
+            onChangeText={setServingsInput}
+            keyboardType="decimal-pad"
+            style={styles.input}
+            placeholder="1"
+            placeholderTextColor={colors.textMuted}
+            autoFocus
+            selectTextOnFocus
+          />
+
+          {hasResult && servings !== 1 ? (
+            <View style={styles.calcResult}>
+              <Text style={styles.calcResultTitle}>Total for {servingsInput} servings</Text>
+              <View style={styles.calcResultRow}>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultValue}>{totalCals.toLocaleString()}</Text>
+                  <Text style={styles.calcResultLabel}>cal</Text>
+                </View>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultValue}>{totalProtein}g</Text>
+                  <Text style={styles.calcResultLabel}>protein</Text>
+                </View>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultValue}>{totalFat}g</Text>
+                  <Text style={styles.calcResultLabel}>fat</Text>
+                </View>
+                <View style={styles.calcResultItem}>
+                  <Text style={styles.calcResultValue}>{totalCarbs}g</Text>
+                  <Text style={styles.calcResultLabel}>carbs</Text>
+                </View>
+              </View>
+            </View>
+          ) : null}
+
+          <Pressable
+            onPress={save}
+            style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={styles.saveBtnText}>Add to log</Text>
+          </Pressable>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Macro calculator sheet ───────────────────────────────────────────
+
+const UNITS = ['g', 'oz', 'ml', 'fl oz', 'tbsp', 'cup', 'slice', 'piece'] as const;
+type ServingUnit = typeof UNITS[number];
+
+function MacroCalculatorSheet({
+  visible,
+  onClose,
+  onAdd,
+}: {
+  visible: boolean;
+  onClose: () => void;
+  onAdd: (entry: { name: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }) => void;
+}) {
+  const [foodName, setFoodName] = useState('');
+  const [unit, setUnit] = useState<ServingUnit>('g');
+  const [servingSizeInput, setServingSizeInput] = useState('');
+  const [calsInput, setCalsInput] = useState('');
+  const [proteinInput, setProteinInput] = useState('');
+  const [fatInput, setFatInput] = useState('');
+  const [carbsInput, setCarbsInput] = useState('');
+  const [amountInput, setAmountInput] = useState('');
+
+  const servingSize = parseFloat(servingSizeInput) || 0;
+  const amount = parseFloat(amountInput) || 0;
+  const ratio = servingSize > 0 && amount > 0 ? amount / servingSize : 0;
+
+  const totalCals = Math.round((parseFloat(calsInput) || 0) * ratio);
+  const totalProtein = Math.round((parseFloat(proteinInput) || 0) * ratio * 10) / 10;
+  const totalFat = Math.round((parseFloat(fatInput) || 0) * ratio * 10) / 10;
+  const totalCarbs = Math.round((parseFloat(carbsInput) || 0) * ratio * 10) / 10;
+
+  const hasResult = ratio > 0;
+
+  const reset = () => {
+    setFoodName('');
+    setUnit('g');
+    setServingSizeInput('');
+    setCalsInput('');
+    setProteinInput('');
+    setFatInput('');
+    setCarbsInput('');
+    setAmountInput('');
+  };
+
+  const pickUnit = () => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: [...UNITS, 'Cancel'],
+        cancelButtonIndex: UNITS.length,
+        title: 'Serving unit',
+      },
+      (idx) => {
+        if (idx < UNITS.length) setUnit(UNITS[idx]);
+      },
+    );
+  };
+
+  const save = () => {
+    if (foodName.trim() === '') { Alert.alert('Enter a food name'); return; }
+    if (servingSize <= 0) { Alert.alert('Enter a valid serving size'); return; }
+    if (amount <= 0) { Alert.alert('Enter how much you had'); return; }
+    if ((parseFloat(calsInput) || 0) < 0) { Alert.alert('Enter valid calories'); return; }
+    onAdd({ name: foodName.trim(), calories: totalCals, protein_g: totalProtein, fat_g: totalFat, carbs_g: totalCarbs });
+    reset();
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.sheetBackdrop}
+      >
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Calculate macros</Text>
+            <Pressable onPress={() => { onClose(); reset(); }} hitSlop={10}>
+              <X size={20} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={styles.formLabel}>Food name</Text>
+            <TextInput
+              value={foodName}
+              onChangeText={setFoodName}
+              style={styles.input}
+              placeholder="e.g. Chicken breast"
+              placeholderTextColor={colors.textMuted}
+            />
+
+            <View style={[styles.formRow, { marginTop: 10 }]}>
+              <View style={{ flex: 1.4 }}>
+                <Text style={styles.formLabel}>Serving size</Text>
+                <TextInput
+                  value={servingSizeInput}
+                  onChangeText={setServingSizeInput}
+                  keyboardType="decimal-pad"
+                  style={styles.input}
+                  placeholder="100"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Unit</Text>
+                <Pressable
+                  onPress={pickUnit}
+                  style={({ pressed }) => [styles.unitPicker, pressed && { opacity: 0.7 }]}
+                >
+                  <Text style={styles.unitPickerText}>{unit}</Text>
+                  <Text style={styles.unitPickerChevron}>›</Text>
+                </Pressable>
+              </View>
+            </View>
+
+            <Text style={[styles.calcSectionLabel, { marginTop: 14 }]}>Nutrition per serving</Text>
+
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Calories</Text>
+                <TextInput value={calsInput} onChangeText={setCalsInput} keyboardType="decimal-pad" style={styles.input} placeholder="165" placeholderTextColor={colors.textMuted} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Protein (g)</Text>
+                <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="decimal-pad" style={styles.input} placeholder="31" placeholderTextColor={colors.textMuted} />
+              </View>
+            </View>
+            <View style={[styles.formRow, { marginTop: 10 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Fat (g)</Text>
+                <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="decimal-pad" style={styles.input} placeholder="7" placeholderTextColor={colors.textMuted} />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Carbs (g)</Text>
+                <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="decimal-pad" style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} />
+              </View>
+            </View>
+
+            <Text style={[styles.calcSectionLabel, { marginTop: 14 }]}>Amount you had</Text>
+            <TextInput
+              value={amountInput}
+              onChangeText={setAmountInput}
+              keyboardType="decimal-pad"
+              style={styles.input}
+              placeholder={`e.g. 150 ${unit}`}
+              placeholderTextColor={colors.textMuted}
+            />
+
+            {hasResult ? (
+              <View style={styles.calcResult}>
+                <Text style={styles.calcResultTitle}>Calculated totals</Text>
+                <View style={styles.calcResultRow}>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalCals.toLocaleString()}</Text>
+                    <Text style={styles.calcResultLabel}>cal</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalProtein}g</Text>
+                    <Text style={styles.calcResultLabel}>protein</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalFat}g</Text>
+                    <Text style={styles.calcResultLabel}>fat</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalCarbs}g</Text>
+                    <Text style={styles.calcResultLabel}>carbs</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={save}
+              style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.saveBtnText}>Add to log</Text>
+            </Pressable>
+            <View style={{ height: 8 }} />
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -1248,6 +1699,77 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 
+  secondaryBtnRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 10,
+  },
+  calcBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 11,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  calcBtnText: { color: colors.primary, fontSize: 14, fontWeight: '600' },
+
+  calcSectionLabel: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 8,
+  },
+
+  unitPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: colors.background,
+  },
+  unitPickerText: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  unitPickerChevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
+
+  calcResult: {
+    marginTop: 14,
+    padding: 14,
+    borderRadius: radius.card,
+    backgroundColor: colors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  calcResultTitle: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  calcResultRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  calcResultItem: { alignItems: 'center', flex: 1 },
+  calcResultValue: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  calcResultLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
+
   sheetBackdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -1280,4 +1802,78 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+});
+
+// ─── Scanner overlay styles ───────────────────────────────────────────
+
+const WINDOW_SIZE = 260;
+const CORNER = 20;
+const CORNER_THICKNESS = 3;
+
+const scan = StyleSheet.create({
+  container: { flex: 1, backgroundColor: '#000' },
+  overlay: { ...StyleSheet.absoluteFillObject, flexDirection: 'column' },
+  topShade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  middleRow: { flexDirection: 'row', height: WINDOW_SIZE },
+  sideShade: { flex: 1, backgroundColor: 'rgba(0,0,0,0.55)' },
+  window: {
+    width: WINDOW_SIZE,
+    height: WINDOW_SIZE,
+    position: 'relative',
+  },
+  bottomShade: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    alignItems: 'center',
+    paddingTop: 24,
+    gap: 20,
+  },
+  hint: { color: 'rgba(255,255,255,0.8)', fontSize: 14, fontWeight: '500' },
+  cancelBtn: {
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.4)',
+  },
+  cancelBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  // Corner bracket helpers
+  corner: {
+    position: 'absolute',
+    width: CORNER,
+    height: CORNER,
+    borderColor: '#FFFFFF',
+  },
+  tl: { top: 0, left: 0, borderTopWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
+  tr: { top: 0, right: 0, borderTopWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
+  bl: { bottom: 0, left: 0, borderBottomWidth: CORNER_THICKNESS, borderLeftWidth: CORNER_THICKNESS },
+  br: { bottom: 0, right: 0, borderBottomWidth: CORNER_THICKNESS, borderRightWidth: CORNER_THICKNESS },
+  deniedText: { color: '#FFFFFF', fontSize: 15, textAlign: 'center', margin: 32 },
+  closeBtn: { paddingHorizontal: 32, paddingVertical: 12, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.2)' },
+  closeBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+});
+
+// ─── Barcode result sheet styles ──────────────────────────────────────
+
+const brs = StyleSheet.create({
+  factsCard: {
+    backgroundColor: colors.background,
+    borderRadius: radius.card,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  factsTitle: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 10,
+  },
+  factsRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  factItem: { alignItems: 'center', flex: 1 },
+  factValue: { fontSize: 16, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
+  factLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
 });

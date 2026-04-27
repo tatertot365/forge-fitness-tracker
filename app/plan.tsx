@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Minus, Plus, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, GripVertical, Minus, Plus, X } from 'lucide-react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -14,6 +14,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
+import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+import Animated, {
+  runOnJS,
+  type SharedValue,
+  useAnimatedStyle,
+  useSharedValue,
+  withSpring,
+} from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
   createExercise,
@@ -25,6 +33,7 @@ import {
   getExercise,
   getExercisesByDay,
   linkSuperset,
+  reorderExercisesInGroup,
   unlinkSuperset,
   updateDayPlan,
   updateExercise,
@@ -1036,6 +1045,209 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   );
 }
 
+// ─── DraggableRow ─────────────────────────────────────────────────────────────
+
+const ITEM_HEIGHT = 56;
+
+function DraggableRow({
+  exercise,
+  mg,
+  displayIdx,
+  totalCount,
+  isLastInGroup,
+  activeIdx,
+  dragTranslation,
+  onEdit,
+  onDrop,
+  onMeasureHeight,
+}: {
+  exercise: Exercise;
+  mg: MuscleGroup;
+  displayIdx: number;
+  totalCount: number;
+  isLastInGroup: boolean;
+  activeIdx: SharedValue<number>;
+  dragTranslation: SharedValue<number>;
+  onEdit: (ex: Exercise) => void;
+  onDrop: (from: number, to: number) => void;
+  onMeasureHeight?: (h: number) => void;
+}) {
+  const animStyle = useAnimatedStyle(() => {
+    const n = totalCount;
+    const H = ITEM_HEIGHT;
+
+    if (activeIdx.value === -1) {
+      return { transform: [{ translateY: 0 }, { scale: 1 }], zIndex: 0, shadowOpacity: 0 };
+    }
+
+    if (activeIdx.value === displayIdx) {
+      return {
+        transform: [{ translateY: dragTranslation.value }, { scale: 1.02 }],
+        zIndex: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 8,
+      };
+    }
+
+    const from = activeIdx.value;
+    const target = Math.max(0, Math.min(n - 1,
+      Math.round((from * H + dragTranslation.value) / H),
+    ));
+
+    let shift = 0;
+    if (from < target && displayIdx > from && displayIdx <= target) {
+      shift = -H;
+    } else if (from > target && displayIdx >= target && displayIdx < from) {
+      shift = H;
+    }
+
+    return {
+      transform: [
+        { translateY: withSpring(shift, { damping: 22, stiffness: 320 }) },
+        { scale: 1 },
+      ],
+      zIndex: 0,
+      shadowOpacity: 0,
+    };
+  });
+
+  const gesture = Gesture.Exclusive(
+    Gesture.Pan()
+      .activateAfterLongPress(300)
+      .onStart(() => {
+        activeIdx.value = displayIdx;
+        dragTranslation.value = 0;
+        runOnJS(hapticSelect)();
+      })
+      .onUpdate((e) => {
+        if (activeIdx.value === displayIdx) {
+          dragTranslation.value = e.translationY;
+        }
+      })
+      .onEnd((e) => {
+        if (activeIdx.value === displayIdx) {
+          const target = Math.max(0, Math.min(totalCount - 1,
+            Math.round((displayIdx * ITEM_HEIGHT + e.translationY) / ITEM_HEIGHT),
+          ));
+          activeIdx.value = -1;
+          dragTranslation.value = 0;
+          runOnJS(onDrop)(displayIdx, target);
+        }
+      })
+      .onFinalize(() => {
+        if (activeIdx.value === displayIdx) {
+          activeIdx.value = -1;
+          dragTranslation.value = 0;
+        }
+      }),
+    Gesture.Tap()
+      .runOnJS(true)
+      .onEnd(() => {
+        onEdit(exercise);
+      }),
+  );
+
+  return (
+    <GestureDetector gesture={gesture}>
+      <Animated.View
+        onLayout={onMeasureHeight ? (e) => onMeasureHeight(e.nativeEvent.layout.height) : undefined}
+        style={[
+          ds.exerciseRow,
+          !isLastInGroup && ds.exerciseDivider,
+          { backgroundColor: colors.card },
+          animStyle,
+        ]}
+      >
+        <View style={[ds.accentBar, { backgroundColor: muscleAccent[mg] ?? colors.primary }]} />
+        <View style={{ flex: 1 }}>
+          <Text style={ds.exerciseName} numberOfLines={1}>{exercise.name}</Text>
+          <Text style={ds.exerciseMeta}>
+            {exercise.sets} sets · {exercise.rep_range}
+            {exercise.warmup_sets ? ` · ${exercise.warmup_sets}W` : ''}
+            {exercise.type === 'superset' ? ' · SS' : ''}
+          </Text>
+        </View>
+        <GripVertical size={16} color={colors.textMuted} strokeWidth={1.5} />
+      </Animated.View>
+    </GestureDetector>
+  );
+}
+
+// ─── DraggableExerciseGroup ───────────────────────────────────────────────────
+
+function DraggableExerciseGroup({
+  mg,
+  exercises,
+  isFirst,
+  onEdit,
+}: {
+  mg: MuscleGroup;
+  exercises: Exercise[];
+  isFirst: boolean;
+  onEdit: (ex: Exercise) => void;
+}) {
+  const [localOrder, setLocalOrder] = useState<number[]>(() => exercises.map((_, i) => i));
+  const activeIdx = useSharedValue(-1);
+  const dragTranslation = useSharedValue(0);
+  const measuredHeight = useRef(ITEM_HEIGHT);
+
+  useEffect(() => {
+    setLocalOrder(exercises.map((_, i) => i));
+    activeIdx.value = -1;
+    dragTranslation.value = 0;
+  }, [exercises]);
+
+  const onDrop = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    hapticSuccess();
+
+    setLocalOrder((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(from, 1);
+      next.splice(to, 0, removed);
+
+      // Reassign sort_orders: new position i gets the sort_order that was at position i
+      const originalSortOrders = exercises.map((e) => e.sort_order);
+      const updates = next.map((origIdx, newPos) => ({
+        id: exercises[origIdx].id,
+        sort_order: originalSortOrders[newPos],
+      }));
+      reorderExercisesInGroup(updates);
+
+      return next;
+    });
+  }, [exercises]);
+
+  return (
+    <View>
+      <Text style={[ds.muscleLabel, isFirst && { marginTop: 4 }]}>
+        {MUSCLE_LABEL[mg]}
+      </Text>
+      {localOrder.map((origIdx, displayIdx) => {
+        const ex = exercises[origIdx];
+        return (
+          <DraggableRow
+            key={ex.id}
+            exercise={ex}
+            mg={mg}
+            displayIdx={displayIdx}
+            totalCount={exercises.length}
+            isLastInGroup={displayIdx === exercises.length - 1}
+            activeIdx={activeIdx}
+            dragTranslation={dragTranslation}
+            onEdit={onEdit}
+            onDrop={onDrop}
+            onMeasureHeight={displayIdx === 0 ? (h) => { measuredHeight.current = h; } : undefined}
+          />
+        );
+      })}
+    </View>
+  );
+}
+
 // ─── DaySection ───────────────────────────────────────────────────────────────
 
 type DaySectionProps = {
@@ -1106,38 +1318,13 @@ function DaySection({
       {grouped.length > 0 && (
         <View style={ds.exercisesBlock}>
           {grouped.map(({ mg, items }, gIdx) => (
-            <View key={mg}>
-              <Text style={[ds.muscleLabel, gIdx === 0 && { marginTop: 4 }]}>
-                {MUSCLE_LABEL[mg]}
-              </Text>
-              {items.map((ex, eIdx) => {
-                const isLast = gIdx === grouped.length - 1 && eIdx === items.length - 1;
-                return (
-                  <Pressable
-                    key={ex.id}
-                    onPress={() => onEditExercise(ex)}
-                    style={({ pressed }) => [
-                      ds.exerciseRow,
-                      !isLast && ds.exerciseDivider,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <View
-                      style={[ds.accentBar, { backgroundColor: muscleAccent[mg] ?? colors.primary }]}
-                    />
-                    <View style={{ flex: 1 }}>
-                      <Text style={ds.exerciseName} numberOfLines={1}>{ex.name}</Text>
-                      <Text style={ds.exerciseMeta}>
-                        {ex.sets} sets · {ex.rep_range}
-                        {ex.warmup_sets ? ` · ${ex.warmup_sets}W` : ''}
-                        {ex.type === 'superset' ? ' · SS' : ''}
-                      </Text>
-                    </View>
-                    <ChevronRight size={15} color={colors.textMuted} strokeWidth={2} />
-                  </Pressable>
-                );
-              })}
-            </View>
+            <DraggableExerciseGroup
+              key={mg}
+              mg={mg}
+              exercises={items}
+              isFirst={gIdx === 0}
+              onEdit={onEditExercise}
+            />
           ))}
         </View>
       )}

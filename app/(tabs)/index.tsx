@@ -876,8 +876,8 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.pill,
   },
-  sessionCtaText: { color: colors.gold, fontSize: 13, fontWeight: '700' },
-  sessionCtaArrow: { color: colors.gold, fontSize: 15, fontWeight: '700' },
+  sessionCtaText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+  sessionCtaArrow: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
 
   // Week strip
   strip: {

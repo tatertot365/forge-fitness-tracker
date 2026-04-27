@@ -15,11 +15,17 @@
     },
     "ios": {
       "bundleIdentifier": "com.tategillespie.classicphysique",
-      "supportsTablet": false
+      "supportsTablet": false,
+      "infoPlist": {
+        "NSHealthShareUsageDescription": "Used to read workout duration, heart rate, and calories after each training session.",
+        "NSHealthUpdateUsageDescription": "Not used.",
+        "NSCameraUsageDescription": "Used to scan food barcodes to look up nutrition facts."
+      }
     },
     "plugins": [
       "expo-router",
       "expo-sqlite",
+      "expo-camera",
       "./plugins/withCleanEntitlements"
     ],
     "experiments": {

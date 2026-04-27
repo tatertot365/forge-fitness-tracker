@@ -65,6 +65,17 @@ export async function getExercisesByDay(day: Day): Promise<Exercise[]> {
   );
 }
 
+export async function reorderExercisesInGroup(
+  updates: { id: number; sort_order: number }[],
+): Promise<void> {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    for (const { id, sort_order } of updates) {
+      await db.runAsync('UPDATE exercises SET sort_order = ? WHERE id = ?', [sort_order, id]);
+    }
+  });
+}
+
 export async function getExercise(id: number): Promise<Exercise | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Exercise>(

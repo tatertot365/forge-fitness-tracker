@@ -309,7 +309,7 @@ export default function TodayScreen() {
             style={({ pressed }) => [styles.editPlanBtn, pressed && { opacity: 0.6 }]}
           >
             <Pencil size={12} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.editPlanText}>Edit</Text>
+            <Text style={styles.editPlanText}>Edit split</Text>
           </Pressable>
         }
       >

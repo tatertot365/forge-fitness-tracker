@@ -247,9 +247,12 @@ export default function ExerciseDetailScreen() {
   const toggleComplete = async (idx: number) => {
     const next = !rows[idx].completed;
     updateRow(idx, { completed: next });
-    if (next) {
+    const isLastWorkingSet = idx === rows.length - 1;
+    if (next && !isLastWorkingSet) {
       hapticTap();
       setRestKey((k) => (k ?? 0) + 1);
+    } else if (next) {
+      hapticTap();
     }
     if (!sessionId || !exercise) return;
     const r = { ...rows[idx], completed: next };

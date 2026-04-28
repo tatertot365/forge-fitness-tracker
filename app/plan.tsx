@@ -34,6 +34,7 @@ import {
   getExercisesByDay,
   linkSuperset,
   reorderExercisesInGroup,
+  reorderGroupsInDay,
   unlinkSuperset,
   updateDayPlan,
   updateExercise,
@@ -1181,12 +1182,10 @@ function DraggableRow({
 function DraggableExerciseGroup({
   mg,
   exercises,
-  isFirst,
   onEdit,
 }: {
   mg: MuscleGroup;
   exercises: Exercise[];
-  isFirst: boolean;
   onEdit: (ex: Exercise) => void;
 }) {
   const [localOrder, setLocalOrder] = useState<number[]>(() => exercises.map((_, i) => i));
@@ -1223,9 +1222,6 @@ function DraggableExerciseGroup({
 
   return (
     <View>
-      <Text style={[ds.muscleLabel, isFirst && { marginTop: 4 }]}>
-        {MUSCLE_LABEL[mg]}
-      </Text>
       {(localOrder.length === exercises.length ? localOrder : exercises.map((_, i) => i)).map((origIdx, displayIdx) => {
         const ex = exercises[origIdx];
         if (!ex) return null;
@@ -1246,6 +1242,155 @@ function DraggableExerciseGroup({
         );
       })}
     </View>
+  );
+}
+
+// ─── DraggableGroupContainer ──────────────────────────────────────────────────
+
+const GROUP_LABEL_HEIGHT = 32;
+
+function DraggableGroupContainer({
+  mg,
+  exercises,
+  displayIdx,
+  groupHeights,
+  activeGroupIdx,
+  groupDragTranslation,
+  isFirst,
+  onEdit,
+  onGroupDrop,
+}: {
+  mg: MuscleGroup;
+  exercises: Exercise[];
+  displayIdx: number;
+  groupHeights: number[];
+  activeGroupIdx: SharedValue<number>;
+  groupDragTranslation: SharedValue<number>;
+  isFirst: boolean;
+  onEdit: (ex: Exercise) => void;
+  onGroupDrop: (from: number, to: number) => void;
+}) {
+  const totalGroups = groupHeights.length;
+
+  const animStyle = useAnimatedStyle(() => {
+    if (activeGroupIdx.value === -1) {
+      return { transform: [{ translateY: 0 }, { scale: 1 }], zIndex: 0, shadowOpacity: 0 };
+    }
+
+    const from = activeGroupIdx.value;
+    const drag = groupDragTranslation.value;
+
+    if (from === displayIdx) {
+      return {
+        transform: [{ translateY: drag }, { scale: 1.01 }],
+        zIndex: 20,
+        shadowColor: '#000',
+        shadowOpacity: 0.18,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 4 },
+        elevation: 8,
+      };
+    }
+
+    // Compute cumulative start positions of each group
+    let acc = 0;
+    const starts: number[] = [];
+    for (let i = 0; i < totalGroups; i++) {
+      starts.push(acc);
+      acc += groupHeights[i];
+    }
+
+    // Center of the dragged group in its current dragged position
+    const draggedCenter = starts[from] + groupHeights[from] / 2 + drag;
+
+    // Find which slot the dragged group's center is over
+    let target = from;
+    for (let i = 0; i < totalGroups; i++) {
+      if (draggedCenter >= starts[i] && draggedCenter < starts[i] + groupHeights[i]) {
+        target = i;
+        break;
+      }
+    }
+    if (draggedCenter < 0) target = 0;
+    if (draggedCenter >= acc) target = totalGroups - 1;
+
+    let shift = 0;
+    if (from < target && displayIdx > from && displayIdx <= target) {
+      shift = -groupHeights[from];
+    } else if (from > target && displayIdx >= target && displayIdx < from) {
+      shift = groupHeights[from];
+    }
+
+    return {
+      transform: [
+        { translateY: withSpring(shift, { damping: 22, stiffness: 320 }) },
+        { scale: 1 },
+      ],
+      zIndex: 0,
+      shadowOpacity: 0,
+    };
+  });
+
+  const dragHandle = Gesture.Pan()
+    .activateAfterLongPress(300)
+    .onStart(() => {
+      activeGroupIdx.value = displayIdx;
+      groupDragTranslation.value = 0;
+      runOnJS(hapticSelect)();
+    })
+    .onUpdate((e) => {
+      if (activeGroupIdx.value === displayIdx) {
+        groupDragTranslation.value = e.translationY;
+      }
+    })
+    .onEnd((e) => {
+      if (activeGroupIdx.value === displayIdx) {
+        // Recompute target on end
+        let acc = 0;
+        const starts: number[] = [];
+        for (let i = 0; i < totalGroups; i++) {
+          starts.push(acc);
+          acc += groupHeights[i];
+        }
+        const draggedCenter = starts[displayIdx] + groupHeights[displayIdx] / 2 + e.translationY;
+        let target = displayIdx;
+        for (let i = 0; i < totalGroups; i++) {
+          if (draggedCenter >= starts[i] && draggedCenter < starts[i] + groupHeights[i]) {
+            target = i;
+            break;
+          }
+        }
+        if (draggedCenter < 0) target = 0;
+        if (draggedCenter >= acc) target = totalGroups - 1;
+
+        activeGroupIdx.value = -1;
+        groupDragTranslation.value = 0;
+        runOnJS(onGroupDrop)(displayIdx, target);
+      }
+    })
+    .onFinalize(() => {
+      if (activeGroupIdx.value === displayIdx) {
+        activeGroupIdx.value = -1;
+        groupDragTranslation.value = 0;
+      }
+    });
+
+  return (
+    <Animated.View style={animStyle}>
+      <View style={[ds.muscleLabelRow, isFirst && { marginTop: 4 }]}>
+        <GestureDetector gesture={dragHandle}>
+          <View style={ds.groupGripArea} hitSlop={8}>
+            <GripVertical size={14} color={colors.textMuted} strokeWidth={1.5} />
+          </View>
+        </GestureDetector>
+        <Text style={ds.muscleLabel}>{MUSCLE_LABEL[mg]}</Text>
+      </View>
+      <DraggableExerciseGroup
+        mg={mg}
+        exercises={exercises}
+        onEdit={onEdit}
+      />
+    </Animated.View>
   );
 }
 
@@ -1289,6 +1434,46 @@ function DaySection({
     seen.get(mg)!.push(ex);
   }
 
+  const [localGroupOrder, setLocalGroupOrder] = useState<number[]>(() => grouped.map((_, i) => i));
+  const activeGroupIdx = useSharedValue(-1);
+  const groupDragTranslation = useSharedValue(0);
+
+  useEffect(() => {
+    setLocalGroupOrder(grouped.map((_, i) => i));
+    activeGroupIdx.value = -1;
+    groupDragTranslation.value = 0;
+  }, [exercises]);
+
+  const groupHeights = grouped.map((g) => GROUP_LABEL_HEIGHT + g.items.length * ITEM_HEIGHT);
+
+  const onGroupDrop = useCallback((from: number, to: number) => {
+    if (from === to) return;
+    hapticSuccess();
+
+    setLocalGroupOrder((prev) => {
+      const next = [...prev];
+      const [removed] = next.splice(from, 1);
+      next.splice(to, 0, removed);
+
+      // Flatten exercises in new group order and reassign sort_orders sequentially
+      const flatExercises = next.flatMap((origGroupIdx) => grouped[origGroupIdx].items);
+      const updates = flatExercises.map((ex, i) => ({ id: ex.id, sort_order: i }));
+      reorderGroupsInDay(updates);
+
+      return next;
+    });
+  }, [grouped]);
+
+  const orderedGroups = (localGroupOrder.length === grouped.length
+    ? localGroupOrder
+    : grouped.map((_, i) => i)
+  ).map((origIdx) => grouped[origIdx]).filter(Boolean) as { mg: MuscleGroup; items: Exercise[] }[];
+
+  const orderedHeights = (localGroupOrder.length === grouped.length
+    ? localGroupOrder
+    : grouped.map((_, i) => i)
+  ).map((origIdx) => groupHeights[origIdx]);
+
   return (
     <View style={ds.card}>
       <View style={ds.headerRow}>
@@ -1316,15 +1501,20 @@ function DaySection({
         returnKeyType="done"
       />
 
-      {grouped.length > 0 && (
+      {orderedGroups.length > 0 && (
         <View style={ds.exercisesBlock}>
-          {grouped.map(({ mg, items }, gIdx) => (
-            <DraggableExerciseGroup
+          {orderedGroups.map(({ mg, items }, displayIdx) => (
+            <DraggableGroupContainer
               key={mg}
               mg={mg}
               exercises={items}
-              isFirst={gIdx === 0}
+              displayIdx={displayIdx}
+              groupHeights={orderedHeights}
+              activeGroupIdx={activeGroupIdx}
+              groupDragTranslation={groupDragTranslation}
+              isFirst={displayIdx === 0}
               onEdit={onEditExercise}
+              onGroupDrop={onGroupDrop}
             />
           ))}
         </View>
@@ -1516,15 +1706,23 @@ const ds = StyleSheet.create({
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
+  muscleLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    marginHorizontal: 16,
+    marginBottom: 4,
+    gap: 6,
+  },
+  groupGripArea: {
+    padding: 2,
+  },
   muscleLabel: {
     fontSize: 10,
     fontWeight: '600',
     color: colors.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.7,
-    marginTop: 12,
-    marginHorizontal: 16,
-    marginBottom: 4,
   },
   exerciseRow: {
     flexDirection: 'row',

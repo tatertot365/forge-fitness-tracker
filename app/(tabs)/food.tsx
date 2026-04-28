@@ -981,21 +981,21 @@ function GoalSheet({
           <View style={styles.formRow}>
             <View style={{ flex: 1 }}>
               <Text style={styles.formLabel}>Calories</Text>
-              <TextInput value={calInput} onChangeText={setCalInput} keyboardType="number-pad" style={styles.input} placeholder="2500" placeholderTextColor={colors.textMuted} />
+              <TextInput value={calInput} onChangeText={setCalInput} keyboardType="number-pad" style={[styles.input, styles.sheetInput]} placeholder="2500" placeholderTextColor={colors.textMuted} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.formLabel}>Protein (g)</Text>
-              <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="number-pad" style={styles.input} placeholder="180" placeholderTextColor={colors.textMuted} />
+              <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="number-pad" style={[styles.input, styles.sheetInput]} placeholder="180" placeholderTextColor={colors.textMuted} />
             </View>
           </View>
           <View style={[styles.formRow, { marginTop: 10 }]}>
             <View style={{ flex: 1 }}>
               <Text style={styles.formLabel}>Fat (g)</Text>
-              <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="number-pad" style={styles.input} placeholder="80" placeholderTextColor={colors.textMuted} />
+              <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="number-pad" style={[styles.input, styles.sheetInput]} placeholder="80" placeholderTextColor={colors.textMuted} />
             </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.formLabel}>Carbs (g)</Text>
-              <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="number-pad" style={styles.input} placeholder="250" placeholderTextColor={colors.textMuted} />
+              <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="number-pad" style={[styles.input, styles.sheetInput]} placeholder="250" placeholderTextColor={colors.textMuted} />
             </View>
           </View>
           <Pressable
@@ -1074,7 +1074,7 @@ function EditFoodSheet({
           <TextInput
             value={name}
             onChangeText={setName}
-            style={styles.input}
+            style={[styles.input, styles.sheetInput]}
             placeholderTextColor={colors.textMuted}
           />
           <View style={styles.formRow}>
@@ -1084,7 +1084,7 @@ function EditFoodSheet({
                 value={calInput}
                 onChangeText={setCalInput}
                 keyboardType="decimal-pad"
-                style={styles.input}
+                style={[styles.input, styles.sheetInput]}
                 placeholderTextColor={colors.textMuted}
               />
             </View>
@@ -1094,7 +1094,7 @@ function EditFoodSheet({
                 value={proteinInput}
                 onChangeText={setProteinInput}
                 keyboardType="decimal-pad"
-                style={styles.input}
+                style={[styles.input, styles.sheetInput]}
                 placeholderTextColor={colors.textMuted}
               />
             </View>
@@ -1106,7 +1106,7 @@ function EditFoodSheet({
                 value={fatInput}
                 onChangeText={setFatInput}
                 keyboardType="decimal-pad"
-                style={styles.input}
+                style={[styles.input, styles.sheetInput]}
                 placeholderTextColor={colors.textMuted}
               />
             </View>
@@ -1116,7 +1116,7 @@ function EditFoodSheet({
                 value={carbsInput}
                 onChangeText={setCarbsInput}
                 keyboardType="decimal-pad"
-                style={styles.input}
+                style={[styles.input, styles.sheetInput]}
                 placeholderTextColor={colors.textMuted}
               />
             </View>

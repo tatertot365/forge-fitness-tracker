@@ -76,6 +76,8 @@ export async function reorderExercisesInGroup(
   });
 }
 
+export const reorderGroupsInDay = reorderExercisesInGroup;
+
 export async function getExercise(id: number): Promise<Exercise | null> {
   const db = await getDb();
   const row = await db.getFirstAsync<Exercise>(

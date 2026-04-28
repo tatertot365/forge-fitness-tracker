@@ -1226,8 +1226,9 @@ function DraggableExerciseGroup({
       <Text style={[ds.muscleLabel, isFirst && { marginTop: 4 }]}>
         {MUSCLE_LABEL[mg]}
       </Text>
-      {localOrder.map((origIdx, displayIdx) => {
+      {(localOrder.length === exercises.length ? localOrder : exercises.map((_, i) => i)).map((origIdx, displayIdx) => {
         const ex = exercises[origIdx];
+        if (!ex) return null;
         return (
           <DraggableRow
             key={ex.id}

@@ -650,11 +650,12 @@ function EditExerciseSheet({
             setBusy(true);
             try {
               await deleteExercise(exercise.id);
-              hapticSuccess();
-              onDeleted();
-            } finally {
+            } catch {
               setBusy(false);
+              return;
             }
+            hapticSuccess();
+            onDeleted();
           },
         },
       ],

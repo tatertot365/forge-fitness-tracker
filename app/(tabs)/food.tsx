@@ -512,18 +512,28 @@ function BarcodeResultSheet({
   onAdd: (entry: { name: string; calories: number; protein_g: number; fat_g: number; carbs_g: number }) => void;
 }) {
   const [servingsInput, setServingsInput] = useState('1');
+  const [calsInput, setCalsInput] = useState('');
+  const [proteinInput, setProteinInput] = useState('');
+  const [fatInput, setFatInput] = useState('');
+  const [carbsInput, setCarbsInput] = useState('');
 
   React.useEffect(() => {
-    if (result?.found) setServingsInput('1');
+    if (result?.found) {
+      setServingsInput('1');
+      setCalsInput(String(result.caloriesPerServing));
+      setProteinInput(String(result.proteinPerServing));
+      setFatInput(String(result.fatPerServing));
+      setCarbsInput(String(result.carbsPerServing));
+    }
   }, [result]);
 
   if (!result?.found) return null;
 
   const servings = parseFloat(servingsInput) || 0;
-  const totalCals = Math.round(result.caloriesPerServing * servings);
-  const totalProtein = Math.round(result.proteinPerServing * servings * 10) / 10;
-  const totalFat = Math.round(result.fatPerServing * servings * 10) / 10;
-  const totalCarbs = Math.round(result.carbsPerServing * servings * 10) / 10;
+  const totalCals = Math.round((parseFloat(calsInput) || 0) * servings);
+  const totalProtein = Math.round((parseFloat(proteinInput) || 0) * servings * 10) / 10;
+  const totalFat = Math.round((parseFloat(fatInput) || 0) * servings * 10) / 10;
+  const totalCarbs = Math.round((parseFloat(carbsInput) || 0) * servings * 10) / 10;
   const hasResult = servings > 0;
 
   const save = () => {
@@ -549,71 +559,72 @@ function BarcodeResultSheet({
             </Pressable>
           </View>
 
-          {/* Per-serving nutrition facts */}
-          <View style={brs.factsCard}>
-            <Text style={brs.factsTitle}>Per serving</Text>
-            <View style={brs.factsRow}>
-              <View style={brs.factItem}>
-                <Text style={brs.factValue}>{result.caloriesPerServing}</Text>
-                <Text style={brs.factLabel}>cal</Text>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={[styles.formLabel, { marginBottom: 4 }]}>Per serving — tap to correct</Text>
+            <View style={styles.formRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Calories</Text>
+                <TextInput value={calsInput} onChangeText={setCalsInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholderTextColor={colors.textMuted} selectTextOnFocus />
               </View>
-              <View style={brs.factItem}>
-                <Text style={brs.factValue}>{result.proteinPerServing}g</Text>
-                <Text style={brs.factLabel}>protein</Text>
-              </View>
-              <View style={brs.factItem}>
-                <Text style={brs.factValue}>{result.fatPerServing}g</Text>
-                <Text style={brs.factLabel}>fat</Text>
-              </View>
-              <View style={brs.factItem}>
-                <Text style={brs.factValue}>{result.carbsPerServing}g</Text>
-                <Text style={brs.factLabel}>carbs</Text>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Protein (g)</Text>
+                <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholderTextColor={colors.textMuted} selectTextOnFocus />
               </View>
             </View>
-          </View>
-
-          <Text style={styles.formLabel}>How many servings?</Text>
-          <TextInput
-            value={servingsInput}
-            onChangeText={setServingsInput}
-            keyboardType="decimal-pad"
-            style={styles.input}
-            placeholder="1"
-            placeholderTextColor={colors.textMuted}
-            autoFocus
-            selectTextOnFocus
-          />
-
-          {hasResult && servings !== 1 ? (
-            <View style={styles.calcResult}>
-              <Text style={styles.calcResultTitle}>Total for {servingsInput} servings</Text>
-              <View style={styles.calcResultRow}>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultValue}>{totalCals.toLocaleString()}</Text>
-                  <Text style={styles.calcResultLabel}>cal</Text>
-                </View>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultValue}>{totalProtein}g</Text>
-                  <Text style={styles.calcResultLabel}>protein</Text>
-                </View>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultValue}>{totalFat}g</Text>
-                  <Text style={styles.calcResultLabel}>fat</Text>
-                </View>
-                <View style={styles.calcResultItem}>
-                  <Text style={styles.calcResultValue}>{totalCarbs}g</Text>
-                  <Text style={styles.calcResultLabel}>carbs</Text>
-                </View>
+            <View style={[styles.formRow, { marginTop: 10 }]}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Fat (g)</Text>
+                <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholderTextColor={colors.textMuted} selectTextOnFocus />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.formLabel}>Carbs (g)</Text>
+                <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholderTextColor={colors.textMuted} selectTextOnFocus />
               </View>
             </View>
-          ) : null}
 
-          <Pressable
-            onPress={save}
-            style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
-          >
-            <Text style={styles.saveBtnText}>Add to log</Text>
-          </Pressable>
+            <Text style={[styles.formLabel, { marginTop: 14 }]}>How many servings?</Text>
+            <TextInput
+              value={servingsInput}
+              onChangeText={setServingsInput}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.sheetInput]}
+              placeholder="1"
+              placeholderTextColor={colors.textMuted}
+              selectTextOnFocus
+            />
+
+            {hasResult && servings !== 1 ? (
+              <View style={styles.calcResult}>
+                <Text style={styles.calcResultTitle}>Total for {servingsInput} servings</Text>
+                <View style={styles.calcResultRow}>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalCals.toLocaleString()}</Text>
+                    <Text style={styles.calcResultLabel}>cal</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalProtein}g</Text>
+                    <Text style={styles.calcResultLabel}>protein</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalFat}g</Text>
+                    <Text style={styles.calcResultLabel}>fat</Text>
+                  </View>
+                  <View style={styles.calcResultItem}>
+                    <Text style={styles.calcResultValue}>{totalCarbs}g</Text>
+                    <Text style={styles.calcResultLabel}>carbs</Text>
+                  </View>
+                </View>
+              </View>
+            ) : null}
+
+            <Pressable
+              onPress={save}
+              style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.saveBtnText}>Add to log</Text>
+            </Pressable>
+            <View style={{ height: 8 }} />
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -707,7 +718,7 @@ function MacroCalculatorSheet({
             <TextInput
               value={foodName}
               onChangeText={setFoodName}
-              style={styles.input}
+              style={[styles.input, styles.sheetInput]}
               placeholder="e.g. Chicken breast"
               placeholderTextColor={colors.textMuted}
             />
@@ -719,7 +730,7 @@ function MacroCalculatorSheet({
                   value={servingSizeInput}
                   onChangeText={setServingSizeInput}
                   keyboardType="decimal-pad"
-                  style={styles.input}
+                  style={[styles.input, styles.sheetInput]}
                   placeholder="100"
                   placeholderTextColor={colors.textMuted}
                 />
@@ -728,7 +739,7 @@ function MacroCalculatorSheet({
                 <Text style={styles.formLabel}>Unit</Text>
                 <Pressable
                   onPress={pickUnit}
-                  style={({ pressed }) => [styles.unitPicker, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [styles.unitPicker, styles.sheetInput, pressed && { opacity: 0.7 }]}
                 >
                   <Text style={styles.unitPickerText}>{unit}</Text>
                   <Text style={styles.unitPickerChevron}>›</Text>
@@ -741,21 +752,21 @@ function MacroCalculatorSheet({
             <View style={styles.formRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.formLabel}>Calories</Text>
-                <TextInput value={calsInput} onChangeText={setCalsInput} keyboardType="decimal-pad" style={styles.input} placeholder="165" placeholderTextColor={colors.textMuted} />
+                <TextInput value={calsInput} onChangeText={setCalsInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholder="165" placeholderTextColor={colors.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.formLabel}>Protein (g)</Text>
-                <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="decimal-pad" style={styles.input} placeholder="31" placeholderTextColor={colors.textMuted} />
+                <TextInput value={proteinInput} onChangeText={setProteinInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholder="31" placeholderTextColor={colors.textMuted} />
               </View>
             </View>
             <View style={[styles.formRow, { marginTop: 10 }]}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.formLabel}>Fat (g)</Text>
-                <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="decimal-pad" style={styles.input} placeholder="7" placeholderTextColor={colors.textMuted} />
+                <TextInput value={fatInput} onChangeText={setFatInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholder="7" placeholderTextColor={colors.textMuted} />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.formLabel}>Carbs (g)</Text>
-                <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="decimal-pad" style={styles.input} placeholder="0" placeholderTextColor={colors.textMuted} />
+                <TextInput value={carbsInput} onChangeText={setCarbsInput} keyboardType="decimal-pad" style={[styles.input, styles.sheetInput]} placeholder="0" placeholderTextColor={colors.textMuted} />
               </View>
             </View>
 
@@ -764,7 +775,7 @@ function MacroCalculatorSheet({
               value={amountInput}
               onChangeText={setAmountInput}
               keyboardType="decimal-pad"
-              style={styles.input}
+              style={[styles.input, styles.sheetInput]}
               placeholder={`e.g. 150 ${unit}`}
               placeholderTextColor={colors.textMuted}
             />
@@ -1572,6 +1583,11 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background,
   },
+  sheetInput: {
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+  },
   formRow: {
     flexDirection: 'row',
     gap: 10,
@@ -1853,27 +1869,3 @@ const scan = StyleSheet.create({
   closeBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
 });
 
-// ─── Barcode result sheet styles ──────────────────────────────────────
-
-const brs = StyleSheet.create({
-  factsCard: {
-    backgroundColor: colors.background,
-    borderRadius: radius.card,
-    padding: 14,
-    marginBottom: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  factsTitle: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    marginBottom: 10,
-  },
-  factsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  factItem: { alignItems: 'center', flex: 1 },
-  factValue: { fontSize: 16, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
-  factLabel: { fontSize: 10, color: colors.textSecondary, marginTop: 2 },
-});

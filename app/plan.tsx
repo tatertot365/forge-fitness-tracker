@@ -239,7 +239,7 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
           <Text style={ss.fieldLabel}>Name</Text>
           <TextInput
             value={npName}
-            onChangeText={(t) => updateNew({ name: t })}
+            onChangeText={(t: string) => updateNew({ name: t })}
             style={ss.input}
             placeholder="e.g. Overhead tricep extension"
             placeholderTextColor={colors.textMuted}
@@ -303,7 +303,7 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
           <Text style={ss.fieldLabel}>Rep range</Text>
           <TextInput
             value={npRepRange}
-            onChangeText={(t) => updateNew({ repRange: t })}
+            onChangeText={(t: string) => updateNew({ repRange: t })}
             style={ss.input}
             placeholder="e.g. 8–12"
             placeholderTextColor={colors.textMuted}

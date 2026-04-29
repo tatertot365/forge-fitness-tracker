@@ -426,7 +426,7 @@ export default function ExerciseDetailScreen() {
                     ) : (
                       <TextInput
                         value={r.weight}
-                        onChangeText={(t) =>
+                        onChangeText={(t: string) =>
                           updateWarmupRow(idx, { weight: t })
                         }
                         onBlur={() => persistWarmup(idx)}
@@ -439,7 +439,7 @@ export default function ExerciseDetailScreen() {
                     )}
                     <TextInput
                       value={r.reps}
-                      onChangeText={(t) => updateWarmupRow(idx, { reps: t })}
+                      onChangeText={(t: string) => updateWarmupRow(idx, { reps: t })}
                       onBlur={() => persistWarmup(idx)}
                       keyboardType="number-pad"
                       style={[styles.input, { flex: 1 }]}
@@ -506,7 +506,7 @@ export default function ExerciseDetailScreen() {
                     ) : (
                       <TextInput
                         value={r.weight}
-                        onChangeText={(t) => updateRow(idx, { weight: t })}
+                        onChangeText={(t: string) => updateRow(idx, { weight: t })}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
                         style={[styles.input, { flex: 1 }]}
@@ -517,7 +517,7 @@ export default function ExerciseDetailScreen() {
                     )}
                     <TextInput
                       value={r.reps}
-                      onChangeText={(t) => updateRow(idx, { reps: t })}
+                      onChangeText={(t: string) => updateRow(idx, { reps: t })}
                       onBlur={() => persist(idx)}
                       keyboardType="number-pad"
                       style={[styles.input, { flex: 1 }]}
@@ -537,7 +537,7 @@ export default function ExerciseDetailScreen() {
                       <Text style={[styles.dropLabel, { width: 32 }]}>↓</Text>
                       <TextInput
                         value={r.dropWeight}
-                        onChangeText={(t) => updateRow(idx, { dropWeight: t })}
+                        onChangeText={(t: string) => updateRow(idx, { dropWeight: t })}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
                         style={[styles.input, { flex: 1 }]}
@@ -547,7 +547,7 @@ export default function ExerciseDetailScreen() {
                       />
                       <TextInput
                         value={r.dropReps}
-                        onChangeText={(t) => updateRow(idx, { dropReps: t })}
+                        onChangeText={(t: string) => updateRow(idx, { dropReps: t })}
                         onBlur={() => persist(idx)}
                         keyboardType="number-pad"
                         style={[styles.input, { flex: 1 }]}

@@ -2,15 +2,34 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true,
+    "skipLibCheck": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ],
+      "expo-router/src/*": [
+        "./node_modules/expo-router/build/*"
+      ],
+      "expo-camera/src/*": [
+        "./node_modules/expo-camera/build/*"
+      ],
+      "expo-modules-core/src/*": [
+        "./node_modules/expo-modules-core/build/*"
+      ],
+      "expo-asset/src/*": [
+        "./node_modules/expo-asset/build/*"
+      ]
     }
   },
   "include": [
     "**/*.ts",
     "**/*.tsx",
     "Forge/.expo/types/**/*.ts",
-    "expo-env.d.ts"
+    "expo-env.d.ts",
+    ".expo/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules"
   ]
 }

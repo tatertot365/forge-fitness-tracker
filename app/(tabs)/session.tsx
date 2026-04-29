@@ -1,4 +1,4 @@
-import { useFocusEffect, useRouter } from "expo-router";
+import { useRootNavigation, useRouter } from "expo-router";
 import {
   CheckCircle2,
   Flame,
@@ -7,7 +7,7 @@ import {
   Timer,
   Trash2,
 } from "lucide-react-native";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { MuscleGroupPickerSheet } from "../../src/components/MuscleGroupPickerSheet";
@@ -50,6 +50,7 @@ type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 
 export default function SessionScreen() {
   const router = useRouter();
+  const rootNavigation = useRootNavigation();
   const day = dayOfWeek();
   const sessionDate = weekDates()[day];
 
@@ -108,16 +109,17 @@ export default function SessionScreen() {
     setLastBestMap(lastMap);
   }, [day, sessionDate]);
 
-  useFocusEffect(
-    useCallback(() => {
-      load();
-    }, [load]),
-  );
+  useEffect(() => {
+    load();
+    if (!rootNavigation) return;
+    return rootNavigation.addListener("state", load);
+  }, [load, rootNavigation]);
 
   const grouped: GroupedExercises = useMemo(() => {
     const groupOrder = new Map<MuscleGroup, number>();
     for (const e of exercises) {
-      if (!groupOrder.has(e.muscle_group))
+      const cur = groupOrder.get(e.muscle_group);
+      if (cur === undefined || e.sort_order < cur)
         groupOrder.set(e.muscle_group, e.sort_order);
     }
     const sorted = [...exercises].sort((a, b) => {
@@ -262,7 +264,7 @@ export default function SessionScreen() {
                   sets={e.sets}
                   repRange={e.rep_range}
                   lastSet={lastBestMap[e.id]}
-                  completed={completedByExercise[e.id] ?? 0}
+                  completed={completedByExercise[e.exercise_id] ?? 0}
                   accentColor={muscleAccent[e.muscle_group] ?? colors.primary}
                   notes={e.notes}
                   typeBadge={e.type === "normal" ? null : e.type}

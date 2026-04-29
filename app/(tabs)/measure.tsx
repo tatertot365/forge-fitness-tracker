@@ -1,5 +1,5 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
-import { File, Paths } from "expo-file-system";
+import * as FileSystem from "expo-file-system";
 import { useFocusEffect } from "expo-router";
 import * as Sharing from "expo-sharing";
 import {
@@ -278,9 +278,9 @@ export default function MeasureScreen() {
       ];
 
       for (const f of files) {
-        const file = new File(Paths.cache, f.name);
-        file.write(f.content);
-        await Sharing.shareAsync(file.uri, {
+        const uri = FileSystem.cacheDirectory + f.name;
+        await FileSystem.writeAsStringAsync(uri, f.content, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(uri, {
           mimeType: 'text/csv',
           dialogTitle: f.name,
           UTI: 'public.comma-separated-values-text',
@@ -644,7 +644,7 @@ export default function MeasureScreen() {
                   <Text style={styles.formLabel}>Weight (lbs)</Text>
                   <TextInput
                     value={inputs.weight_lb}
-                    onChangeText={(t) =>
+                    onChangeText={(t: string) =>
                       setInputs((p) => ({ ...p, weight_lb: t }))
                     }
                     keyboardType="decimal-pad"
@@ -657,7 +657,7 @@ export default function MeasureScreen() {
                   <Text style={styles.formLabel}>Body fat (%)</Text>
                   <TextInput
                     value={inputs.body_fat_pct}
-                    onChangeText={(t) =>
+                    onChangeText={(t: string) =>
                       setInputs((p) => ({ ...p, body_fat_pct: t }))
                     }
                     keyboardType="decimal-pad"
@@ -672,7 +672,7 @@ export default function MeasureScreen() {
                   <Text style={styles.formLabel}>{f.label} (inches)</Text>
                   <TextInput
                     value={inputs[f.key]}
-                    onChangeText={(t) =>
+                    onChangeText={(t: string) =>
                       setInputs((p) => ({ ...p, [f.key]: t }))
                     }
                     keyboardType="decimal-pad"

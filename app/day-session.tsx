@@ -272,7 +272,7 @@ export default function DaySessionScreen() {
                     sets={e.sets}
                     repRange={e.rep_range}
                     lastSet={lastBestMap[e.id]}
-                    completed={completedByExercise[e.id] ?? 0}
+                    completed={completedByExercise[e.exercise_id] ?? 0}
                     accentColor={muscleAccent[e.muscle_group] ?? colors.primary}
                     notes={e.notes}
                     typeBadge={e.type === "normal" ? null : e.type}

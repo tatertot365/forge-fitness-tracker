@@ -105,8 +105,18 @@ export default function SessionScreen() {
   );
 
   const grouped: GroupedExercises = useMemo(() => {
-    const out: GroupedExercises = [];
+    const groupOrder = new Map<MuscleGroup, number>();
     for (const e of exercises) {
+      if (!groupOrder.has(e.muscle_group)) groupOrder.set(e.muscle_group, e.sort_order);
+    }
+    const sorted = [...exercises].sort((a, b) => {
+      const ga = groupOrder.get(a.muscle_group)!;
+      const gb = groupOrder.get(b.muscle_group)!;
+      if (ga !== gb) return ga - gb;
+      return a.sort_order - b.sort_order;
+    });
+    const out: GroupedExercises = [];
+    for (const e of sorted) {
       const last = out[out.length - 1];
       if (last && last.group === e.muscle_group) last.items.push(e);
       else out.push({ group: e.muscle_group, items: [e] });

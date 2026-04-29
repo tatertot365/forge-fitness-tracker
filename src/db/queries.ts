@@ -71,6 +71,24 @@ export async function setUserProfile(profile: Partial<import('../utils/tdee').Us
   if (profile.sex != null) await setSetting('profile_sex', profile.sex);
 }
 
+export type BodyGoals = { goal_weight_lb: number | null; goal_body_fat_pct: number | null };
+
+export async function getBodyGoals(): Promise<BodyGoals> {
+  const [w, b] = await Promise.all([
+    getSetting('goal_weight_lb'),
+    getSetting('goal_body_fat_pct'),
+  ]);
+  return {
+    goal_weight_lb: w ? Number(w) : null,
+    goal_body_fat_pct: b ? Number(b) : null,
+  };
+}
+
+export async function setBodyGoals(goals: Partial<BodyGoals>): Promise<void> {
+  if (goals.goal_weight_lb != null) await setSetting('goal_weight_lb', String(goals.goal_weight_lb));
+  if (goals.goal_body_fat_pct != null) await setSetting('goal_body_fat_pct', String(goals.goal_body_fat_pct));
+}
+
 export async function getPhase(): Promise<Phase> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ value: string }>(
@@ -199,6 +217,13 @@ export async function createExercise(input: {
   type?: string;
 }): Promise<number> {
   const db = await getDb();
+
+  // Ensure day_plans row exists and is enabled
+  await db.runAsync(
+    `INSERT INTO day_plans (day, name, enabled) VALUES (?, '', 1)
+     ON CONFLICT(day) DO UPDATE SET enabled = 1`,
+    [input.day],
+  );
 
   // Upsert into library
   const libId = await createLibraryExercise({

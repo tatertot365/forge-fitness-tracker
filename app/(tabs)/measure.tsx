@@ -23,15 +23,18 @@ import { Screen } from '../../src/components/Screen';
 import { SectionLabel } from '../../src/components/SectionLabel';
 import {
   getActivityLevel,
+  getBodyGoals,
   getGoalsMode,
   getMeasurementHistory,
   getPhase,
   getUserProfile,
   latestMeasurement,
   measurementOneWeekAgo,
+  setBodyGoals,
   setNutritionGoal,
   setUserProfile,
   upsertMeasurement,
+  type BodyGoals,
 } from '../../src/db/queries';
 import { calculateTdee, type Sex, type UserProfile } from '../../src/utils/tdee';
 import { colors } from '../../src/theme/colors';
@@ -40,8 +43,6 @@ import { type Measurement } from '../../src/types';
 import { todayISO } from '../../src/utils/date';
 
 const TARGET_RATIO = 1.618;
-const STAGE_READY_MIN = 4;
-const STAGE_READY_MAX = 6;
 
 type CircField = {
   key: keyof Pick<Measurement, 'shoulders_in' | 'waist_in' | 'arms_flexed_in' | 'chest_in' | 'quads_in'>;
@@ -88,6 +89,8 @@ export default function MeasureScreen() {
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
   const [editModalVisible, setEditModalVisible] = useState(false);
+  const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({ goal_weight_lb: null, goal_body_fat_pct: null });
+  const [goalsModalVisible, setGoalsModalVisible] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ height_in: null, dob: null, sex: null });
   const [heightInput, setHeightInput] = useState('');
   const [dobDate, setDobDate] = useState<Date | null>(null);
@@ -95,16 +98,18 @@ export default function MeasureScreen() {
   const [profileExpanded, setProfileExpanded] = useState(false);
 
   const load = useCallback(async () => {
-    const [l, p, h, prof] = await Promise.all([
+    const [l, p, h, prof, bg] = await Promise.all([
       latestMeasurement(),
       measurementOneWeekAgo(),
       getMeasurementHistory(),
       getUserProfile(),
+      getBodyGoals(),
     ]);
     setLatest(l);
     setPrior(p);
     setHistory(h);
     setProfile(prof);
+    setBodyGoalsState(bg);
     setHeightInput(prof.height_in != null ? String(prof.height_in) : '');
     setDobDate(prof.dob ? new Date(prof.dob) : null);
   }, []);
@@ -199,14 +204,6 @@ export default function MeasureScreen() {
   const currentLean = leanMass(latest?.weight_lb, latest?.body_fat_pct);
   const priorLean = leanMass(prior?.weight_lb, prior?.body_fat_pct);
 
-  const bf = latest?.body_fat_pct ?? null;
-  const weight = latest?.weight_lb ?? null;
-  const stageReady = bf != null && bf >= STAGE_READY_MIN && bf <= STAGE_READY_MAX;
-  const lbsToStage =
-    bf != null && weight != null && bf > STAGE_READY_MAX
-      ? Math.round(weight * (bf - STAGE_READY_MAX) / 100 * 10) / 10
-      : null;
-
   const hasBfHistory = history.some((m) => m.body_fat_pct != null);
   const profileComplete = profile.height_in != null && profile.dob != null && profile.sex != null;
 
@@ -222,14 +219,23 @@ export default function MeasureScreen() {
             <Text style={styles.title}>Measurements</Text>
             <Text style={styles.subtitle}>Shoulder-to-waist ratio · target {TARGET_RATIO}</Text>
           </View>
-          <Pressable
-            onPress={openEdit}
-            hitSlop={10}
-            style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
-          >
-            <Pencil size={12} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.editBtnText}>Update</Text>
-          </Pressable>
+          <View style={styles.headerBtns}>
+            <Pressable
+              onPress={() => setGoalsModalVisible(true)}
+              hitSlop={10}
+              style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Text style={styles.editBtnText}>Goals</Text>
+            </Pressable>
+            <Pressable
+              onPress={openEdit}
+              hitSlop={10}
+              style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
+            >
+              <Pencil size={12} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.editBtnText}>Update</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Stats grid: weight, body fat, lean mass */}
@@ -261,32 +267,37 @@ export default function MeasureScreen() {
           />
         </View>
 
-        {/* Stage readiness */}
-        {bf != null && (
-          <View style={[styles.stageCard, stageReady && styles.stageCardReady]}>
-            <View style={styles.stageHeader}>
-              <Text style={[styles.stageLabel, stageReady && styles.stageLabelReady]}>
-                Stage readiness
-              </Text>
-              <Text style={[styles.stageBadge, stageReady && styles.stageBadgeReady]}>
-                {stageReady ? 'In range' : 'Not ready'}
-              </Text>
+        {/* Body goals */}
+        {(bodyGoals.goal_weight_lb != null || bodyGoals.goal_body_fat_pct != null) && (
+          <View style={styles.goalsCard}>
+            <View style={styles.goalsCardHeader}>
+              <Text style={styles.goalsCardTitle}>Goals</Text>
+              <Pressable
+                onPress={() => setGoalsModalVisible(true)}
+                hitSlop={10}
+                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+              >
+                <Pencil size={13} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
             </View>
-            <Text style={styles.stageTarget}>Target: {STAGE_READY_MIN}–{STAGE_READY_MAX}% body fat</Text>
-            <View style={{ marginTop: 10 }}>
-              <ProgressBar
-                value={Math.min(bf, STAGE_READY_MAX + 4)}
-                max={STAGE_READY_MAX + 4}
-                color={stageReady ? colors.green : colors.primary}
+            {bodyGoals.goal_weight_lb != null && (
+              <GoalProgressRow
+                label="Weight"
+                current={latest?.weight_lb ?? null}
+                goal={bodyGoals.goal_weight_lb}
+                unit=" lbs"
+                lowerIsBetter
               />
-            </View>
-            <Text style={styles.stageHint}>
-              {stageReady
-                ? `You're at ${bf}% — within stage range.`
-                : lbsToStage != null
-                ? `~${lbsToStage} lbs of fat to lose to reach ${STAGE_READY_MAX}%.`
-                : `Currently at ${bf}% — below stage range, consider bulking.`}
-            </Text>
+            )}
+            {bodyGoals.goal_body_fat_pct != null && (
+              <GoalProgressRow
+                label="Body fat"
+                current={latest?.body_fat_pct ?? null}
+                goal={bodyGoals.goal_body_fat_pct}
+                unit="%"
+                lowerIsBetter
+              />
+            )}
           </View>
         )}
 
@@ -340,7 +351,7 @@ export default function MeasureScreen() {
         {latest?.body_fat_pct == null && (
           <View style={styles.bfBanner}>
             <Text style={styles.bfBannerText}>
-              Log your body fat % to unlock lean mass tracking, stage readiness, and more accurate macro calculations.
+              Log your body fat % to unlock lean mass tracking and more accurate macro calculations.
             </Text>
           </View>
         )}
@@ -518,6 +529,18 @@ export default function MeasureScreen() {
           </View>
         </KeyboardAvoidingView>
       </Modal>
+
+      {/* Goals modal */}
+      <BodyGoalsSheet
+        visible={goalsModalVisible}
+        current={bodyGoals}
+        onClose={() => setGoalsModalVisible(false)}
+        onSave={async (goals) => {
+          await setBodyGoals(goals);
+          setBodyGoalsState((prev) => ({ ...prev, ...goals }));
+          setGoalsModalVisible(false);
+        }}
+      />
     </KeyboardAvoidingView>
   );
 }
@@ -551,7 +574,133 @@ function StatCard({
   );
 }
 
-// ─── Chart ────────────────────────────���───────────────────────────────
+// ─── Goal progress row ────────────────────────────────────────────────
+
+function GoalProgressRow({
+  label,
+  current,
+  goal,
+  unit,
+  lowerIsBetter,
+}: {
+  label: string;
+  current: number | null;
+  goal: number;
+  unit: string;
+  lowerIsBetter: boolean;
+}) {
+  const hasData = current != null;
+  const diff = hasData ? Math.abs(current! - goal) : null;
+  const reached = hasData && (lowerIsBetter ? current! <= goal : current! >= goal);
+  const progress = hasData
+    ? lowerIsBetter
+      ? Math.min(1, goal / Math.max(current!, 0.01))
+      : Math.min(1, current! / goal)
+    : 0;
+
+  return (
+    <View style={styles.goalRow}>
+      <View style={styles.goalRowHeader}>
+        <Text style={styles.goalRowLabel}>{label}</Text>
+        <Text style={styles.goalRowValues}>
+          {hasData ? `${current}${unit}` : '—'}
+          <Text style={styles.goalRowTarget}> → {goal}{unit}</Text>
+        </Text>
+      </View>
+      <ProgressBar value={progress} max={1} color={reached ? colors.green : colors.primary} />
+      {hasData && (
+        <Text style={[styles.goalRowHint, reached && { color: colors.green }]}>
+          {reached
+            ? `Goal reached!`
+            : `${diff!.toFixed(1)}${unit} to go`}
+        </Text>
+      )}
+    </View>
+  );
+}
+
+// ─── Body goals sheet ──────────────────────────────────────────────────
+
+function BodyGoalsSheet({
+  visible,
+  current,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  current: BodyGoals;
+  onClose: () => void;
+  onSave: (goals: Partial<BodyGoals>) => void;
+}) {
+  const [weightInput, setWeightInput] = useState('');
+  const [bfInput, setBfInput] = useState('');
+
+  React.useEffect(() => {
+    if (!visible) return;
+    setWeightInput(current.goal_weight_lb != null ? String(current.goal_weight_lb) : '');
+    setBfInput(current.goal_body_fat_pct != null ? String(current.goal_body_fat_pct) : '');
+  }, [visible]);
+
+  const save = () => {
+    const w = parseField(weightInput);
+    const b = parseField(bfInput);
+    if (weightInput.trim() !== '' && w == null) { Alert.alert('Enter a valid weight goal'); return; }
+    if (bfInput.trim() !== '' && b == null) { Alert.alert('Enter a valid body fat goal'); return; }
+    if (b != null && (b < 1 || b > 50)) { Alert.alert('Body fat goal should be between 1 and 50%'); return; }
+    const goals: Partial<BodyGoals> = {};
+    if (w != null) goals.goal_weight_lb = w;
+    if (b != null) goals.goal_body_fat_pct = b;
+    onSave(goals);
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.sheetBackdrop}
+      >
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Body goals</Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <Text style={styles.sheetClose}>✕</Text>
+            </Pressable>
+          </View>
+          <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <Text style={styles.formLabel}>Target weight (lbs)</Text>
+            <TextInput
+              value={weightInput}
+              onChangeText={setWeightInput}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.sheetInput, { marginBottom: 14 }]}
+              placeholder="e.g. 185"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Text style={styles.formLabel}>Target body fat (%)</Text>
+            <TextInput
+              value={bfInput}
+              onChangeText={setBfInput}
+              keyboardType="decimal-pad"
+              style={[styles.input, styles.sheetInput]}
+              placeholder="e.g. 5"
+              placeholderTextColor={colors.textMuted}
+            />
+            <Pressable
+              onPress={save}
+              style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
+            >
+              <Text style={styles.saveBtnText}>Save goals</Text>
+            </Pressable>
+            <View style={{ height: 8 }} />
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
+  );
+}
+
+// ─── Chart ────────────────────────────────────────────────────────────
 
 function MeasurementLineChart({
   data,
@@ -716,6 +865,7 @@ const styles = StyleSheet.create({
   title: { ...typography.screenTitle, color: colors.text },
   subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
+  headerBtns: { flexDirection: 'row', gap: 8 },
   editBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -728,6 +878,40 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   editBtnText: { fontSize: 12, fontWeight: '600', color: colors.primary },
+
+  // Goals card
+  goalsCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: 14,
+    marginTop: 6,
+    gap: 12,
+  },
+  goalsCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  goalsCardTitle: {
+    fontSize: 11,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    fontWeight: '600',
+  },
+  goalRow: { gap: 4 },
+  goalRowHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: 4,
+  },
+  goalRowLabel: { fontSize: 13, fontWeight: '500', color: colors.text },
+  goalRowValues: { fontSize: 13, fontWeight: '600', color: colors.text, fontVariant: ['tabular-nums'] },
+  goalRowTarget: { fontSize: 12, fontWeight: '400', color: colors.textSecondary },
+  goalRowHint: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
 
   // Stats grid
   statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 2 },
@@ -749,39 +933,6 @@ const styles = StyleSheet.create({
   },
   statValue: { fontSize: 20, fontWeight: '600', color: colors.text, marginTop: 3 },
   statUnit: { fontSize: 11, color: colors.textSecondary, marginBottom: 2 },
-
-  // Stage card
-  stageCard: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 14,
-    marginTop: 6,
-  },
-  stageCardReady: { borderColor: colors.green },
-  stageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  stageLabel: {
-    fontSize: 11,
-    color: colors.textSecondary,
-    textTransform: 'uppercase',
-    letterSpacing: 0.6,
-    fontWeight: '600',
-  },
-  stageLabelReady: { color: colors.green },
-  stageBadge: {
-    fontSize: 11,
-    fontWeight: '600',
-    color: colors.textMuted,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 20,
-    backgroundColor: colors.background,
-    overflow: 'hidden',
-  },
-  stageBadgeReady: { color: colors.green, backgroundColor: 'rgba(29,158,117,0.12)' },
-  stageTarget: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
-  stageHint: { fontSize: 12, color: colors.textSecondary, marginTop: 8 },
 
   // Ratio card
   ratioCard: {

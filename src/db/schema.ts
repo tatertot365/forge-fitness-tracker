@@ -134,6 +134,13 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
     );
   }
 
+  // Auto-enable any day that already has exercises assigned
+  await db.execAsync(`
+    UPDATE day_plans SET enabled = 1
+    WHERE enabled = 0
+      AND EXISTS (SELECT 1 FROM day_exercises de WHERE de.day = day_plans.day)
+  `);
+
   // Prune skip records older than one week
   const pruneDate = toISO(new Date(Date.now() - 7 * 86_400_000));
   await db.runAsync('DELETE FROM catchup_skips WHERE date_missed < ?', [pruneDate]);

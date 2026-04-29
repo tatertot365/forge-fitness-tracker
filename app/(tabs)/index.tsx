@@ -26,6 +26,7 @@ import { SectionLabel } from '../../src/components/SectionLabel';
 import {
   addCardioToday,
   getActivityLevel,
+  getBodyGoals,
   getCardioCountThisWeek,
   getCardioInfo,
   getCatchupItems,
@@ -50,6 +51,7 @@ import {
   setPhase as saveBasePhase,
   skipCatchupItem,
   skipDay,
+  type BodyGoals,
   type CardioInfo,
 } from '../../src/db/queries';
 import { calculateTdee } from '../../src/utils/tdee';
@@ -96,9 +98,10 @@ export default function TodayScreen() {
   const [editCardioOpen, setEditCardioOpen] = useState(false);
   const [todayNutrition, setTodayNutrition] = useState<DailyNutritionTotal | null>(null);
   const [bodyStats, setBodyStats] = useState<{ latest: Measurement | null; prev: Measurement | null }>({ latest: null, prev: null });
+  const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({ goal_weight_lb: null, goal_body_fat_pct: null });
 
   const load = useCallback(async () => {
-    const [p, c, w, cc, ex, plans, hkAsked, skips, logCounts, ci, mgSets, foodEntries, nutritionGoal, latestM, prevM] = await Promise.all([
+    const [p, c, w, cc, ex, plans, hkAsked, skips, logCounts, ci, mgSets, foodEntries, nutritionGoal, latestM, prevM, goals] = await Promise.all([
       getPhase(),
       getCatchupItems(),
       getSessionsForWeek(),
@@ -114,6 +117,7 @@ export default function TodayScreen() {
       getNutritionGoalForDate(todayDate),
       latestMeasurement(),
       measurementOneWeekAgo(),
+      getBodyGoals(),
     ]);
     const todaySessionId = w[today]?.id;
     const completedSets = todaySessionId
@@ -144,6 +148,7 @@ export default function TodayScreen() {
       carbs_goal: nutritionGoal.carbs_goal,
     });
     setBodyStats({ latest: latestM, prev: prevM });
+    setBodyGoalsState(goals);
   }, [today]);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -286,6 +291,7 @@ export default function TodayScreen() {
       />
       <BodyStatsCard
         data={bodyStats}
+        goals={bodyGoals}
         onPress={() => router.push('/measure' as any)}
       />
 
@@ -765,89 +771,109 @@ function MacroRingCard({
 
 function BodyStatsCard({
   data,
+  goals,
   onPress,
 }: {
   data: { latest: Measurement | null; prev: Measurement | null };
+  goals: BodyGoals;
   onPress: () => void;
 }) {
-  const { latest, prev } = data;
+  const { latest } = data;
+  const hasGoals = goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
 
-  const weightDelta =
-    latest?.weight_lb != null && prev?.weight_lb != null
-      ? +(latest.weight_lb - prev.weight_lb).toFixed(1)
+  const weightPct =
+    latest?.weight_lb != null && goals.goal_weight_lb != null && goals.goal_weight_lb > 0
+      ? Math.min(1, goals.goal_weight_lb / latest.weight_lb)
       : null;
-  const bfDelta =
-    latest?.body_fat_pct != null && prev?.body_fat_pct != null
-      ? +(latest.body_fat_pct - prev.body_fat_pct).toFixed(1)
+  const weightRemain =
+    latest?.weight_lb != null && goals.goal_weight_lb != null
+      ? +(latest.weight_lb - goals.goal_weight_lb).toFixed(1)
       : null;
-  const sw =
-    latest?.shoulders_in != null && latest?.waist_in != null
-      ? (latest.shoulders_in / latest.waist_in).toFixed(2)
+
+  const bfPct =
+    latest?.body_fat_pct != null && goals.goal_body_fat_pct != null && goals.goal_body_fat_pct > 0
+      ? Math.min(1, goals.goal_body_fat_pct / latest.body_fat_pct)
+      : null;
+  const bfRemain =
+    latest?.body_fat_pct != null && goals.goal_body_fat_pct != null
+      ? +(latest.body_fat_pct - goals.goal_body_fat_pct).toFixed(1)
       : null;
 
   return (
     <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
       <Card style={{ marginTop: 10 }}>
         <View style={styles.glanceHeader}>
-          <Text style={styles.glanceTitle}>Body stats</Text>
+          <Text style={styles.glanceTitle}>Goal progress</Text>
           <Text style={styles.glanceNav}>Measure →</Text>
         </View>
-        <View style={styles.statRow}>
-          <StatCell
-            label="Weight"
-            value={latest?.weight_lb != null ? `${latest.weight_lb} lb` : '—'}
-            delta={weightDelta}
-            invertGood={false}
-          />
-          <View style={styles.statDivider} />
-          <StatCell
-            label="Body fat"
-            value={latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : '—'}
-            delta={bfDelta}
-            invertGood
-          />
-          <View style={styles.statDivider} />
-          <StatCell
-            label="S:W ratio"
-            value={sw ?? '—'}
-            delta={null}
-          />
-        </View>
+
+        {!hasGoals ? (
+          <Text style={styles.goalsEmptyText}>Set weight & body fat goals in Measure →</Text>
+        ) : (
+          <View style={{ gap: 12 }}>
+            {goals.goal_weight_lb != null && (
+              <GoalProgressRow
+                label="Weight"
+                current={latest?.weight_lb != null ? `${latest.weight_lb} lb` : '—'}
+                goal={`${goals.goal_weight_lb} lb`}
+                progress={weightPct}
+                remain={weightRemain != null && weightRemain > 0 ? `${weightRemain} lb to go` : weightRemain != null && weightRemain <= 0 ? 'Goal reached' : null}
+                reached={weightRemain != null && weightRemain <= 0}
+              />
+            )}
+            {goals.goal_body_fat_pct != null && (
+              <GoalProgressRow
+                label="Body fat"
+                current={latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : '—'}
+                goal={`${goals.goal_body_fat_pct}%`}
+                progress={bfPct}
+                remain={bfRemain != null && bfRemain > 0 ? `${bfRemain}% to go` : bfRemain != null && bfRemain <= 0 ? 'Goal reached' : null}
+                reached={bfRemain != null && bfRemain <= 0}
+              />
+            )}
+          </View>
+        )}
       </Card>
     </Pressable>
   );
 }
 
-function StatCell({
+function GoalProgressRow({
   label,
-  value,
-  delta,
-  invertGood = false,
+  current,
+  goal,
+  progress,
+  remain,
+  reached,
 }: {
   label: string;
-  value: string;
-  delta: number | null;
-  invertGood?: boolean;
+  current: string;
+  goal: string;
+  progress: number | null;
+  remain: string | null;
+  reached: boolean;
 }) {
-  const isPositive = delta !== null && delta > 0;
-  const isGood = invertGood ? !isPositive : isPositive;
-  const deltaColor =
-    delta === null || delta === 0
-      ? colors.textMuted
-      : isGood
-        ? colors.green
-        : colors.red;
-
+  const barColor = reached ? colors.green : colors.primary;
   return (
-    <View style={styles.statCell}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      {delta !== null && delta !== 0 ? (
-        <Text style={[styles.statDelta, { color: deltaColor }]}>
-          {delta > 0 ? '+' : ''}{delta}
-        </Text>
-      ) : (
-        <Text style={[styles.statDelta, { color: colors.textMuted }]}>—</Text>
+    <View style={{ gap: 6 }}>
+      <View style={styles.goalRowHeader}>
+        <Text style={styles.goalLabel}>{label}</Text>
+        <View style={styles.goalValues}>
+          <Text style={styles.goalCurrent}>{current}</Text>
+          <Text style={styles.goalSep}>→</Text>
+          <Text style={[styles.goalTarget, reached && { color: colors.green }]}>{goal}</Text>
+        </View>
+      </View>
+      <View style={styles.goalBarTrack}>
+        <View
+          style={[
+            styles.goalBarFill,
+            { width: `${Math.round((progress ?? 0) * 100)}%`, backgroundColor: barColor },
+          ]}
+        />
+      </View>
+      {remain != null && (
+        <Text style={[styles.goalRemain, reached && { color: colors.green }]}>{remain}</Text>
       )}
     </View>
   );
@@ -1063,38 +1089,59 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
   },
 
-  // Body stats
-  statRow: {
+  // Goal progress card
+  goalsEmptyText: {
+    fontSize: 13,
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: 8,
+  },
+  goalRowHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  statDivider: {
-    width: StyleSheet.hairlineWidth,
-    height: 44,
-    backgroundColor: colors.border,
-    marginHorizontal: 4,
-  },
-  statCell: {
-    flex: 1,
-    alignItems: 'center',
-    gap: 3,
-  },
-  statLabel: {
-    fontSize: 11,
-    fontWeight: '500',
+  goalLabel: {
+    fontSize: 12,
+    fontWeight: '600',
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  statValue: {
-    fontSize: 16,
+  goalValues: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+  },
+  goalCurrent: {
+    fontSize: 13,
     fontWeight: '600',
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
-  statDelta: {
+  goalSep: {
     fontSize: 11,
-    fontWeight: '500',
+    color: colors.textMuted,
+  },
+  goalTarget: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.primary,
+    fontVariant: ['tabular-nums'],
+  },
+  goalBarTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+    overflow: 'hidden',
+  },
+  goalBarFill: {
+    height: 6,
+    borderRadius: 3,
+  },
+  goalRemain: {
+    fontSize: 11,
+    color: colors.textMuted,
     fontVariant: ['tabular-nums'],
   },
 

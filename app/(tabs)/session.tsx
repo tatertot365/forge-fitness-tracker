@@ -189,7 +189,7 @@ export default function SessionScreen() {
     );
   }
 
-  const focusLabel = dayPlan?.focus || DAY_LABEL[day];
+  const focusLabel = dayPlan?.name || DAY_LABEL[day];
 
   return (
     <>

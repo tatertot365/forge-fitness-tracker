@@ -1,5 +1,5 @@
 import { useFocusEffect, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, GripVertical, Minus, Plus, X } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Copy, GripVertical, Minus, Plus, Trash2, X } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Alert,
@@ -24,11 +24,13 @@ import Animated, {
 } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import {
+  copyDayExercises,
   createExercise,
   deleteExercise,
+  deleteExercisesByGroup,
   deleteExercisesByName,
   findExercisesByName,
-  getAllUniqueExercises,
+  getLibraryExercisesByMuscle,
   getDayPlans,
   getExercise,
   getExercisesByDay,
@@ -49,6 +51,7 @@ import {
   type DayPlan,
   type Exercise,
   type ExerciseType,
+  type LibraryExercise,
   type MuscleGroup,
 } from '../src/types';
 import { hapticSelect, hapticSuccess, hapticTap } from '../src/utils/haptics';
@@ -56,7 +59,7 @@ import { hapticSelect, hapticSuccess, hapticTap } from '../src/utils/haptics';
 const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   'chest', 'shoulders', 'triceps',
   'back-width', 'back-thickness', 'biceps', 'grip',
-  'quads', 'hamstrings-glutes', 'calves', 'core',
+  'quads', 'hamstrings', 'glutes', 'calves', 'core',
 ];
 
 // ─── PartnerPicker ────────────────────────────────────────────────────────────
@@ -356,7 +359,6 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
               warmup_sets: 0,
               rep_range: partnerValue.repRange || '8–12',
               notes: null,
-              accent_color: muscleAccent[partnerValue.muscleGroup] ?? colors.primary,
               type: 'normal',
             });
           }
@@ -632,8 +634,8 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | null>(null);
   const [mode, setMode] = useState<AddMode>('library');
   const [search, setSearch] = useState('');
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
-  const [selected, setSelected] = useState<Exercise | null>(null);
+  const [allExercises, setAllExercises] = useState<LibraryExercise[]>([]);
+  const [selected, setSelected] = useState<LibraryExercise | null>(null);
 
   const [name, setName] = useState('');
   const [sets, setSets] = useState(3);
@@ -647,10 +649,12 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(null);
 
   useEffect(() => {
-    if (visible) {
-      getAllUniqueExercises().then(setAllExercises);
+    if (visible && muscleGroup) {
+      getLibraryExercisesByMuscle(muscleGroup).then(setAllExercises);
+    } else {
+      setAllExercises([]);
     }
-  }, [visible]);
+  }, [visible, muscleGroup]);
 
   // Load same-day exercises when superset type is selected
   useEffect(() => {
@@ -681,13 +685,13 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     onClose();
   };
 
-  const selectFromLibrary = (ex: Exercise) => {
+  const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
-    setType(ex.type === 'superset' ? 'normal' : (ex.type as ExerciseType));
-    setSets(ex.sets ?? 3);
-    setWarmupSets(ex.warmup_sets ?? 0);
-    setRepRange(ex.rep_range ?? '8–12');
-    setNotes('');
+    setType('normal');
+    setSets(3);
+    setWarmupSets(0);
+    setRepRange('8–12');
+    setNotes(ex.notes ?? '');
   };
 
   const switchMode = (m: AddMode) => {
@@ -726,7 +730,6 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
         warmup_sets: warmupSets,
         rep_range: repRange.trim() || '8–12',
         notes: notes.trim() ? notes.trim() : null,
-        accent_color: muscleAccent[muscleGroup] ?? colors.primary,
         type,
       });
 
@@ -744,7 +747,6 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
             warmup_sets: 0,
             rep_range: partnerValue.repRange || '8–12',
             notes: null,
-            accent_color: muscleAccent[partnerValue.muscleGroup] ?? colors.primary,
             type: 'normal',
           });
         }
@@ -770,10 +772,9 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
       const existing = await findExercisesByName(trimmed);
       setBusy(false);
       if (existing.length > 0) {
-        const days = [...new Set(existing.map((e) => DAY_LABEL[e.day]))].join(', ');
         Alert.alert(
           'Name already in use',
-          `"${trimmed}" already exists on ${days}. Both entries will share training history. Add anyway?`,
+          `"${trimmed}" already exists in the library. Adding it will use the existing entry. Add anyway?`,
           [
             { text: 'Change name', style: 'cancel' },
             { text: 'Add anyway', onPress: () => doCreate(trimmed) },
@@ -882,7 +883,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                                     {ex.name}
                                   </Text>
                                   <Text style={ss.libraryRowMeta}>
-                                    {DAY_LABEL[ex.day]} · {ex.sets} sets · {ex.rep_range}
+                                    {MUSCLE_LABEL[ex.muscle_group]}
                                   </Text>
                                 </View>
                                 {isSel && (
@@ -1259,6 +1260,7 @@ function DraggableGroupContainer({
   isFirst,
   onEdit,
   onGroupDrop,
+  onDeleteGroup,
 }: {
   mg: MuscleGroup;
   exercises: Exercise[];
@@ -1269,6 +1271,7 @@ function DraggableGroupContainer({
   isFirst: boolean;
   onEdit: (ex: Exercise) => void;
   onGroupDrop: (from: number, to: number) => void;
+  onDeleteGroup: (mg: MuscleGroup) => void;
 }) {
   const totalGroups = groupHeights.length;
 
@@ -1383,7 +1386,14 @@ function DraggableGroupContainer({
             <GripVertical size={14} color={colors.textMuted} strokeWidth={1.5} />
           </View>
         </GestureDetector>
-        <Text style={ds.muscleLabel}>{MUSCLE_LABEL[mg]}</Text>
+        <Text style={[ds.muscleLabel, { flex: 1 }]}>{MUSCLE_LABEL[mg]}</Text>
+        <Pressable
+          onPress={() => onDeleteGroup(mg)}
+          hitSlop={10}
+          style={({ pressed }) => [ds.groupDeleteBtn, pressed && { opacity: 0.5 }]}
+        >
+          <Trash2 size={13} color={colors.textMuted} strokeWidth={1.75} />
+        </Pressable>
       </View>
       <DraggableExerciseGroup
         mg={mg}
@@ -1403,6 +1413,8 @@ type DaySectionProps = {
   onToggle: (enabled: boolean) => void;
   onFocusBlur: (focus: string) => void;
   onAdd: () => void;
+  onCopy: () => void;
+  onDeleteGroup: (mg: MuscleGroup) => void;
   onEditExercise: (ex: Exercise) => void;
 };
 
@@ -1413,14 +1425,16 @@ function DaySection({
   onToggle,
   onFocusBlur,
   onAdd,
+  onCopy,
+  onDeleteGroup,
   onEditExercise,
 }: DaySectionProps) {
-  const [focusText, setFocusText] = useState(plan.focus);
+  const [focusText, setFocusText] = useState(plan.name);
   const enabled = !!plan.enabled;
 
   useEffect(() => {
-    setFocusText(plan.focus);
-  }, [plan.focus]);
+    setFocusText(plan.name);
+  }, [plan.name]);
 
   const grouped: { mg: MuscleGroup; items: Exercise[] }[] = [];
   const seen = new Map<MuscleGroup, Exercise[]>();
@@ -1515,19 +1529,31 @@ function DaySection({
               isFirst={displayIdx === 0}
               onEdit={onEditExercise}
               onGroupDrop={onGroupDrop}
+              onDeleteGroup={onDeleteGroup}
             />
           ))}
         </View>
       )}
 
       {enabled && (
-        <Pressable
-          onPress={onAdd}
-          style={({ pressed }) => [ds.addBtn, pressed && { opacity: 0.7 }]}
-        >
-          <Plus size={13} color={colors.primary} strokeWidth={2.5} />
-          <Text style={ds.addBtnText}>Add exercise to {DAY_LABEL[day]}</Text>
-        </Pressable>
+        <View style={ds.dayActions}>
+          <Pressable
+            onPress={onAdd}
+            style={({ pressed }) => [ds.addBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+          >
+            <Plus size={13} color={colors.primary} strokeWidth={2.5} />
+            <Text style={ds.addBtnText}>Add exercise</Text>
+          </Pressable>
+          {exercises.length > 0 && (
+            <Pressable
+              onPress={onCopy}
+              style={({ pressed }) => [ds.copyBtn, pressed && { opacity: 0.7 }]}
+            >
+              <Copy size={13} color={colors.textSecondary} strokeWidth={2} />
+              <Text style={ds.copyBtnText}>Copy to…</Text>
+            </Pressable>
+          )}
+        </View>
       )}
     </View>
   );
@@ -1577,7 +1603,45 @@ export default function PlanScreen() {
   };
 
   const onFocusBlur = (day: Day, focus: string) => {
-    updateDayPlan(day, { focus: focus.trim() });
+    updateDayPlan(day, { name: focus.trim() });
+  };
+
+  const onDeleteGroup = (day: Day, mg: MuscleGroup) => {
+    Alert.alert(
+      `Remove ${MUSCLE_LABEL[mg]}?`,
+      `All ${MUSCLE_LABEL[mg]} exercises will be removed from ${DAY_LABEL[day]}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove',
+          style: 'destructive',
+          onPress: async () => {
+            await deleteExercisesByGroup(day, mg);
+            hapticTap();
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
+  const onCopy = (fromDay: Day) => {
+    const otherDays = DAYS.filter((d) => d !== fromDay);
+    Alert.alert(
+      `Copy ${DAY_LABEL[fromDay]} to…`,
+      'Exercises already on the target day will be skipped.',
+      [
+        ...otherDays.map((d) => ({
+          text: DAY_LABEL[d],
+          onPress: async () => {
+            await copyDayExercises(fromDay, d);
+            hapticSuccess();
+            await load();
+          },
+        })),
+        { text: 'Cancel', style: 'cancel' as const },
+      ],
+    );
   };
 
   const enabledCount = plans ? DAYS.filter((d) => plans[d].enabled).length : 0;
@@ -1617,6 +1681,8 @@ export default function PlanScreen() {
               onToggle={(enabled) => onToggle(day, enabled)}
               onFocusBlur={(focus) => onFocusBlur(day, focus)}
               onAdd={() => setAddSheet({ visible: true, day })}
+              onCopy={() => onCopy(day)}
+              onDeleteGroup={(mg) => onDeleteGroup(day, mg)}
               onEditExercise={(ex) => setEditSheet({ visible: true, exercise: ex })}
             />
           ))}
@@ -1724,6 +1790,9 @@ const ds = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.7,
   },
+  groupDeleteBtn: {
+    padding: 2,
+  },
   exerciseRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1739,16 +1808,29 @@ const ds = StyleSheet.create({
   accentBar: { width: 3, height: 32, borderRadius: 2, flexShrink: 0 },
   exerciseName: { fontSize: 14, fontWeight: '500', color: colors.text },
   exerciseMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  dayActions: {
+    flexDirection: 'row',
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+  },
   addBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
   },
   addBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
+  copyBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderLeftWidth: StyleSheet.hairlineWidth,
+    borderLeftColor: colors.border,
+  },
+  copyBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
 });
 
 const ss = StyleSheet.create({

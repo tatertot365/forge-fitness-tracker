@@ -33,7 +33,8 @@ export const muscleAccent: Record<string, string> = {
   biceps: '#F472B6',          // rose-400
   grip: '#A09890',            // ash
   quads: '#FBBF24',           // amber-400
-  'hamstrings-glutes': '#34D399', // emerald-400
+  hamstrings: '#34D399',          // emerald-400
+  glutes: '#6EE7B7',             // emerald-300 (lighter variant)
   calves: '#2DD4BF',          // teal-400
   core: '#C084FC',            // purple-400
 };

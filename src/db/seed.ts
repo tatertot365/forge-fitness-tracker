@@ -1,126 +1,132 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
-import type { Day, MuscleGroup } from '../types';
-import { muscleAccent } from '../theme/colors';
 
-type SeedExercise = {
-  muscle_group: MuscleGroup;
-  name: string;
-  sets: number;
-  rep_range: string;
-  notes: string | null;
-};
+type ExerciseSeed = { name: string; muscle_group: string; notes: string | null };
 
-const PUSH: SeedExercise[] = [
-  { muscle_group: 'chest', name: 'Flat barbell bench press', sets: 4, rep_range: '6–10', notes: 'Alternate with dumbbell bench each session' },
-  { muscle_group: 'chest', name: 'Incline dumbbell press', sets: 3, rep_range: '10–12', notes: 'Elbows at 45°, full stretch at bottom' },
-  { muscle_group: 'chest', name: 'Machine chest fly', sets: 2, rep_range: '12–15', notes: 'Finisher — squeeze hard at peak contraction' },
+const EXERCISES: ExerciseSeed[] = [
+  // Chest
+  { name: 'Flat barbell bench press',           muscle_group: 'chest',           notes: null },
+  { name: 'Incline barbell bench press',         muscle_group: 'chest',           notes: null },
+  { name: 'Decline barbell bench press',         muscle_group: 'chest',           notes: null },
+  { name: 'Flat dumbbell press',                 muscle_group: 'chest',           notes: null },
+  { name: 'Incline dumbbell press',              muscle_group: 'chest',           notes: 'Elbows at 45°, full stretch at bottom' },
+  { name: 'Machine chest press',                 muscle_group: 'chest',           notes: null },
+  { name: 'Machine chest fly',                   muscle_group: 'chest',           notes: 'Squeeze hard at peak contraction' },
+  { name: 'Cable crossover',                     muscle_group: 'chest',           notes: null },
+  { name: 'Push-up',                             muscle_group: 'chest',           notes: null },
 
-  { muscle_group: 'shoulders', name: 'Dumbbell overhead press', sets: 2, rep_range: '8–10', notes: 'Reduced to 2 sets — volume shifted to laterals' },
-  { muscle_group: 'shoulders', name: 'Dumbbell lateral raise', sets: 5, rep_range: '12–15', notes: 'Primary V-taper builder' },
-  { muscle_group: 'shoulders', name: 'Cable lateral raise', sets: 2, rep_range: '15–20', notes: 'Low pulley, single arm — constant tension' },
-  { muscle_group: 'shoulders', name: 'Cable face pull', sets: 4, rep_range: '15', notes: 'Rope attachment, pull to forehead level' },
+  // Shoulders
+  { name: 'Dumbbell overhead press',             muscle_group: 'shoulders',       notes: null },
+  { name: 'Barbell overhead press',              muscle_group: 'shoulders',       notes: null },
+  { name: 'Machine shoulder press',              muscle_group: 'shoulders',       notes: null },
+  { name: 'Dumbbell lateral raise',              muscle_group: 'shoulders',       notes: null },
+  { name: 'Cable lateral raise',                 muscle_group: 'shoulders',       notes: 'Low pulley, single arm — constant tension' },
+  { name: 'Cable face pull',                     muscle_group: 'shoulders',       notes: 'Rope attachment, pull to forehead level' },
+  { name: 'Rear delt dumbbell fly',              muscle_group: 'shoulders',       notes: null },
+  { name: 'Rear delt machine fly',               muscle_group: 'shoulders',       notes: null },
 
-  { muscle_group: 'triceps', name: 'Cable rope pushdown', sets: 3, rep_range: '10–12', notes: 'Flare rope at bottom — lateral head' },
-  { muscle_group: 'triceps', name: 'Overhead dumbbell tricep extension', sets: 3, rep_range: '10–12', notes: 'Single arm, deep stretch — long head' },
+  // Triceps
+  { name: 'Cable rope pushdown',                 muscle_group: 'triceps',         notes: 'Flare rope at bottom — lateral head' },
+  { name: 'Cable bar pushdown',                  muscle_group: 'triceps',         notes: null },
+  { name: 'Overhead dumbbell tricep extension',  muscle_group: 'triceps',         notes: 'Single arm, deep stretch — long head' },
+  { name: 'Cable overhead tricep extension',     muscle_group: 'triceps',         notes: null },
+  { name: 'Skull crusher',                       muscle_group: 'triceps',         notes: null },
+  { name: 'Close-grip bench press',              muscle_group: 'triceps',         notes: null },
+  { name: 'Dip',                                 muscle_group: 'triceps',         notes: 'Upright torso for tricep focus' },
+
+  // Back — width
+  { name: 'Wide grip pull-up',                   muscle_group: 'back-width',      notes: 'Full hang at bottom, chin over bar at top' },
+  { name: 'Wide grip lat pulldown',              muscle_group: 'back-width',      notes: 'Drive elbows down and back' },
+  { name: 'Single arm lat pulldown',             muscle_group: 'back-width',      notes: null },
+  { name: 'Cable straight arm pulldown',         muscle_group: 'back-width',      notes: 'Constant tension — pure lat width builder' },
+  { name: 'Dumbbell pullover',                   muscle_group: 'back-width',      notes: 'Slight bend in elbow, big stretch at top' },
+
+  // Back — thickness
+  { name: 'Deadlift',                            muscle_group: 'back-thickness',  notes: 'Hip hinge, brace core' },
+  { name: 'Barbell bent-over row',               muscle_group: 'back-thickness',  notes: 'Overhand grip — primary thickness builder' },
+  { name: 'Chest-supported dumbbell row',        muscle_group: 'back-thickness',  notes: 'Removes lower back fatigue' },
+  { name: 'Single arm dumbbell row',             muscle_group: 'back-thickness',  notes: null },
+  { name: 'Seated cable row',                    muscle_group: 'back-thickness',  notes: 'Close grip, drive elbows behind torso' },
+  { name: 'T-bar row',                           muscle_group: 'back-thickness',  notes: null },
+  { name: 'Machine row',                         muscle_group: 'back-thickness',  notes: null },
+
+  // Biceps
+  { name: 'Barbell curl',                        muscle_group: 'biceps',          notes: null },
+  { name: 'Reverse grip barbell curl',           muscle_group: 'biceps',          notes: null },
+  { name: 'Dumbbell curl',                       muscle_group: 'biceps',          notes: 'Supinate at top' },
+  { name: 'Seated dumbbell curl',                muscle_group: 'biceps',          notes: 'Supinate at top' },
+  { name: 'Incline dumbbell curl',               muscle_group: 'biceps',          notes: 'Long head stretch' },
+  { name: 'Hammer curl',                         muscle_group: 'biceps',          notes: null },
+  { name: 'Cable curl',                          muscle_group: 'biceps',          notes: null },
+  { name: 'Preacher machine curl',               muscle_group: 'biceps',          notes: null },
+
+  // Grip
+  { name: 'Dumbbell farmer carry',               muscle_group: 'grip',            notes: '30–40 meters per set' },
+  { name: 'Barbell farmer carry',                muscle_group: 'grip',            notes: null },
+  { name: 'Plate pinch',                         muscle_group: 'grip',            notes: null },
+  { name: 'Dead hang',                           muscle_group: 'grip',            notes: null },
+
+  // Quads
+  { name: 'Barbell back squat',                  muscle_group: 'quads',           notes: 'Go deep, brace core' },
+  { name: 'Front squat',                         muscle_group: 'quads',           notes: null },
+  { name: 'Bulgarian split squat',               muscle_group: 'quads',           notes: 'Rear foot elevated' },
+  { name: 'Leg press',                           muscle_group: 'quads',           notes: null },
+  { name: 'Hack squat',                          muscle_group: 'quads',           notes: null },
+  { name: 'Leg extension',                       muscle_group: 'quads',           notes: 'Slow eccentric' },
+  { name: 'Walking lunge',                       muscle_group: 'quads',           notes: null },
+
+  // Hamstrings
+  { name: 'Romanian deadlift',                   muscle_group: 'hamstrings',      notes: 'Hip hinge, big hamstring stretch' },
+  { name: 'Lying leg curl',                      muscle_group: 'hamstrings',      notes: null },
+  { name: 'Seated leg curl',                     muscle_group: 'hamstrings',      notes: null },
+  { name: 'Nordic curl',                         muscle_group: 'hamstrings',      notes: null },
+  { name: 'Good morning',                        muscle_group: 'hamstrings',      notes: null },
+  { name: 'Stiff-leg deadlift',                  muscle_group: 'hamstrings',      notes: null },
+
+  // Glutes
+  { name: 'Hip thrust',                          muscle_group: 'glutes',          notes: 'Drive through heel' },
+  { name: 'Barbell hip thrust',                  muscle_group: 'glutes',          notes: null },
+  { name: 'Cable kickback',                      muscle_group: 'glutes',          notes: null },
+  { name: 'Sumo deadlift',                       muscle_group: 'glutes',          notes: null },
+  { name: 'Hip abduction machine',               muscle_group: 'glutes',          notes: null },
+  { name: 'Glute bridge',                        muscle_group: 'glutes',          notes: null },
+
+  // Calves
+  { name: 'Standing calf raise',                 muscle_group: 'calves',          notes: 'Full stretch at bottom, pause at top' },
+  { name: 'Seated calf raise',                   muscle_group: 'calves',          notes: null },
+  { name: 'Leg press calf raise',                muscle_group: 'calves',          notes: null },
+  { name: 'Single leg calf raise',               muscle_group: 'calves',          notes: null },
+
+  // Core
+  { name: 'Hanging leg raise',                   muscle_group: 'core',            notes: 'Control the negative' },
+  { name: 'Ab wheel rollout',                    muscle_group: 'core',            notes: 'From knees, brace hard' },
+  { name: 'Cable crunch',                        muscle_group: 'core',            notes: null },
+  { name: 'Decline sit-up',                      muscle_group: 'core',            notes: null },
+  { name: 'Plank',                               muscle_group: 'core',            notes: null },
+  { name: 'Russian twist',                       muscle_group: 'core',            notes: null },
 ];
-
-const BICEPS_BLOCK: SeedExercise[] = [
-  { muscle_group: 'biceps', name: 'Barbell curl / reverse grip curl (superset)', sets: 3, rep_range: '12/12', notes: 'No rest between grips' },
-  { muscle_group: 'biceps', name: 'Seated dumbbell curl', sets: 3, rep_range: '10–12', notes: 'Supinate at top' },
-  { muscle_group: 'biceps', name: 'Preacher machine curl (drop set)', sets: 2, rep_range: '15→20', notes: 'No rest between drops' },
-];
-
-const TUESDAY: SeedExercise[] = [
-  { muscle_group: 'back-width', name: 'Wide grip pull-up', sets: 4, rep_range: 'failure', notes: 'Full hang at bottom, chin over bar at top' },
-  { muscle_group: 'back-width', name: 'Wide grip lat pulldown', sets: 3, rep_range: '10–12', notes: 'Drive elbows down and back' },
-  { muscle_group: 'back-width', name: 'Cable straight arm pulldown', sets: 3, rep_range: '12–15', notes: 'Constant tension — best pure lat width builder' },
-  { muscle_group: 'back-width', name: 'Dumbbell pullover', sets: 3, rep_range: '12–15', notes: 'Slight bend in elbow, big stretch at top' },
-  ...BICEPS_BLOCK,
-  { muscle_group: 'grip', name: 'Dumbbell farmer carry', sets: 3, rep_range: '30–40 m', notes: 'Heavy — 30–40 meters per set' },
-];
-
-const CALVES_CORE: SeedExercise[] = [
-  { muscle_group: 'calves', name: 'Standing calf raise', sets: 4, rep_range: '12–15', notes: 'Full stretch at bottom, pause at top' },
-  { muscle_group: 'calves', name: 'Seated calf raise', sets: 3, rep_range: '30', notes: '10 toes out / 10 neutral / 10 toes in' },
-  { muscle_group: 'core', name: 'Hanging leg raise', sets: 3, rep_range: '15', notes: 'Control the negative' },
-  { muscle_group: 'core', name: 'Ab wheel rollout', sets: 2, rep_range: 'failure', notes: 'From knees, brace hard' },
-];
-
-const WEDNESDAY: SeedExercise[] = [
-  { muscle_group: 'quads', name: 'Barbell back squat', sets: 4, rep_range: '6–10', notes: 'Primary quad builder — go deep, brace core' },
-  { muscle_group: 'quads', name: 'Bulgarian split squat', sets: 3, rep_range: '10–12', notes: 'Rear foot elevated' },
-  { muscle_group: 'quads', name: 'Leg press', sets: 3, rep_range: '10–12', notes: 'Alternate with hack squat each week' },
-  { muscle_group: 'quads', name: 'Leg extension (drop set)', sets: 2, rep_range: '15→15', notes: 'Slow eccentric' },
-  ...CALVES_CORE,
-];
-
-const FRIDAY: SeedExercise[] = [
-  { muscle_group: 'back-thickness', name: 'Deadlift', sets: 4, rep_range: '6–8', notes: 'Hip hinge, brace core' },
-  { muscle_group: 'back-thickness', name: 'Barbell bent-over row', sets: 4, rep_range: '8–10', notes: 'Overhand grip — primary thickness builder' },
-  { muscle_group: 'back-thickness', name: 'Chest-supported dumbbell row', sets: 3, rep_range: '10–12', notes: 'Removes lower back fatigue' },
-  { muscle_group: 'back-thickness', name: 'Seated cable row', sets: 3, rep_range: '10–12', notes: 'Close grip, drive elbows behind torso' },
-  ...BICEPS_BLOCK,
-];
-
-const SATURDAY: SeedExercise[] = [
-  { muscle_group: 'hamstrings-glutes', name: 'Lying leg curl', sets: 3, rep_range: '12–15', notes: 'Pre-fatigue before RDL' },
-  { muscle_group: 'hamstrings-glutes', name: 'Romanian deadlift', sets: 4, rep_range: '8–10', notes: 'Hip hinge, big hamstring stretch' },
-  { muscle_group: 'hamstrings-glutes', name: 'Walking lunge', sets: 3, rep_range: '10/leg', notes: 'Progress to barbell loading' },
-  { muscle_group: 'hamstrings-glutes', name: 'Hip thrust', sets: 2, rep_range: '12', notes: 'Drive through heel' },
-  ...CALVES_CORE,
-];
-
-const PLAN: Record<Day, SeedExercise[]> = {
-  monday: PUSH,
-  tuesday: TUESDAY,
-  wednesday: WEDNESDAY,
-  thursday: PUSH,
-  friday: FRIDAY,
-  saturday: SATURDAY,
-  sunday: [],
-};
 
 export async function seedIfNeeded(db: SQLiteDatabase): Promise<void> {
   const seeded = await db.getFirstAsync<{ value: string }>(
-    'SELECT value FROM settings WHERE key = ?',
-    ['seeded'],
+    `SELECT value FROM settings WHERE key = 'seeded'`,
   );
-  if (seeded?.value === 'v5') return;
+  if (seeded?.value === 'library-v2') return;
 
-  await db.withTransactionAsync(async () => {
-    await db.runAsync('DELETE FROM exercises');
-    for (const day of Object.keys(PLAN) as Day[]) {
-      const items = PLAN[day];
-      for (let i = 0; i < items.length; i++) {
-        const ex = items[i];
-        await db.runAsync(
-          `INSERT INTO exercises (day, muscle_group, name, sets, rep_range, notes, sort_order, accent_color)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            day,
-            ex.muscle_group,
-            ex.name,
-            ex.sets,
-            ex.rep_range,
-            ex.notes,
-            i,
-            muscleAccent[ex.muscle_group],
-          ],
-        );
-      }
-    }
+  const existingPhase = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'phase'`,
+  );
+  if (!existingPhase) {
+    await db.runAsync(`INSERT INTO settings (key, value) VALUES ('phase', 'maintain')`);
+  }
+
+  for (const ex of EXERCISES) {
     await db.runAsync(
-      `INSERT INTO settings (key, value) VALUES ('seeded', 'v5')
-       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      `INSERT OR IGNORE INTO exercises (name, muscle_group, notes) VALUES (?, ?, ?)`,
+      [ex.name, ex.muscle_group, ex.notes],
     );
-    const existingPhase = await db.getFirstAsync<{ value: string }>(
-      'SELECT value FROM settings WHERE key = ?',
-      ['phase'],
-    );
-    if (!existingPhase) {
-      await db.runAsync(
-        `INSERT INTO settings (key, value) VALUES ('phase', 'maintain')`,
-      );
-    }
-  });
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('seeded', 'library-v2')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
 }

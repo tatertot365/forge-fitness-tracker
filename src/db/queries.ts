@@ -3,11 +3,11 @@ import type {
   CatchupItem,
   DailyNutritionTotal,
   Day,
+  DayExercise,
   DayPlan,
-  Exercise,
-  ExerciseType,
   FoodEntry,
   FoodRecent,
+  LibraryExercise,
   Measurement,
   MuscleGroup,
   NutritionGoal,
@@ -19,6 +19,38 @@ import { DAYS, DAY_LABEL } from '../types';
 import { daysBetween, toISO, todayISO, weekDates } from '../utils/date';
 
 // ─── Phase ────────────────────────────────────────────────────────────
+
+async function getSetting(key: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>('SELECT value FROM settings WHERE key = ?', [key]);
+  return row?.value ?? null;
+}
+
+async function setSetting(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    [key, value],
+  );
+}
+
+export async function getGoalsMode(): Promise<'calculated' | 'manual'> {
+  const v = await getSetting('goals_mode');
+  return v === 'calculated' ? 'calculated' : 'manual';
+}
+
+export async function setGoalsMode(mode: 'calculated' | 'manual'): Promise<void> {
+  await setSetting('goals_mode', mode);
+}
+
+export async function getActivityLevel(): Promise<import('../utils/tdee').ActivityLevel | null> {
+  const v = await getSetting('activity_level');
+  return (v as import('../utils/tdee').ActivityLevel) ?? null;
+}
+
+export async function setActivityLevel(level: import('../utils/tdee').ActivityLevel): Promise<void> {
+  await setSetting('activity_level', level);
+}
 
 export async function getPhase(): Promise<Phase> {
   const db = await getDb();
@@ -55,124 +87,86 @@ export async function markHealthKitAsked(): Promise<void> {
   );
 }
 
-// ─── Exercises ────────────────────────────────────────────────────────
+// ─── Exercise library ─────────────────────────────────────────────────
 
-export async function getExercisesByDay(day: Day): Promise<Exercise[]> {
+export async function getLibraryExercises(): Promise<LibraryExercise[]> {
   const db = await getDb();
-  return db.getAllAsync<Exercise>(
-    'SELECT * FROM exercises WHERE day = ? ORDER BY sort_order ASC',
+  return db.getAllAsync<LibraryExercise>(
+    'SELECT * FROM exercises ORDER BY name ASC',
+  );
+}
+
+export async function getLibraryExercisesByMuscle(muscle_group: MuscleGroup): Promise<LibraryExercise[]> {
+  const db = await getDb();
+  return db.getAllAsync<LibraryExercise>(
+    'SELECT * FROM exercises WHERE muscle_group = ? ORDER BY name ASC',
+    [muscle_group],
+  );
+}
+
+export async function findLibraryExercisesByName(name: string): Promise<LibraryExercise[]> {
+  const db = await getDb();
+  return db.getAllAsync<LibraryExercise>(
+    'SELECT * FROM exercises WHERE LOWER(name) = LOWER(?)',
+    [name.trim()],
+  );
+}
+
+export async function createLibraryExercise(input: {
+  name: string;
+  muscle_group: MuscleGroup;
+  notes?: string | null;
+}): Promise<number> {
+  const db = await getDb();
+  const result = await db.runAsync(
+    `INSERT OR IGNORE INTO exercises (name, muscle_group, notes) VALUES (?, ?, ?)`,
+    [input.name.trim(), input.muscle_group, input.notes ?? null],
+  );
+  if (result.changes === 0) {
+    const existing = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM exercises WHERE LOWER(name) = LOWER(?)',
+      [input.name.trim()],
+    );
+    return existing!.id;
+  }
+  return result.lastInsertRowId as number;
+}
+
+// ─── Day exercises (plan assignments) ────────────────────────────────
+
+const DAY_EXERCISE_JOIN = `
+  SELECT
+    de.id,
+    de.day,
+    de.exercise_id,
+    e.name,
+    e.muscle_group,
+    e.notes,
+    de.sets,
+    de.warmup_sets,
+    de.rep_range,
+    de.sort_order,
+    de.type,
+    de.superset_partner_id
+  FROM day_exercises de
+  JOIN exercises e ON e.id = de.exercise_id
+`;
+
+export async function getExercisesByDay(day: Day): Promise<DayExercise[]> {
+  const db = await getDb();
+  return db.getAllAsync<DayExercise>(
+    `${DAY_EXERCISE_JOIN} WHERE de.day = ? ORDER BY de.sort_order ASC`,
     [day],
   );
 }
 
-export async function reorderExercisesInGroup(
-  updates: { id: number; sort_order: number }[],
-): Promise<void> {
+export async function getExercise(id: number): Promise<DayExercise | null> {
   const db = await getDb();
-  await db.withTransactionAsync(async () => {
-    for (const { id, sort_order } of updates) {
-      await db.runAsync('UPDATE exercises SET sort_order = ? WHERE id = ?', [sort_order, id]);
-    }
-  });
-}
-
-export const reorderGroupsInDay = reorderExercisesInGroup;
-
-export async function getExercise(id: number): Promise<Exercise | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<Exercise>(
-    'SELECT * FROM exercises WHERE id = ?',
+  const row = await db.getFirstAsync<DayExercise>(
+    `${DAY_EXERCISE_JOIN} WHERE de.id = ?`,
     [id],
   );
   return row ?? null;
-}
-
-export async function updateExercise(
-  id: number,
-  patch: {
-    name?: string;
-    sets?: number;
-    warmup_sets?: number;
-    rep_range?: string;
-    notes?: string | null;
-    type?: ExerciseType;
-  },
-): Promise<void> {
-  const db = await getDb();
-  const ex = await getExercise(id);
-  if (!ex) return;
-  await db.runAsync(
-    `UPDATE exercises
-     SET name = ?, sets = ?, warmup_sets = ?, rep_range = ?, notes = ?, type = ?
-     WHERE id = ?`,
-    [
-      patch.name ?? ex.name,
-      patch.sets ?? ex.sets,
-      patch.warmup_sets !== undefined ? patch.warmup_sets : ex.warmup_sets,
-      patch.rep_range ?? ex.rep_range,
-      patch.notes !== undefined ? patch.notes : ex.notes,
-      patch.type ?? ex.type,
-      id,
-    ],
-  );
-}
-
-export async function linkSuperset(aId: number, bId: number): Promise<void> {
-  if (aId === bId) return;
-  const db = await getDb();
-  const a = await getExercise(aId);
-  const b = await getExercise(bId);
-  if (!a || !b) return;
-
-  // Clear any old partners either side may have had.
-  if (a.superset_partner_id && a.superset_partner_id !== bId) {
-    await db.runAsync(
-      `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-      [a.superset_partner_id],
-    );
-  }
-  if (b.superset_partner_id && b.superset_partner_id !== aId) {
-    await db.runAsync(
-      `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-      [b.superset_partner_id],
-    );
-  }
-
-  await db.runAsync(
-    `UPDATE exercises SET type = 'superset', superset_partner_id = ? WHERE id = ?`,
-    [bId, aId],
-  );
-  await db.runAsync(
-    `UPDATE exercises SET type = 'superset', superset_partner_id = ? WHERE id = ?`,
-    [aId, bId],
-  );
-
-  // Put B immediately after A so they render adjacent.
-  const target = a.sort_order + 1;
-  if (b.sort_order !== target) {
-    await db.runAsync(
-      `UPDATE exercises SET sort_order = sort_order + 1
-       WHERE day = ? AND id != ? AND sort_order >= ? AND sort_order < ?`,
-      [a.day, bId, target, b.sort_order],
-    );
-    await db.runAsync(`UPDATE exercises SET sort_order = ? WHERE id = ?`, [target, bId]);
-  }
-}
-
-export async function unlinkSuperset(id: number): Promise<void> {
-  const db = await getDb();
-  const ex = await getExercise(id);
-  if (!ex) return;
-  if (ex.superset_partner_id) {
-    await db.runAsync(
-      `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-      [ex.superset_partner_id],
-    );
-  }
-  await db.runAsync(
-    `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-    [id],
-  );
 }
 
 export async function createExercise(input: {
@@ -183,105 +177,232 @@ export async function createExercise(input: {
   warmup_sets?: number;
   rep_range: string;
   notes?: string | null;
-  accent_color: string;
-  type?: ExerciseType;
+  type?: string;
 }): Promise<number> {
   const db = await getDb();
-  const row = await db.getFirstAsync<{ max_order: number | null }>(
-    `SELECT MAX(sort_order) as max_order
-     FROM exercises
-     WHERE day = ? AND muscle_group = ?`,
-    [input.day, input.muscle_group],
+
+  // Upsert into library
+  const libId = await createLibraryExercise({
+    name: input.name,
+    muscle_group: input.muscle_group,
+    notes: input.notes,
+  });
+
+  // Get next sort_order for this day
+  const tail = await db.getFirstAsync<{ max_order: number | null }>(
+    'SELECT MAX(sort_order) as max_order FROM day_exercises WHERE day = ?',
+    [input.day],
   );
-  let insertAt: number;
-  if (row?.max_order != null) {
-    insertAt = row.max_order + 1;
-    await db.runAsync(
-      'UPDATE exercises SET sort_order = sort_order + 1 WHERE day = ? AND sort_order >= ?',
-      [input.day, insertAt],
-    );
-  } else {
-    const tail = await db.getFirstAsync<{ max_order: number | null }>(
-      'SELECT MAX(sort_order) as max_order FROM exercises WHERE day = ?',
-      [input.day],
-    );
-    insertAt = (tail?.max_order ?? -1) + 1;
-  }
+  const sortOrder = (tail?.max_order ?? -1) + 1;
+
   const result = await db.runAsync(
-    `INSERT INTO exercises (day, muscle_group, name, sets, warmup_sets, rep_range, notes, sort_order, accent_color, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       input.day,
-      input.muscle_group,
-      input.name,
+      libId,
       input.sets,
       input.warmup_sets ?? 0,
       input.rep_range,
-      input.notes ?? null,
-      insertAt,
-      input.accent_color,
+      sortOrder,
       input.type ?? 'normal',
     ],
   );
+
+  if (result.changes === 0) {
+    // Already on this day — return existing day_exercise id
+    const existing = await db.getFirstAsync<{ id: number }>(
+      'SELECT id FROM day_exercises WHERE day = ? AND exercise_id = ?',
+      [input.day, libId],
+    );
+    return existing!.id;
+  }
   return result.lastInsertRowId as number;
 }
 
-export async function deleteExercisesByGroup(day: Day, muscleGroup: MuscleGroup): Promise<void> {
-  const db = await getDb();
-  const exercises = await db.getAllAsync<{ id: number; superset_partner_id: number | null }>(
-    'SELECT id, superset_partner_id FROM exercises WHERE day = ? AND muscle_group = ?',
-    [day, muscleGroup],
-  );
+export async function copyDayExercises(fromDay: Day, toDay: Day): Promise<void> {
+  const exercises = await getExercisesByDay(fromDay);
   for (const ex of exercises) {
-    if (ex.superset_partner_id) {
-      await db.runAsync(
-        `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-        [ex.superset_partner_id],
-      );
-    }
+    await createExercise({
+      day: toDay,
+      muscle_group: ex.muscle_group,
+      name: ex.name,
+      sets: ex.sets,
+      warmup_sets: ex.warmup_sets,
+      rep_range: ex.rep_range,
+      notes: ex.notes,
+      type: ex.type,
+    });
   }
-  if (exercises.length === 0) return;
-  const ids = exercises.map((e) => e.id);
-  const ph = ids.map(() => '?').join(',');
-  await db.runAsync(`DELETE FROM set_logs WHERE exercise_id IN (${ph})`, ids);
+}
+
+export async function updateExercise(
+  id: number,
+  patch: {
+    name?: string;
+    sets?: number;
+    warmup_sets?: number;
+    rep_range?: string;
+    notes?: string | null;
+    type?: string;
+  },
+): Promise<void> {
+  const db = await getDb();
+  const ex = await getExercise(id);
+  if (!ex) return;
+
+  // Update library fields (name, notes) on the exercises table
+  if (patch.name !== undefined || patch.notes !== undefined) {
+    await db.runAsync(
+      'UPDATE exercises SET name = ?, notes = ? WHERE id = ?',
+      [
+        patch.name !== undefined ? patch.name.trim() : ex.name,
+        patch.notes !== undefined ? patch.notes : ex.notes,
+        ex.exercise_id,
+      ],
+    );
+  }
+
+  // Update day-specific fields on day_exercises
   await db.runAsync(
-    'DELETE FROM exercises WHERE day = ? AND muscle_group = ?',
-    [day, muscleGroup],
+    `UPDATE day_exercises
+     SET sets = ?, warmup_sets = ?, rep_range = ?, type = ?
+     WHERE id = ?`,
+    [
+      patch.sets !== undefined ? patch.sets : ex.sets,
+      patch.warmup_sets !== undefined ? patch.warmup_sets : ex.warmup_sets,
+      patch.rep_range !== undefined ? patch.rep_range.trim() : ex.rep_range,
+      patch.type !== undefined ? patch.type : ex.type,
+      id,
+    ],
   );
 }
 
-export async function deleteExercise(id: number): Promise<void> {
+export async function reorderExercisesInGroup(
+  updates: { id: number; sort_order: number }[],
+): Promise<void> {
+  const db = await getDb();
+  await db.withTransactionAsync(async () => {
+    for (const { id, sort_order } of updates) {
+      await db.runAsync('UPDATE day_exercises SET sort_order = ? WHERE id = ?', [sort_order, id]);
+    }
+  });
+}
+
+export const reorderGroupsInDay = reorderExercisesInGroup;
+
+export async function linkSuperset(aId: number, bId: number): Promise<void> {
+  if (aId === bId) return;
+  const db = await getDb();
+  const a = await getExercise(aId);
+  const b = await getExercise(bId);
+  if (!a || !b) return;
+
+  // Clear any old partners
+  if (a.superset_partner_id && a.superset_partner_id !== bId) {
+    await db.runAsync(
+      `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+      [a.superset_partner_id],
+    );
+  }
+  if (b.superset_partner_id && b.superset_partner_id !== aId) {
+    await db.runAsync(
+      `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+      [b.superset_partner_id],
+    );
+  }
+
+  await db.runAsync(
+    `UPDATE day_exercises SET type = 'superset', superset_partner_id = ? WHERE id = ?`,
+    [bId, aId],
+  );
+  await db.runAsync(
+    `UPDATE day_exercises SET type = 'superset', superset_partner_id = ? WHERE id = ?`,
+    [aId, bId],
+  );
+
+  // Put B immediately after A
+  const target = a.sort_order + 1;
+  if (b.sort_order !== target) {
+    await db.runAsync(
+      `UPDATE day_exercises SET sort_order = sort_order + 1
+       WHERE day = ? AND id != ? AND sort_order >= ? AND sort_order < ?`,
+      [a.day, bId, target, b.sort_order],
+    );
+    await db.runAsync(`UPDATE day_exercises SET sort_order = ? WHERE id = ?`, [target, bId]);
+  }
+}
+
+export async function unlinkSuperset(id: number): Promise<void> {
   const db = await getDb();
   const ex = await getExercise(id);
   if (!ex) return;
   if (ex.superset_partner_id) {
     await db.runAsync(
-      `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+      `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
       [ex.superset_partner_id],
     );
   }
-  await db.runAsync('DELETE FROM set_logs WHERE exercise_id = ?', [id]);
-  await db.runAsync('DELETE FROM exercises WHERE id = ?', [id]);
+  await db.runAsync(
+    `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+    [id],
+  );
 }
 
-export async function deleteExercisesByName(name: string): Promise<void> {
+export async function deleteExercise(id: number): Promise<void> {
+  const db = await getDb();
+  const de = await db.getFirstAsync<{ exercise_id: number; day: string }>(
+    'SELECT exercise_id, day FROM day_exercises WHERE id = ?',
+    [id],
+  );
+  if (!de) return;
+
+  // Unlink superset partner if any
+  const ex = await getExercise(id);
+  if (ex?.superset_partner_id) {
+    await db.runAsync(
+      `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+      [ex.superset_partner_id],
+    );
+  }
+
+  // Delete set_logs for this exercise within sessions on the same day
+  await db.runAsync(
+    `DELETE FROM set_logs WHERE exercise_id = ? AND session_id IN (
+       SELECT id FROM sessions WHERE day = ?
+     )`,
+    [de.exercise_id, de.day],
+  );
+
+  await db.runAsync('DELETE FROM day_exercises WHERE id = ?', [id]);
+}
+
+export async function deleteExercisesByGroup(day: Day, muscleGroup: MuscleGroup): Promise<void> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ id: number; superset_partner_id: number | null }>(
-    'SELECT id, superset_partner_id FROM exercises WHERE LOWER(name) = LOWER(?)',
-    [name.trim()],
+    `SELECT de.id, de.superset_partner_id
+     FROM day_exercises de
+     JOIN exercises e ON e.id = de.exercise_id
+     WHERE de.day = ? AND e.muscle_group = ?`,
+    [day, muscleGroup],
   );
-  for (const ex of rows) {
-    if (ex.superset_partner_id) {
+  for (const de of rows) {
+    if (de.superset_partner_id) {
       await db.runAsync(
-        `UPDATE exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
-        [ex.superset_partner_id],
+        `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL WHERE id = ?`,
+        [de.superset_partner_id],
       );
     }
   }
+  if (rows.length === 0) return;
   const ids = rows.map((r) => r.id);
-  if (ids.length === 0) return;
   const ph = ids.map(() => '?').join(',');
-  await db.runAsync(`DELETE FROM set_logs WHERE exercise_id IN (${ph})`, ids);
+  await db.runAsync(`DELETE FROM day_exercises WHERE id IN (${ph})`, ids);
+}
+
+export async function deleteExercisesByName(name: string): Promise<void> {
+  // Removes the library entry entirely — cascades to all day_exercises via FK
+  const db = await getDb();
   await db.runAsync('DELETE FROM exercises WHERE LOWER(name) = LOWER(?)', [name.trim()]);
 }
 
@@ -290,32 +411,38 @@ export async function duplicateExercise(id: number): Promise<number | null> {
   const ex = await getExercise(id);
   if (!ex) return null;
   await db.runAsync(
-    'UPDATE exercises SET sort_order = sort_order + 1 WHERE day = ? AND sort_order > ?',
+    'UPDATE day_exercises SET sort_order = sort_order + 1 WHERE day = ? AND sort_order > ?',
     [ex.day, ex.sort_order],
   );
   const result = await db.runAsync(
-    `INSERT INTO exercises (day, muscle_group, name, sets, rep_range, notes, sort_order, accent_color, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
     [
       ex.day,
-      ex.muscle_group,
-      ex.name,
+      ex.exercise_id,
       ex.sets,
+      ex.warmup_sets,
       ex.rep_range,
-      ex.notes,
       ex.sort_order + 1,
-      ex.accent_color,
       ex.type ?? 'normal',
     ],
   );
   return result.lastInsertRowId as number;
 }
 
-// TODO (Option B — per-session exercise overrides):
-// Let the user swap an exercise or change its set count for a single session
-// without modifying the plan. Add a `session_exercise_overrides` table keyed
-// by (session_id, exercise_id) with override_exercise_id / override_sets, and
-// resolve in getExercisesByDay when a specific session is in view.
+
+// Keep old names as aliases for components that haven't been updated yet
+export async function getAllUniqueExercises(): Promise<LibraryExercise[]> {
+  return getLibraryExercises();
+}
+
+export async function getAllExercises(): Promise<LibraryExercise[]> {
+  return getLibraryExercises();
+}
+
+export async function findExercisesByName(name: string): Promise<LibraryExercise[]> {
+  return findLibraryExercisesByName(name);
+}
 
 // ─── Day plans ────────────────────────────────────────────────────────
 
@@ -325,14 +452,14 @@ export async function getDayPlans(): Promise<Record<Day, DayPlan>> {
   const out = {} as Record<Day, DayPlan>;
   for (const d of DAYS) {
     const row = rows.find((r) => r.day === d);
-    out[d] = row ?? { day: d, enabled: 1, focus: '' };
+    out[d] = row ?? { day: d, name: '', enabled: 0 };
   }
   return out;
 }
 
 export async function updateDayPlan(
   day: Day,
-  patch: { enabled?: 0 | 1; focus?: string },
+  patch: { enabled?: 0 | 1; name?: string },
 ): Promise<void> {
   const db = await getDb();
   const existing = await db.getFirstAsync<DayPlan>(
@@ -341,17 +468,17 @@ export async function updateDayPlan(
   );
   if (existing) {
     await db.runAsync(
-      'UPDATE day_plans SET enabled = ?, focus = ? WHERE day = ?',
+      'UPDATE day_plans SET enabled = ?, name = ? WHERE day = ?',
       [
         patch.enabled !== undefined ? patch.enabled : existing.enabled,
-        patch.focus !== undefined ? patch.focus : existing.focus,
+        patch.name !== undefined ? patch.name : existing.name,
         day,
       ],
     );
   } else {
     await db.runAsync(
-      'INSERT INTO day_plans (day, enabled, focus) VALUES (?, ?, ?)',
-      [day, patch.enabled ?? 1, patch.focus ?? ''],
+      'INSERT INTO day_plans (day, enabled, name) VALUES (?, ?, ?)',
+      [day, patch.enabled ?? 0, patch.name ?? ''],
     );
   }
 }
@@ -472,9 +599,15 @@ export async function getSetLogsForSessionExercise(
   exerciseId: number,
 ): Promise<SetLog[]> {
   const db = await getDb();
+  // exerciseId here is a day_exercises.id — resolve to library exercise_id for set_logs
+  const de = await db.getFirstAsync<{ exercise_id: number }>(
+    'SELECT exercise_id FROM day_exercises WHERE id = ?',
+    [exerciseId],
+  );
+  const libId = de?.exercise_id ?? exerciseId;
   return db.getAllAsync<SetLog>(
     'SELECT * FROM set_logs WHERE session_id = ? AND exercise_id = ? ORDER BY set_number',
-    [sessionId, exerciseId],
+    [sessionId, libId],
   );
 }
 
@@ -491,9 +624,16 @@ export async function upsertSetLog(
   },
 ): Promise<void> {
   const db = await getDb();
+  // exerciseId may be day_exercises.id — resolve to library exercise_id
+  const de = await db.getFirstAsync<{ exercise_id: number }>(
+    'SELECT exercise_id FROM day_exercises WHERE id = ?',
+    [exerciseId],
+  );
+  const libId = de?.exercise_id ?? exerciseId;
+
   const existing = await db.getFirstAsync<SetLog>(
     'SELECT * FROM set_logs WHERE session_id = ? AND exercise_id = ? AND set_number = ?',
-    [sessionId, exerciseId, setNumber],
+    [sessionId, libId, setNumber],
   );
   if (existing) {
     await db.runAsync(
@@ -515,7 +655,7 @@ export async function upsertSetLog(
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
-        exerciseId,
+        libId,
         setNumber,
         patch.weight_lb ?? null,
         patch.reps ?? null,
@@ -527,60 +667,24 @@ export async function upsertSetLog(
   }
 }
 
-async function getSiblingInfo(
+async function getLibraryIdForDayExercise(
   db: Awaited<ReturnType<typeof getDb>>,
   exerciseId: number,
-): Promise<{ ids: number[]; isBodyweight: boolean }> {
-  const nameRow = await db.getFirstAsync<{ name: string; type: string }>(
-    'SELECT name, type FROM exercises WHERE id = ?',
+): Promise<{ libId: number; isBodyweight: boolean }> {
+  // Try resolving as day_exercises.id first
+  const de = await db.getFirstAsync<{ exercise_id: number; type: string }>(
+    'SELECT exercise_id, type FROM day_exercises WHERE id = ?',
     [exerciseId],
   );
-  if (!nameRow) return { ids: [exerciseId], isBodyweight: false };
-  const rows = await db.getAllAsync<{ id: number }>(
-    'SELECT id FROM exercises WHERE LOWER(name) = LOWER(?)',
-    [nameRow.name],
+  if (de) {
+    return { libId: de.exercise_id, isBodyweight: de.type === 'bodyweight' };
+  }
+  // Fall back: treat as direct library id (for history queries from old set_logs)
+  const lib = await db.getFirstAsync<{ type: string }>(
+    'SELECT \'normal\' as type FROM exercises WHERE id = ?',
+    [exerciseId],
   );
-  return {
-    ids: rows.map((r) => r.id),
-    isBodyweight: nameRow.type === 'bodyweight',
-  };
-}
-
-export async function getAllExercises(): Promise<Exercise[]> {
-  const db = await getDb();
-  return db.getAllAsync<Exercise>(
-    'SELECT * FROM exercises ORDER BY sort_order ASC',
-  );
-}
-
-export async function getAllUniqueExercises(): Promise<Exercise[]> {
-  const db = await getDb();
-  // One representative row per unique name (lowest id), sorted alphabetically
-  return db.getAllAsync<Exercise>(
-    `SELECT * FROM exercises
-     WHERE id IN (SELECT MIN(id) FROM exercises GROUP BY LOWER(name))
-     ORDER BY name ASC`,
-  );
-}
-
-export async function findExercisesByName(name: string): Promise<Exercise[]> {
-  const db = await getDb();
-  return db.getAllAsync<Exercise>(
-    'SELECT * FROM exercises WHERE LOWER(name) = LOWER(?)',
-    [name.trim()],
-  );
-}
-
-export async function deleteSetLog(
-  sessionId: number,
-  exerciseId: number,
-  setNumber: number,
-): Promise<void> {
-  const db = await getDb();
-  await db.runAsync(
-    'DELETE FROM set_logs WHERE session_id = ? AND exercise_id = ? AND set_number = ?',
-    [sessionId, exerciseId, setNumber],
-  );
+  return { libId: exerciseId, isBodyweight: false };
 }
 
 export async function getLastCompletedSetsForExercise(
@@ -588,17 +692,17 @@ export async function getLastCompletedSetsForExercise(
   excludeSessionId?: number,
 ): Promise<SetLog[]> {
   const db = await getDb();
-  const { ids } = await getSiblingInfo(db, exerciseId);
-  const ph = ids.map(() => '?').join(',');
+  const { libId, isBodyweight } = await getLibraryIdForDayExercise(db, exerciseId);
+
   const row = await db.getFirstAsync<{ session_id: number; exercise_id: number }>(
     `SELECT sl.session_id, sl.exercise_id FROM set_logs sl
      JOIN sessions s ON s.id = sl.session_id
-     WHERE sl.exercise_id IN (${ph})
+     WHERE sl.exercise_id = ?
        AND sl.completed = 1
        ${excludeSessionId ? 'AND sl.session_id != ?' : ''}
      ORDER BY s.date DESC, s.id DESC
      LIMIT 1`,
-    excludeSessionId ? [...ids, excludeSessionId] : ids,
+    excludeSessionId ? [libId, excludeSessionId] : [libId],
   );
   if (!row) return [];
   return db.getAllAsync<SetLog>(
@@ -637,17 +741,16 @@ export async function getExerciseSessionHistory(
   limit: number = 10,
 ): Promise<ExerciseSessionHistory[]> {
   const db = await getDb();
-  const { ids, isBodyweight } = await getSiblingInfo(db, exerciseId);
-  const idPh = ids.map(() => '?').join(',');
+  const { libId, isBodyweight } = await getLibraryIdForDayExercise(db, exerciseId);
 
   const sessionRows = await db.getAllAsync<{ session_id: number; date: string }>(
     `SELECT DISTINCT sl.session_id, s.date
      FROM set_logs sl
      JOIN sessions s ON s.id = sl.session_id
-     WHERE sl.exercise_id IN (${idPh}) AND sl.completed = 1
+     WHERE sl.exercise_id = ? AND sl.completed = 1
      ORDER BY s.date DESC, s.id DESC
      LIMIT ?`,
-    [...ids, limit],
+    [libId, limit],
   );
   if (sessionRows.length === 0) return [];
 
@@ -659,9 +762,9 @@ export async function getExerciseSessionHistory(
   const setRows = await db.getAllAsync<{ session_id: number; weight_lb: number | null; reps: number }>(
     `SELECT session_id, weight_lb, reps
      FROM set_logs
-     WHERE exercise_id IN (${idPh}) AND session_id IN (${sessPh})
+     WHERE exercise_id = ? AND session_id IN (${sessPh})
        AND completed = 1 ${weightFilter}`,
-    [...ids, ...sessionIds],
+    [libId, ...sessionIds],
   );
 
   const dateById = new Map(sessionRows.map((r) => [r.session_id, r.date]));
@@ -698,8 +801,7 @@ export async function getBestSetHistoryForExercise(
   limit: number = 8,
 ): Promise<{ date: string; score: number }[]> {
   const db = await getDb();
-  const { ids, isBodyweight } = await getSiblingInfo(db, exerciseId);
-  const ph = ids.map(() => '?').join(',');
+  const { libId, isBodyweight } = await getLibraryIdForDayExercise(db, exerciseId);
   const scoreExpr = isBodyweight ? 'MAX(sl.reps)' : 'MAX(sl.weight_lb * sl.reps)';
   const whereFilter = isBodyweight
     ? 'AND sl.reps IS NOT NULL'
@@ -708,15 +810,32 @@ export async function getBestSetHistoryForExercise(
     `SELECT s.date as date, ${scoreExpr} as score
      FROM set_logs sl
      JOIN sessions s ON s.id = sl.session_id
-     WHERE sl.exercise_id IN (${ph})
+     WHERE sl.exercise_id = ?
        AND sl.completed = 1
        ${whereFilter}
      GROUP BY s.id
      ORDER BY s.date DESC, s.id DESC
      LIMIT ?`,
-    [...ids, limit],
+    [libId, limit],
   );
   return rows.reverse();
+}
+
+export async function deleteSetLog(
+  sessionId: number,
+  exerciseId: number,
+  setNumber: number,
+): Promise<void> {
+  const db = await getDb();
+  const de = await db.getFirstAsync<{ exercise_id: number }>(
+    'SELECT exercise_id FROM day_exercises WHERE id = ?',
+    [exerciseId],
+  );
+  const libId = de?.exercise_id ?? exerciseId;
+  await db.runAsync(
+    'DELETE FROM set_logs WHERE session_id = ? AND exercise_id = ? AND set_number = ?',
+    [sessionId, libId, setNumber],
+  );
 }
 
 // ─── Day skips ────────────────────────────────────────────────────────
@@ -780,16 +899,21 @@ export async function getCatchupItems(reference: Date = new Date()): Promise<Cat
 
   for (const day of DAYS) {
     const date = week[day];
-    if (date >= today) continue; // only past days this week
+    if (date >= today) continue;
     if (daySkipSet.has(`${day}|${date}`)) continue;
 
     const exercises = await db.getAllAsync<{
       id: number;
+      exercise_id: number;
       name: string;
-      muscle_group: CatchupItem['muscle_group'];
+      muscle_group: MuscleGroup;
       sets: number;
     }>(
-      'SELECT id, name, muscle_group, sets FROM exercises WHERE day = ? ORDER BY sort_order',
+      `SELECT de.id, de.exercise_id, e.name, e.muscle_group, de.sets
+       FROM day_exercises de
+       JOIN exercises e ON e.id = de.exercise_id
+       WHERE de.day = ?
+       ORDER BY de.sort_order`,
       [day],
     );
     if (exercises.length === 0) continue;
@@ -806,7 +930,7 @@ export async function getCatchupItems(reference: Date = new Date()): Promise<Cat
       if (session) {
         const row = await db.getFirstAsync<{ c: number }>(
           'SELECT COUNT(*) as c FROM set_logs WHERE session_id = ? AND exercise_id = ? AND completed = 1',
-          [session.id, ex.id],
+          [session.id, ex.exercise_id],
         );
         completed = row?.c ?? 0;
       }
@@ -970,8 +1094,6 @@ export async function getDailyNutritionTotals(
        GROUP BY date`,
       [earliest],
     ),
-    // Fetch all goals up to end of range; sorted DESC so find() gives the
-    // most-recent goal on or before any given date (carry-forward semantics).
     db.getAllAsync<NutritionGoal>(
       'SELECT * FROM nutrition_goals WHERE date <= ? ORDER BY date DESC',
       [latest],

@@ -12,15 +12,14 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { createExercise, findExercisesByName, getAllUniqueExercises } from '../db/queries';
-import { colors, muscleAccent } from '../theme/colors';
+import { createExercise, findExercisesByName, getLibraryExercisesByMuscle } from '../db/queries';
+import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import {
-  DAY_LABEL,
   MUSCLE_LABEL,
   type Day,
-  type Exercise,
   type ExerciseType,
+  type LibraryExercise,
   type MuscleGroup,
 } from '../types';
 import { hapticSuccess } from '../utils/haptics';
@@ -38,8 +37,8 @@ type Mode = 'library' | 'new';
 export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated }: Props) {
   const [mode, setMode] = useState<Mode>('library');
   const [search, setSearch] = useState('');
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
-  const [selected, setSelected] = useState<Exercise | null>(null);
+  const [allExercises, setAllExercises] = useState<LibraryExercise[]>([]);
+  const [selected, setSelected] = useState<LibraryExercise | null>(null);
 
   const [name, setName] = useState('');
   const [sets, setSets] = useState(3);
@@ -51,9 +50,9 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
 
   useEffect(() => {
     if (visible) {
-      getAllUniqueExercises().then(setAllExercises);
+      getLibraryExercisesByMuscle(muscleGroup).then(setAllExercises);
     }
-  }, [visible]);
+  }, [visible, muscleGroup]);
 
   const reset = () => {
     setMode('library');
@@ -73,14 +72,14 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
     onClose();
   };
 
-  const selectFromLibrary = (ex: Exercise) => {
+  const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
     setName(ex.name);
-    setType(ex.type === 'superset' ? 'normal' : (ex.type as ExerciseType));
-    setSets(ex.sets ?? 3);
-    setWarmupSets(ex.warmup_sets ?? 0);
-    setRepRange(ex.rep_range ?? '8–12');
-    setNotes('');
+    setType('normal');
+    setSets(3);
+    setWarmupSets(0);
+    setRepRange('8–12');
+    setNotes(ex.notes ?? '');
   };
 
   const switchMode = (m: Mode) => {
@@ -114,7 +113,6 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
         warmup_sets: warmupSets,
         rep_range: repRange.trim() || '8–12',
         notes: notes.trim() ? notes.trim() : null,
-        accent_color: muscleAccent[muscleGroup] ?? colors.primary,
         type,
       });
       hapticSuccess();
@@ -134,10 +132,9 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
       const existing = await findExercisesByName(trimmed);
       setBusy(false);
       if (existing.length > 0) {
-        const days = [...new Set(existing.map((e) => DAY_LABEL[e.day]))].join(', ');
         Alert.alert(
           'Name already in use',
-          `"${trimmed}" already exists on ${days}. Both entries will share training history. Add anyway?`,
+          `"${trimmed}" already exists in the library. Adding it will use the existing entry. Add anyway?`,
           [
             { text: 'Change name', style: 'cancel' },
             { text: 'Add anyway', onPress: () => doCreate(trimmed) },
@@ -217,9 +214,6 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                             <View style={{ flex: 1 }}>
                               <Text style={[styles.libraryRowName, isSelected && styles.libraryRowNameSelected]}>
                                 {ex.name}
-                              </Text>
-                              <Text style={styles.libraryRowMeta}>
-                                {DAY_LABEL[ex.day]} · {ex.sets} sets · {ex.rep_range}
                               </Text>
                             </View>
                             {isSelected && (

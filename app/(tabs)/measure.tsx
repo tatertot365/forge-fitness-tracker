@@ -19,11 +19,16 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { Screen } from '../../src/components/Screen';
 import { SectionLabel } from '../../src/components/SectionLabel';
 import {
+  getActivityLevel,
+  getGoalsMode,
   getMeasurementHistory,
+  getPhase,
   latestMeasurement,
   measurementOneWeekAgo,
+  setNutritionGoal,
   upsertMeasurement,
 } from '../../src/db/queries';
+import { calculateTdee } from '../../src/utils/tdee';
 import { colors } from '../../src/theme/colors';
 import { radius, typography } from '../../src/theme/spacing';
 import { type Measurement } from '../../src/types';
@@ -112,7 +117,30 @@ export default function MeasureScreen() {
         return;
       }
     }
-    await upsertMeasurement(todayISO(), parsed);
+    const today = todayISO();
+    await upsertMeasurement(today, parsed);
+
+    const [goalsMode, activity, phase] = await Promise.all([
+      getGoalsMode(),
+      getActivityLevel(),
+      getPhase(),
+    ]);
+    if (goalsMode === 'calculated' && activity) {
+      const weight = parsed.weight_lb ?? (await latestMeasurement())?.weight_lb;
+      const bodyFat = parsed.body_fat_pct ?? (await latestMeasurement())?.body_fat_pct ?? null;
+      if (weight) {
+        const result = calculateTdee({ weight_lb: weight, body_fat_pct: bodyFat, activity, phase });
+        if (result.ok) {
+          await setNutritionGoal(today, {
+            calorie_goal: result.goals.calories,
+            protein_goal: result.goals.protein_g,
+            fat_goal: result.goals.fat_g,
+            carbs_goal: result.goals.carbs_g,
+          });
+        }
+      }
+    }
+
     Keyboard.dismiss();
     setInputs(EMPTY_INPUTS);
     load();

@@ -70,7 +70,7 @@ export default function DaySessionScreen() {
     if (!day || !sessionDate) return;
     const plans = await getDayPlans();
     const plan = plans[day];
-    setFocusLabel(plan?.focus || DAY_LABEL[day]);
+    setFocusLabel(plan?.name || DAY_LABEL[day]);
     if (!plan?.enabled) {
       setIsRestDay(true);
       setExercises([]);

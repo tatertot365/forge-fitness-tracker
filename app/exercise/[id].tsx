@@ -25,7 +25,6 @@ import {
   deleteExercise,
   deleteSetLog,
   duplicateExercise,
-  getAllUniqueExercises,
   getExercise,
   getExerciseSessionHistory,
   getExercisesByDay,
@@ -40,7 +39,7 @@ import {
 } from '../../src/db/queries';
 import { colors } from '../../src/theme/colors';
 import { radius, typography } from '../../src/theme/spacing';
-import { DAY_LABEL, type Exercise, type ExerciseType, type SetLog } from '../../src/types';
+import { MUSCLE_LABEL, type Exercise, type ExerciseType, type SetLog } from '../../src/types';
 import { dayOfWeek, todayISO } from '../../src/utils/date';
 import { hapticTap, hapticSuccess } from '../../src/utils/haptics';
 
@@ -595,11 +594,11 @@ function EditExerciseSheet({
 
   useEffect(() => {
     if (type === 'superset') {
-      getAllUniqueExercises().then((rows) =>
-        setAllExercises(rows.filter((e) => e.name.toLowerCase() !== exercise.name.toLowerCase())),
+      getExercisesByDay(exercise.day).then((rows) =>
+        setAllExercises(rows.filter((e) => e.id !== exercise.id)),
       );
     }
-  }, [type, exercise.name]);
+  }, [type, exercise.id, exercise.day]);
 
   const partnerCandidates = allExercises;
   const canSave =
@@ -812,7 +811,7 @@ function EditExerciseSheet({
                             partnerId === c.id && { color: colors.primary },
                           ]}
                         >
-                          {DAY_LABEL[c.day]}
+                          {MUSCLE_LABEL[c.muscle_group]}
                         </Text>
                       </Pressable>
                     ))}

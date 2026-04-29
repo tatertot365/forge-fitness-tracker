@@ -18,26 +18,39 @@ export type MuscleGroup =
   | 'biceps'
   | 'grip'
   | 'quads'
-  | 'hamstrings-glutes'
+  | 'hamstrings'
+  | 'glutes'
   | 'calves'
   | 'core';
 
 export type ExerciseType = 'normal' | 'drop' | 'superset' | 'bodyweight';
 
-export type Exercise = {
+// Library entry — one row per unique exercise, no day/sets/reps
+export type LibraryExercise = {
   id: number;
-  day: Day;
-  muscle_group: MuscleGroup;
   name: string;
+  muscle_group: MuscleGroup;
+  notes: string | null;
+};
+
+// A library exercise assigned to a specific day with user config
+export type DayExercise = {
+  id: number;           // day_exercises.id
+  day: Day;
+  exercise_id: number;
+  name: string;         // joined from exercises
+  muscle_group: MuscleGroup;
+  notes: string | null;
   sets: number;
   warmup_sets: number;
   rep_range: string;
-  notes: string | null;
   sort_order: number;
-  accent_color: string;
   type: ExerciseType;
   superset_partner_id: number | null;
 };
+
+// Alias kept so existing code that imports Exercise still compiles during migration
+export type Exercise = DayExercise;
 
 export type Session = {
   id: number;
@@ -121,8 +134,8 @@ export type CardioSession = {
 
 export type DayPlan = {
   day: Day;
+  name: string;
   enabled: 0 | 1;
-  focus: string;
 };
 
 export type CatchupItem = {
@@ -155,15 +168,6 @@ export const DAY_LABEL: Record<Day, string> = {
   sunday: 'Sunday',
 };
 
-export const DAY_FOCUS: Record<Day, string> = {
-  monday: 'Push day',
-  tuesday: 'Pull day — width',
-  wednesday: 'Leg day — quads',
-  thursday: 'Push day',
-  friday: 'Pull day — thickness',
-  saturday: 'Leg day — hamstrings',
-  sunday: 'Rest day',
-};
 
 export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   chest: 'Chest',
@@ -174,7 +178,8 @@ export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   biceps: 'Biceps',
   grip: 'Grip',
   quads: 'Quads',
-  'hamstrings-glutes': 'Hamstrings & Glutes',
+  hamstrings: 'Hamstrings',
+  glutes: 'Glutes',
   calves: 'Calves',
   core: 'Core',
 };

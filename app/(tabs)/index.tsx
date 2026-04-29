@@ -25,6 +25,7 @@ import { Screen } from '../../src/components/Screen';
 import { SectionLabel } from '../../src/components/SectionLabel';
 import {
   addCardioToday,
+  getActivityLevel,
   getCardioCountThisWeek,
   getCardioInfo,
   getCatchupItems,
@@ -32,6 +33,7 @@ import {
   getDayPlans,
   getExercisesByDay,
   getFoodEntriesForDate,
+  getGoalsMode,
   getMuscleGroupSetsThisWeek,
   getNutritionGoalForDate,
   getPhase,
@@ -43,11 +45,13 @@ import {
   markHealthKitAsked,
   measurementOneWeekAgo,
   setCardioInfo,
+  setNutritionGoal,
   setPhase as saveBasePhase,
   skipCatchupItem,
   skipDay,
   type CardioInfo,
 } from '../../src/db/queries';
+import { calculateTdee } from '../../src/utils/tdee';
 import { isHealthKitAvailable, requestHealthKitAccess, verifyHealthKitAccess } from '../../src/health';
 import { colors, muscleAccent } from '../../src/theme/colors';
 import { radius, typography } from '../../src/theme/spacing';
@@ -147,6 +151,23 @@ export default function TodayScreen() {
     hapticSelect();
     setPhaseState(p);
     await saveBasePhase(p);
+
+    const [goalsMode, activity, measurement] = await Promise.all([
+      getGoalsMode(),
+      getActivityLevel(),
+      latestMeasurement(),
+    ]);
+    if (goalsMode === 'calculated' && activity && measurement?.weight_lb) {
+      const result = calculateTdee({ weight_lb: measurement.weight_lb, body_fat_pct: measurement.body_fat_pct, activity, phase: p });
+      if (result.ok) {
+        await setNutritionGoal(todayISO(), {
+          calorie_goal: result.goals.calories,
+          protein_goal: result.goals.protein_g,
+          fat_goal: result.goals.fat_g,
+          carbs_goal: result.goals.carbs_g,
+        });
+      }
+    }
   };
 
   const onSkipDay = async (d: Day) => {
@@ -195,7 +216,7 @@ export default function TodayScreen() {
   const cardioTarget = CARDIO_TARGET[phase];
   const todayPlan = dayPlans?.[today];
   const todayEnabled = !!todayPlan?.enabled;
-  const todayFocus = todayPlan?.focus || DAY_LABEL[today];
+  const todayFocus = todayPlan?.name || DAY_LABEL[today];
   const sessionIsComplete = !!weekSessions?.[today]?.completed_at;
   const sessionInProgress = !sessionIsComplete && todayCompletedSets > 0;
 

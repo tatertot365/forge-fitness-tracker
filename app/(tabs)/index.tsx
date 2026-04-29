@@ -1,7 +1,15 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { AlertTriangle, Clock, Heart, Pencil, Plus, X, XCircle } from 'lucide-react-native';
-import React, { useCallback, useRef, useState } from 'react';
-import Svg, { Circle as SvgCircle } from 'react-native-svg';
+import { useFocusEffect, useRouter } from "expo-router";
+import {
+  AlertTriangle,
+  Clock,
+  Heart,
+  Pencil,
+  Plus,
+  X,
+  XCircle,
+} from "lucide-react-native";
+import React, { useCallback, useRef, useState } from "react";
+import Svg, { Circle as SvgCircle } from "react-native-svg";
 import {
   Alert,
   Dimensions,
@@ -13,16 +21,16 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
+} from "react-native";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
-} from 'react-native-gesture-handler/ReanimatedSwipeable';
-import { Card } from '../../src/components/Card';
-import { PhaseBadge } from '../../src/components/PhaseBadge';
-import { PhasePills } from '../../src/components/PhasePills';
-import { ProgressBar } from '../../src/components/ProgressBar';
-import { Screen } from '../../src/components/Screen';
-import { SectionLabel } from '../../src/components/SectionLabel';
+} from "react-native-gesture-handler/ReanimatedSwipeable";
+import { Card } from "../../../src/components/Card";
+import { PhaseBadge } from "../../../src/components/PhaseBadge";
+import { PhasePills } from "../../../src/components/PhasePills";
+import { ProgressBar } from "../../../src/components/ProgressBar";
+import { Screen } from "../../../src/components/Screen";
+import { SectionLabel } from "../../../src/components/SectionLabel";
 import {
   addCardioToday,
   getActivityLevel,
@@ -53,11 +61,15 @@ import {
   skipDay,
   type BodyGoals,
   type CardioInfo,
-} from '../../src/db/queries';
-import { calculateTdee } from '../../src/utils/tdee';
-import { isHealthKitAvailable, requestHealthKitAccess, verifyHealthKitAccess } from '../../src/health';
-import { colors, muscleAccent } from '../../src/theme/colors';
-import { radius, typography } from '../../src/theme/spacing';
+} from "../../../src/db/queries";
+import { calculateTdee } from "../../../src/utils/tdee";
+import {
+  isHealthKitAvailable,
+  requestHealthKitAccess,
+  verifyHealthKitAccess,
+} from "../../../src/health";
+import { colors, muscleAccent } from "../../../src/theme/colors";
+import { radius, typography } from "../../../src/theme/spacing";
 import {
   DAY_LABEL,
   DAYS,
@@ -70,38 +82,79 @@ import {
   type MuscleGroup,
   type Phase,
   type Session,
-} from '../../src/types';
-import { dayOfWeek, todayISO, weekDates } from '../../src/utils/date';
-import { hapticSelect, hapticSuccess, hapticTap } from '../../src/utils/haptics';
+} from "../../../src/types";
+import { dayOfWeek, todayISO, weekDates } from "../../../src/utils/date";
+import {
+  hapticSelect,
+  hapticSuccess,
+  hapticTap,
+} from "../../../src/utils/haptics";
 
 const CARDIO_TARGET: Record<Phase, number> = { cut: 4, maintain: 3, bulk: 2 };
-const SCREEN_WIDTH = Dimensions.get('window').width;
+const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function TodayScreen() {
   const router = useRouter();
   const today = dayOfWeek();
   const todayDate = todayISO();
   const thisWeek = weekDates();
-  const [phase, setPhaseState] = useState<Phase>('maintain');
+  const [phase, setPhaseState] = useState<Phase>("maintain");
   const [catchup, setCatchup] = useState<CatchupItem[]>([]);
-  const [weekSessions, setWeekSessions] = useState<Record<Day, Session | null> | null>(null);
+  const [weekSessions, setWeekSessions] = useState<Record<
+    Day,
+    Session | null
+  > | null>(null);
   const [cardioCount, setCardioCount] = useState(0);
   const [todayExerciseCount, setTodayExerciseCount] = useState(0);
   const [todayTotalSets, setTodayTotalSets] = useState(0);
   const [todayCompletedSets, setTodayCompletedSets] = useState(0);
-  const [muscleGroupSets, setMuscleGroupSets] = useState<Partial<Record<MuscleGroup, number>>>({});
+  const [muscleGroupSets, setMuscleGroupSets] = useState<
+    Partial<Record<MuscleGroup, number>>
+  >({});
   const [dayPlans, setDayPlans] = useState<Record<Day, DayPlan> | null>(null);
   const [showHealthConnect, setShowHealthConnect] = useState(false);
-  const [skippedDays, setSkippedDays] = useState<Partial<Record<Day, true>>>({});
-  const [weekLogCounts, setWeekLogCounts] = useState<Record<Day, number> | null>(null);
-  const [cardioInfo, setCardioInfo] = useState<CardioInfo>({ name: 'Incline treadmill walk', description: '12° / 3 mph / 20–30 min' });
+  const [skippedDays, setSkippedDays] = useState<Partial<Record<Day, true>>>(
+    {},
+  );
+  const [weekLogCounts, setWeekLogCounts] = useState<Record<
+    Day,
+    number
+  > | null>(null);
+  const [cardioInfo, setCardioInfo] = useState<CardioInfo>({
+    name: "Incline treadmill walk",
+    description: "12° / 3 mph / 20–30 min",
+  });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
-  const [todayNutrition, setTodayNutrition] = useState<DailyNutritionTotal | null>(null);
-  const [bodyStats, setBodyStats] = useState<{ latest: Measurement | null; prev: Measurement | null }>({ latest: null, prev: null });
-  const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({ goal_weight_lb: null, goal_body_fat_pct: null });
+  const [todayNutrition, setTodayNutrition] =
+    useState<DailyNutritionTotal | null>(null);
+  const [bodyStats, setBodyStats] = useState<{
+    latest: Measurement | null;
+    prev: Measurement | null;
+  }>({ latest: null, prev: null });
+  const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
+    goal_weight_lb: null,
+    goal_body_fat_pct: null,
+  });
 
   const load = useCallback(async () => {
-    const [p, c, w, cc, ex, plans, hkAsked, skips, logCounts, ci, mgSets, foodEntries, nutritionGoal, latestM, prevM, goals] = await Promise.all([
+    const [
+      p,
+      c,
+      w,
+      cc,
+      ex,
+      plans,
+      hkAsked,
+      skips,
+      logCounts,
+      ci,
+      mgSets,
+      foodEntries,
+      nutritionGoal,
+      latestM,
+      prevM,
+      goals,
+    ] = await Promise.all([
       getPhase(),
       getCatchupItems(),
       getSessionsForWeek(),
@@ -151,7 +204,11 @@ export default function TodayScreen() {
     setBodyGoalsState(goals);
   }, [today]);
 
-  useFocusEffect(useCallback(() => { load(); }, [load]));
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
 
   const onChangePhase = async (p: Phase) => {
     hapticSelect();
@@ -164,8 +221,14 @@ export default function TodayScreen() {
       latestMeasurement(),
       getUserProfile(),
     ]);
-    if (goalsMode === 'calculated' && activity && measurement?.weight_lb) {
-      const result = calculateTdee({ weight_lb: measurement.weight_lb, body_fat_pct: measurement.body_fat_pct, profile, activity, phase: p });
+    if (goalsMode === "calculated" && activity && measurement?.weight_lb) {
+      const result = calculateTdee({
+        weight_lb: measurement.weight_lb,
+        body_fat_pct: measurement.body_fat_pct,
+        profile,
+        activity,
+        phase: p,
+      });
       if (result.ok) {
         await setNutritionGoal(todayISO(), {
           calorie_goal: result.goals.calories,
@@ -188,10 +251,10 @@ export default function TodayScreen() {
     hapticTap();
     Alert.alert(
       `Skip ${DAY_LABEL[d]}?`,
-      'This will dismiss all catch-up items for this day.',
+      "This will dismiss all catch-up items for this day.",
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Skip day', style: 'destructive', onPress: () => onSkipDay(d) },
+        { text: "Cancel", style: "cancel" },
+        { text: "Skip day", style: "destructive", onPress: () => onSkipDay(d) },
       ],
     );
   };
@@ -200,7 +263,11 @@ export default function TodayScreen() {
     await skipCatchupItem(item.exercise_id, item.date_missed);
     setCatchup((prev) =>
       prev.filter(
-        (c) => !(c.exercise_id === item.exercise_id && c.date_missed === item.date_missed),
+        (c) =>
+          !(
+            c.exercise_id === item.exercise_id &&
+            c.date_missed === item.date_missed
+          ),
       ),
     );
   };
@@ -229,17 +296,21 @@ export default function TodayScreen() {
 
   let sessionMetaText: string;
   if (!todayEnabled) {
-    sessionMetaText = 'Recovery & mobility';
+    sessionMetaText = "Recovery & mobility";
   } else if (todayExerciseCount === 0) {
-    sessionMetaText = 'No exercises yet — tap to edit plan';
+    sessionMetaText = "No exercises yet — tap to edit plan";
   } else if (sessionIsComplete) {
-    sessionMetaText = 'All sets done · tap to review';
+    sessionMetaText = "All sets done · tap to review";
   } else if (sessionInProgress) {
     sessionMetaText = `${todayCompletedSets} / ${todayTotalSets} sets done`;
   } else {
-    sessionMetaText = `${todayExerciseCount} exercise${todayExerciseCount === 1 ? '' : 's'} · ${todayTotalSets} sets`;
+    sessionMetaText = `${todayExerciseCount} exercise${todayExerciseCount === 1 ? "" : "s"} · ${todayTotalSets} sets`;
   }
-  const sessionCtaLabel = sessionIsComplete ? '✓ Done' : sessionInProgress ? 'Resume' : 'Open';
+  const sessionCtaLabel = sessionIsComplete
+    ? "✓ Done"
+    : sessionInProgress
+      ? "Resume"
+      : "Open";
 
   return (
     <Screen>
@@ -248,7 +319,8 @@ export default function TodayScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Home</Text>
           <Text style={styles.subtitle}>
-            {DAY_LABEL[today]} — {todayEnabled ? todayFocus.toLowerCase() : 'rest day'}
+            {DAY_LABEL[today]} —{" "}
+            {todayEnabled ? todayFocus.toLowerCase() : "rest day"}
           </Text>
         </View>
         <PhaseBadge phase={phase} />
@@ -263,22 +335,29 @@ export default function TodayScreen() {
         onPress={() =>
           todayEnabled && todayExerciseCount > 0
             ? router.push(`/session?day=${today}`)
-            : router.push('/plan')
+            : router.push("/plan")
         }
-        style={({ pressed }) => [styles.sessionCard, pressed && { opacity: 0.9 }]}
+        style={({ pressed }) => [
+          styles.sessionCard,
+          pressed && { opacity: 0.9 },
+        ]}
       >
         <View style={styles.sessionCardInner}>
           <View style={styles.sessionLeft}>
-            <Text style={styles.sessionDayLabel}>{DAY_LABEL[today].toUpperCase()}</Text>
+            <Text style={styles.sessionDayLabel}>
+              {DAY_LABEL[today].toUpperCase()}
+            </Text>
             <Text style={styles.sessionFocus} numberOfLines={1}>
-              {todayEnabled ? todayFocus : 'Rest Day'}
+              {todayEnabled ? todayFocus : "Rest Day"}
             </Text>
             <Text style={styles.sessionMeta}>{sessionMetaText}</Text>
           </View>
           {todayEnabled && todayExerciseCount > 0 ? (
             <View style={styles.sessionCtaBox}>
               <Text style={styles.sessionCtaText}>{sessionCtaLabel}</Text>
-              {!sessionIsComplete ? <Text style={styles.sessionCtaArrow}>→</Text> : null}
+              {!sessionIsComplete ? (
+                <Text style={styles.sessionCtaArrow}>→</Text>
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -287,19 +366,22 @@ export default function TodayScreen() {
       {/* ── At-a-glance cards ── */}
       <MacroRingCard
         data={todayNutrition}
-        onPress={() => router.push('/food' as any)}
+        onPress={() => router.push("/food" as any)}
       />
       <BodyStatsCard
         data={bodyStats}
         goals={bodyGoals}
-        onPress={() => router.push('/measure' as any)}
+        onPress={() => router.push("/measure" as any)}
       />
 
       {/* ── Apple Health connect ── */}
       {showHealthConnect ? (
         <Pressable
           onPress={onConnectHealth}
-          style={({ pressed }) => [styles.healthBtn, pressed && { opacity: 0.8 }]}
+          style={({ pressed }) => [
+            styles.healthBtn,
+            pressed && { opacity: 0.8 },
+          ]}
         >
           <Heart size={16} color="#FFFFFF" strokeWidth={2.2} />
           <View style={{ flex: 1 }}>
@@ -321,7 +403,11 @@ export default function TodayScreen() {
               <SwipeableCatchupRow
                 key={`${item.exercise_id}-${item.date_missed}`}
                 item={item}
-                onPress={() => router.push(`/exercise/${item.exercise_id}?date=${item.date_missed}`)}
+                onPress={() =>
+                  router.push(
+                    `/exercise/${item.exercise_id}?date=${item.date_missed}`,
+                  )
+                }
                 onSkip={() => onSkipCatchup(item)}
               />
             ))}
@@ -333,9 +419,12 @@ export default function TodayScreen() {
       <SectionLabel
         trailing={
           <Pressable
-            onPress={() => router.push('/plan')}
+            onPress={() => router.push("/plan")}
             hitSlop={10}
-            style={({ pressed }) => [styles.editPlanBtn, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [
+              styles.editPlanBtn,
+              pressed && { opacity: 0.6 },
+            ]}
           >
             <Pencil size={12} color={colors.primary} strokeWidth={2} />
             <Text style={styles.editPlanText}>Edit split</Text>
@@ -352,7 +441,9 @@ export default function TodayScreen() {
         weekSessions={weekSessions}
         weekLogCounts={weekLogCounts}
         skippedDays={skippedDays}
-        onPressDay={(d) => router.push({ pathname: '/day-session' as any, params: { day: d } })}
+        onPressDay={(d) =>
+          router.push({ pathname: "/day-session" as any, params: { day: d } })
+        }
         onLongPressDay={onLongPressDay}
       />
 
@@ -370,7 +461,10 @@ export default function TodayScreen() {
           <Pressable
             onPress={() => setEditCardioOpen(true)}
             hitSlop={10}
-            style={({ pressed }) => [styles.editPlanBtn, pressed && { opacity: 0.6 }]}
+            style={({ pressed }) => [
+              styles.editPlanBtn,
+              pressed && { opacity: 0.6 },
+            ]}
           >
             <Pencil size={12} color={colors.primary} strokeWidth={2} />
             <Text style={styles.editPlanText}>Edit</Text>
@@ -391,7 +485,10 @@ export default function TodayScreen() {
           </Text>
           <Pressable
             onPress={onAddCardio}
-            style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [
+              styles.addBtn,
+              pressed && { opacity: 0.7 },
+            ]}
           >
             <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
             <Text style={styles.addBtnText}>Log session</Text>
@@ -448,10 +545,17 @@ function EditCardioSheet({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={styles.sheetBackdrop}>
         <Pressable style={styles.sheetDismiss} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Cardio</Text>
@@ -533,13 +637,20 @@ function WeekStrip({
         const isToday = d === today;
         const hasLogs = (weekLogCounts?.[d] ?? 0) > 0;
         const isPartial = isTraining && !completed && !isSkipped && hasLogs;
-        const isMissed = isTraining && isPast && !isToday && !completed && !isSkipped && !hasLogs;
-        const canSkip = isTraining && !completed && !isSkipped && (isPast || isToday);
+        const isMissed =
+          isTraining &&
+          isPast &&
+          !isToday &&
+          !completed &&
+          !isSkipped &&
+          !hasLogs;
+        const canSkip =
+          isTraining && !completed && !isSkipped && (isPast || isToday);
 
         let dotBg: string;
         let dotBorder: string;
         if (!isTraining) {
-          dotBg = 'transparent';
+          dotBg = "transparent";
           dotBorder = colors.border;
         } else if (completed) {
           dotBg = colors.green;
@@ -557,7 +668,7 @@ function WeekStrip({
           dotBg = colors.primary;
           dotBorder = colors.primary;
         } else {
-          dotBg = 'transparent';
+          dotBg = "transparent";
           dotBorder = colors.borderStrong;
         }
 
@@ -566,8 +677,8 @@ function WeekStrip({
         return (
           <Pressable
             key={d}
-            onPress={() => isTraining ? onPressDay(d) : undefined}
-            onLongPress={() => canSkip ? onLongPressDay(d) : undefined}
+            onPress={() => (isTraining ? onPressDay(d) : undefined)}
+            onLongPress={() => (canSkip ? onLongPressDay(d) : undefined)}
             delayLongPress={400}
             style={[styles.stripSlot, { width: slotWidth }]}
           >
@@ -581,7 +692,7 @@ function WeekStrip({
             <Text
               style={[
                 styles.stripDayLabel,
-                isToday && { color: colors.primary, fontWeight: '700' },
+                isToday && { color: colors.primary, fontWeight: "700" },
                 !isTraining && { color: colors.textMuted },
               ]}
             >
@@ -636,7 +747,13 @@ function SwipeableCatchupRow({
   );
 }
 
-function CatchupRow({ item, onPress }: { item: CatchupItem; onPress: () => void }) {
+function CatchupRow({
+  item,
+  onPress,
+}: {
+  item: CatchupItem;
+  onPress: () => void;
+}) {
   const atRisk = item.days_ago >= 3;
   const Icon = atRisk ? AlertTriangle : Clock;
   const iconColor = atRisk ? colors.warning : colors.gray;
@@ -648,20 +765,23 @@ function CatchupRow({ item, onPress }: { item: CatchupItem; onPress: () => void 
       <View
         style={[
           styles.catchAccent,
-          { backgroundColor: muscleAccent[item.muscle_group] ?? colors.primary },
+          {
+            backgroundColor: muscleAccent[item.muscle_group] ?? colors.primary,
+          },
         ]}
       />
       <View style={{ flex: 1, paddingVertical: 12, paddingRight: 16, gap: 2 }}>
         <Text style={styles.catchName}>{item.exercise_name}</Text>
         <Text style={styles.catchMeta}>
-          {DAY_LABEL[item.day]} · {item.sets_missed} set{item.sets_missed === 1 ? '' : 's'} ·{' '}
+          {DAY_LABEL[item.day]} · {item.sets_missed} set
+          {item.sets_missed === 1 ? "" : "s"} ·{" "}
           {MUSCLE_LABEL[item.muscle_group]}
         </Text>
       </View>
       <View style={styles.catchTrailing}>
         <Icon size={16} color={iconColor} strokeWidth={2} />
         <Text style={[styles.catchTrailingText, { color: iconColor }]}>
-          {atRisk ? 'at risk' : `${item.days_ago}d ago`}
+          {atRisk ? "at risk" : `${item.days_ago}d ago`}
         </Text>
       </View>
     </Pressable>
@@ -672,16 +792,29 @@ function CatchupRow({ item, onPress }: { item: CatchupItem; onPress: () => void 
 
 const CELL_WIDTH = (SCREEN_WIDTH - 40) / 2; // 16px padding × 2 sides + 8px gap
 
-function MuscleGroupGrid({ sets }: { sets: Partial<Record<MuscleGroup, number>> }) {
+function MuscleGroupGrid({
+  sets,
+}: {
+  sets: Partial<Record<MuscleGroup, number>>;
+}) {
   const entries = Object.entries(sets) as [MuscleGroup, number][];
   return (
     <View style={styles.mgGrid}>
       {entries.map(([group, count]) => (
         <View key={group} style={styles.mgCell}>
-          <View style={[styles.mgAccent, { backgroundColor: muscleAccent[group] ?? colors.primary }]} />
+          <View
+            style={[
+              styles.mgAccent,
+              { backgroundColor: muscleAccent[group] ?? colors.primary },
+            ]}
+          />
           <View style={styles.mgContent}>
-            <Text style={styles.mgName} numberOfLines={1}>{MUSCLE_LABEL[group]}</Text>
-            <Text style={styles.mgCount}>{count} set{count === 1 ? '' : 's'}</Text>
+            <Text style={styles.mgName} numberOfLines={1}>
+              {MUSCLE_LABEL[group]}
+            </Text>
+            <Text style={styles.mgCount}>
+              {count} set{count === 1 ? "" : "s"}
+            </Text>
           </View>
         </View>
       ))}
@@ -704,14 +837,41 @@ function MacroRingCard({
   onPress: () => void;
 }) {
   const macros = [
-    { key: 'cal', label: 'Kcal', value: data?.calories ?? 0, goal: data?.calorie_goal ?? 2500, color: colors.primary },
-    { key: 'pro', label: 'Protein', value: data?.protein_g ?? 0, goal: data?.protein_goal ?? 180, color: colors.purple },
-    { key: 'fat', label: 'Fat', value: data?.fat_g ?? 0, goal: data?.fat_goal ?? 80, color: colors.amber },
-    { key: 'carb', label: 'Carbs', value: data?.carbs_g ?? 0, goal: data?.carbs_goal ?? 250, color: colors.teal },
+    {
+      key: "cal",
+      label: "Kcal",
+      value: data?.calories ?? 0,
+      goal: data?.calorie_goal ?? 2500,
+      color: colors.primary,
+    },
+    {
+      key: "pro",
+      label: "Protein",
+      value: data?.protein_g ?? 0,
+      goal: data?.protein_goal ?? 180,
+      color: colors.purple,
+    },
+    {
+      key: "fat",
+      label: "Fat",
+      value: data?.fat_g ?? 0,
+      goal: data?.fat_goal ?? 80,
+      color: colors.amber,
+    },
+    {
+      key: "carb",
+      label: "Carbs",
+      value: data?.carbs_g ?? 0,
+      goal: data?.carbs_goal ?? 250,
+      color: colors.teal,
+    },
   ];
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => pressed && { opacity: 0.85 }}
+    >
       <Card style={{ marginTop: 12 }}>
         <View style={styles.glanceHeader}>
           <Text style={styles.glanceTitle}>Today's nutrition</Text>
@@ -721,12 +881,14 @@ function MacroRingCard({
           {macros.map((m) => {
             const pct = m.goal > 0 ? Math.min(1, m.value / m.goal) : 0;
             const filled = pct * RING_CIRC;
-            const displayVal = m.value >= 1000
-              ? `${(m.value / 1000).toFixed(1)}k`
-              : String(Math.round(m.value));
-            const displayGoal = m.goal >= 1000
-              ? `${(m.goal / 1000).toFixed(1)}k`
-              : String(m.goal);
+            const displayVal =
+              m.value >= 1000
+                ? `${(m.value / 1000).toFixed(1)}k`
+                : String(Math.round(m.value));
+            const displayGoal =
+              m.goal >= 1000
+                ? `${(m.goal / 1000).toFixed(1)}k`
+                : String(m.goal);
             return (
               <View key={m.key} style={styles.macroCell}>
                 <View style={{ width: RING_SIZE, height: RING_SIZE }}>
@@ -752,8 +914,12 @@ function MacroRingCard({
                       origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
                     />
                   </Svg>
-                  <View style={[StyleSheet.absoluteFillObject, styles.ringCenter]}>
-                    <Text style={[styles.ringValue, { color: m.color }]}>{displayVal}</Text>
+                  <View
+                    style={[StyleSheet.absoluteFillObject, styles.ringCenter]}
+                  >
+                    <Text style={[styles.ringValue, { color: m.color }]}>
+                      {displayVal}
+                    </Text>
                   </View>
                 </View>
                 <Text style={styles.ringLabel}>{m.label}</Text>
@@ -779,10 +945,13 @@ function BodyStatsCard({
   onPress: () => void;
 }) {
   const { latest } = data;
-  const hasGoals = goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
+  const hasGoals =
+    goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
 
   const weightPct =
-    latest?.weight_lb != null && goals.goal_weight_lb != null && goals.goal_weight_lb > 0
+    latest?.weight_lb != null &&
+    goals.goal_weight_lb != null &&
+    goals.goal_weight_lb > 0
       ? Math.min(1, goals.goal_weight_lb / latest.weight_lb)
       : null;
   const weightRemain =
@@ -791,7 +960,9 @@ function BodyStatsCard({
       : null;
 
   const bfPct =
-    latest?.body_fat_pct != null && goals.goal_body_fat_pct != null && goals.goal_body_fat_pct > 0
+    latest?.body_fat_pct != null &&
+    goals.goal_body_fat_pct != null &&
+    goals.goal_body_fat_pct > 0
       ? Math.min(1, goals.goal_body_fat_pct / latest.body_fat_pct)
       : null;
   const bfRemain =
@@ -800,7 +971,10 @@ function BodyStatsCard({
       : null;
 
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => pressed && { opacity: 0.85 }}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => pressed && { opacity: 0.85 }}
+    >
       <Card style={{ marginTop: 10 }}>
         <View style={styles.glanceHeader}>
           <Text style={styles.glanceTitle}>Goal progress</Text>
@@ -808,26 +982,44 @@ function BodyStatsCard({
         </View>
 
         {!hasGoals ? (
-          <Text style={styles.goalsEmptyText}>Set weight & body fat goals in Measure →</Text>
+          <Text style={styles.goalsEmptyText}>
+            Set weight & body fat goals in Measure →
+          </Text>
         ) : (
           <View style={{ gap: 12 }}>
             {goals.goal_weight_lb != null && (
               <GoalProgressRow
                 label="Weight"
-                current={latest?.weight_lb != null ? `${latest.weight_lb} lb` : '—'}
+                current={
+                  latest?.weight_lb != null ? `${latest.weight_lb} lb` : "—"
+                }
                 goal={`${goals.goal_weight_lb} lb`}
                 progress={weightPct}
-                remain={weightRemain != null && weightRemain > 0 ? `${weightRemain} lb to go` : weightRemain != null && weightRemain <= 0 ? 'Goal reached' : null}
+                remain={
+                  weightRemain != null && weightRemain > 0
+                    ? `${weightRemain} lb to go`
+                    : weightRemain != null && weightRemain <= 0
+                      ? "Goal reached"
+                      : null
+                }
                 reached={weightRemain != null && weightRemain <= 0}
               />
             )}
             {goals.goal_body_fat_pct != null && (
               <GoalProgressRow
                 label="Body fat"
-                current={latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : '—'}
+                current={
+                  latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : "—"
+                }
                 goal={`${goals.goal_body_fat_pct}%`}
                 progress={bfPct}
-                remain={bfRemain != null && bfRemain > 0 ? `${bfRemain}% to go` : bfRemain != null && bfRemain <= 0 ? 'Goal reached' : null}
+                remain={
+                  bfRemain != null && bfRemain > 0
+                    ? `${bfRemain}% to go`
+                    : bfRemain != null && bfRemain <= 0
+                      ? "Goal reached"
+                      : null
+                }
                 reached={bfRemain != null && bfRemain <= 0}
               />
             )}
@@ -861,19 +1053,26 @@ function GoalProgressRow({
         <View style={styles.goalValues}>
           <Text style={styles.goalCurrent}>{current}</Text>
           <Text style={styles.goalSep}>→</Text>
-          <Text style={[styles.goalTarget, reached && { color: colors.green }]}>{goal}</Text>
+          <Text style={[styles.goalTarget, reached && { color: colors.green }]}>
+            {goal}
+          </Text>
         </View>
       </View>
       <View style={styles.goalBarTrack}>
         <View
           style={[
             styles.goalBarFill,
-            { width: `${Math.round((progress ?? 0) * 100)}%`, backgroundColor: barColor },
+            {
+              width: `${Math.round((progress ?? 0) * 100)}%`,
+              backgroundColor: barColor,
+            },
           ]}
         />
       </View>
       {remain != null && (
-        <Text style={[styles.goalRemain, reached && { color: colors.green }]}>{remain}</Text>
+        <Text style={[styles.goalRemain, reached && { color: colors.green }]}>
+          {remain}
+        </Text>
       )}
     </View>
   );
@@ -883,26 +1082,30 @@ function GoalProgressRow({
 
 const styles = StyleSheet.create({
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingTop: 8,
     paddingBottom: 12,
     gap: 12,
   },
   title: { ...typography.screenTitle, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  subtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
 
   // Session card
   sessionCard: {
     backgroundColor: colors.primary,
     borderRadius: radius.card,
     marginTop: 14,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   sessionCardInner: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 20,
     paddingHorizontal: 18,
     gap: 12,
@@ -910,27 +1113,27 @@ const styles = StyleSheet.create({
   sessionLeft: { flex: 1, gap: 3 },
   sessionDayLabel: {
     fontSize: 10,
-    fontWeight: '700',
+    fontWeight: "700",
     letterSpacing: 1.2,
-    color: 'rgba(255,255,255,0.55)',
+    color: "rgba(255,255,255,0.55)",
   },
-  sessionFocus: { fontSize: 22, fontWeight: '700', color: '#FFFFFF' },
-  sessionMeta: { fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 1 },
+  sessionFocus: { fontSize: 22, fontWeight: "700", color: "#FFFFFF" },
+  sessionMeta: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 1 },
   sessionCtaBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
-    backgroundColor: 'rgba(255,255,255,0.12)',
+    backgroundColor: "rgba(255,255,255,0.12)",
     paddingHorizontal: 14,
     paddingVertical: 9,
     borderRadius: radius.pill,
   },
-  sessionCtaText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
-  sessionCtaArrow: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
+  sessionCtaText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
+  sessionCtaArrow: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
 
   // Week strip
   strip: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: colors.card,
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
@@ -938,7 +1141,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   stripSlot: {
-    alignItems: 'center',
+    alignItems: "center",
     gap: 6,
   },
   stripDot: {
@@ -954,19 +1157,19 @@ const styles = StyleSheet.create({
   },
   stripDayLabel: {
     fontSize: 11,
-    fontWeight: '500',
+    fontWeight: "500",
     color: colors.textSecondary,
   },
 
   // Catch-up
   catchRow: {
-    flexDirection: 'row',
-    alignItems: 'stretch',
+    flexDirection: "row",
+    alignItems: "stretch",
     backgroundColor: colors.card,
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   catchAccent: {
     width: 3,
@@ -977,43 +1180,52 @@ const styles = StyleSheet.create({
   },
   catchName: { ...typography.exerciseName, color: colors.text },
   catchMeta: { ...typography.caption, color: colors.textSecondary },
-  catchTrailing: { alignItems: 'flex-end', justifyContent: 'center', paddingRight: 14, gap: 2 },
-  catchTrailingText: { fontSize: 11, fontWeight: '600' },
+  catchTrailing: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: 14,
+    gap: 2,
+  },
+  catchTrailingText: { fontSize: 11, fontWeight: "600" },
 
   // Cardio
   cardioTitle: { ...typography.exerciseName, color: colors.text },
-  cardioMeta: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  cardioMeta: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   cardioRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginTop: 10,
   },
   cardioCount: {
     ...typography.caption,
     color: colors.textSecondary,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingHorizontal: 12,
     paddingVertical: 7,
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
   },
-  addBtnText: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  addBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
 
   mgGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
   mgCell: {
     width: CELL_WIDTH,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 10,
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -1021,7 +1233,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   mgAccent: {
     width: 3,
@@ -1031,93 +1243,93 @@ const styles = StyleSheet.create({
   mgContent: { flex: 1 },
   mgName: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   mgCount: {
     fontSize: 11,
     color: colors.textSecondary,
     marginTop: 2,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
 
   // At-a-glance shared
   glanceHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 14,
   },
   glanceTitle: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
   },
   glanceNav: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
   },
 
   // Macro rings
   macroRingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   macroCell: {
     flex: 1,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 5,
   },
   ringCenter: {
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   ringValue: {
     fontSize: 11,
-    fontWeight: '700',
-    fontVariant: ['tabular-nums'],
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
   },
   ringLabel: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
   },
   ringGoal: {
     fontSize: 10,
     color: colors.textMuted,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
 
   // Goal progress card
   goalsEmptyText: {
     fontSize: 13,
     color: colors.textMuted,
-    textAlign: 'center',
+    textAlign: "center",
     paddingVertical: 8,
   },
   goalRowHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   goalLabel: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   goalValues: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 5,
   },
   goalCurrent: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   goalSep: {
     fontSize: 11,
@@ -1125,15 +1337,15 @@ const styles = StyleSheet.create({
   },
   goalTarget: {
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.primary,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
   goalBarTrack: {
     height: 6,
     borderRadius: 3,
     backgroundColor: colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   goalBarFill: {
     height: 6,
@@ -1142,33 +1354,38 @@ const styles = StyleSheet.create({
   goalRemain: {
     fontSize: 11,
     color: colors.textMuted,
-    fontVariant: ['tabular-nums'],
+    fontVariant: ["tabular-nums"],
   },
 
   editPlanBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  editPlanText: { fontSize: 12, fontWeight: '600', color: colors.primary },
+  editPlanText: { fontSize: 12, fontWeight: "600", color: colors.primary },
 
   skipAction: {
     width: 76,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     gap: 4,
     backgroundColor: colors.gray,
     borderRadius: radius.card,
     marginLeft: 6,
   },
-  skipLabel: { color: '#FFFFFF', fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
+  skipLabel: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+  },
 
   sheetBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "flex-end",
   },
   sheetDismiss: { flex: 1 },
   sheet: {
@@ -1180,18 +1397,18 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
   },
   sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 4,
   },
   sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
   fieldLabel: {
     fontSize: 11,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 14,
     marginBottom: 6,
   },
@@ -1210,21 +1427,21 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: radius.card,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  sheetSaveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  sheetSaveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 
   healthBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     marginTop: 12,
     paddingVertical: 12,
     paddingHorizontal: 14,
     borderRadius: radius.card,
-    backgroundColor: '#FF2D55',
+    backgroundColor: "#FF2D55",
   },
-  healthTitle: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
-  healthMeta: { color: 'rgba(255,255,255,0.85)', fontSize: 11, marginTop: 1 },
-  healthCta: { color: '#FFFFFF', fontSize: 12, fontWeight: '600' },
+  healthTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  healthMeta: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
+  healthCta: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
 });

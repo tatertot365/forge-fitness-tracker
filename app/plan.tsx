@@ -1,6 +1,15 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { ChevronLeft, ChevronRight, Copy, GripVertical, Minus, Plus, Trash2, X } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect, useRouter } from "expo-router";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Copy,
+  GripVertical,
+  Minus,
+  Plus,
+  Trash2,
+  X,
+} from "lucide-react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -13,16 +22,16 @@ import {
   Text,
   TextInput,
   View,
-} from 'react-native';
-import { Gesture, GestureDetector } from 'react-native-gesture-handler';
+} from "react-native";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   runOnJS,
   type SharedValue,
   useAnimatedStyle,
   useSharedValue,
   withSpring,
-} from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+} from "react-native-reanimated";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   copyDayExercises,
   createExercise,
@@ -40,9 +49,9 @@ import {
   unlinkSuperset,
   updateDayPlan,
   updateExercise,
-} from '../src/db/queries';
-import { colors, muscleAccent } from '../src/theme/colors';
-import { radius, typography } from '../src/theme/spacing';
+} from "../../src/db/queries";
+import { colors, muscleAccent } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
 import {
   DAY_LABEL,
   DAYS,
@@ -53,20 +62,39 @@ import {
   type ExerciseType,
   type LibraryExercise,
   type MuscleGroup,
-} from '../src/types';
-import { hapticSelect, hapticSuccess, hapticTap } from '../src/utils/haptics';
+} from "../../src/types";
+import {
+  hapticSelect,
+  hapticSuccess,
+  hapticTap,
+} from "../../src/utils/haptics";
 
 const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
-  'chest', 'shoulders', 'triceps',
-  'back-width', 'back-thickness', 'biceps', 'grip',
-  'quads', 'hamstrings', 'glutes', 'calves', 'core',
+  "chest",
+  "shoulders",
+  "triceps",
+  "back-width",
+  "back-thickness",
+  "biceps",
+  "grip",
+  "quads",
+  "hamstrings",
+  "glutes",
+  "calves",
+  "core",
 ];
 
 // ─── PartnerPicker ────────────────────────────────────────────────────────────
 
 type PartnerPickerValue =
-  | { kind: 'existing'; exercise: Exercise }
-  | { kind: 'new'; name: string; muscleGroup: MuscleGroup; sets: number; repRange: string };
+  | { kind: "existing"; exercise: Exercise }
+  | {
+      kind: "new";
+      name: string;
+      muscleGroup: MuscleGroup;
+      sets: number;
+      repRange: string;
+    };
 
 type PartnerPickerProps = {
   dayExercises: Exercise[];
@@ -75,26 +103,26 @@ type PartnerPickerProps = {
 };
 
 function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
-  const [mode, setMode] = useState<'library' | 'new'>(
-    value?.kind === 'new' ? 'new' : 'library',
+  const [mode, setMode] = useState<"library" | "new">(
+    value?.kind === "new" ? "new" : "library",
   );
-  const [search, setSearch] = useState('');
-  const [npName, setNpName] = useState(value?.kind === 'new' ? value.name : '');
+  const [search, setSearch] = useState("");
+  const [npName, setNpName] = useState(value?.kind === "new" ? value.name : "");
   const [npMg, setNpMg] = useState<MuscleGroup | null>(
-    value?.kind === 'new' ? value.muscleGroup : null,
+    value?.kind === "new" ? value.muscleGroup : null,
   );
-  const [npSets, setNpSets] = useState(value?.kind === 'new' ? value.sets : 3);
+  const [npSets, setNpSets] = useState(value?.kind === "new" ? value.sets : 3);
   const [npRepRange, setNpRepRange] = useState(
-    value?.kind === 'new' ? value.repRange : '8–12',
+    value?.kind === "new" ? value.repRange : "8–12",
   );
 
-  const switchMode = (m: 'library' | 'new') => {
+  const switchMode = (m: "library" | "new") => {
     setMode(m);
     onChange(null);
   };
 
   const selectExisting = (ex: Exercise) => {
-    onChange({ kind: 'existing', exercise: ex });
+    onChange({ kind: "existing", exercise: ex });
   };
 
   const updateNew = (patch: {
@@ -115,11 +143,11 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
 
     if (n.trim() && m) {
       onChange({
-        kind: 'new',
+        kind: "new",
         name: n.trim(),
         muscleGroup: m,
         sets: s,
-        repRange: r.trim() || '8–12',
+        repRange: r.trim() || "8–12",
       });
     } else {
       onChange(null);
@@ -127,26 +155,28 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
   };
 
   const filtered = search.trim()
-    ? dayExercises.filter((e) => e.name.toLowerCase().includes(search.toLowerCase()))
+    ? dayExercises.filter((e) =>
+        e.name.toLowerCase().includes(search.toLowerCase()),
+      )
     : dayExercises;
 
   return (
     <View>
       <View style={[ss.modeToggle, { marginTop: 6 }]}>
-        {(['library', 'new'] as const).map((m) => (
+        {(["library", "new"] as const).map((m) => (
           <Pressable
             key={m}
             onPress={() => switchMode(m)}
             style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
           >
             <Text style={[ss.modeBtnText, mode === m && ss.modeBtnTextActive]}>
-              {m === 'library' ? 'From this day' : 'Create new'}
+              {m === "library" ? "From this day" : "Create new"}
             </Text>
           </Pressable>
         ))}
       </View>
 
-      {mode === 'library' && (
+      {mode === "library" && (
         <>
           <TextInput
             value={search}
@@ -160,14 +190,14 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
           {filtered.length === 0 ? (
             <Text style={ss.emptyText}>
               {search.trim()
-                ? 'No matches'
+                ? "No matches"
                 : 'No other exercises on this day — use "Create new" to add one'}
             </Text>
           ) : (
             <View style={ss.listContainer}>
               {filtered.map((ex) => {
                 const isSel =
-                  value?.kind === 'existing' && value.exercise.id === ex.id;
+                  value?.kind === "existing" && value.exercise.id === ex.id;
                 return (
                   <Pressable
                     key={ex.id}
@@ -179,7 +209,12 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
                     ]}
                   >
                     <View style={{ flex: 1 }}>
-                      <Text style={[ss.libraryRowName, isSel && ss.libraryRowNameSelected]}>
+                      <Text
+                        style={[
+                          ss.libraryRowName,
+                          isSel && ss.libraryRowNameSelected,
+                        ]}
+                      >
                         {ex.name}
                       </Text>
                       <Text style={ss.libraryRowMeta}>
@@ -199,7 +234,7 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
         </>
       )}
 
-      {mode === 'new' && (
+      {mode === "new" && (
         <>
           <Text style={ss.fieldLabel}>Name</Text>
           <TextInput
@@ -222,11 +257,19 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
                   onPress={() => updateNew({ mg: active ? null : mg })}
                   style={({ pressed }) => [
                     ss.pill,
-                    active && { backgroundColor: accent + '28', borderColor: accent },
+                    active && {
+                      backgroundColor: accent + "28",
+                      borderColor: accent,
+                    },
                     pressed && { opacity: 0.7 },
                   ]}
                 >
-                  <Text style={[ss.pillText, active && { color: accent, fontWeight: '600' }]}>
+                  <Text
+                    style={[
+                      ss.pillText,
+                      active && { color: accent, fontWeight: "600" },
+                    ]}
+                  >
                     {MUSCLE_LABEL[mg]}
                   </Text>
                 </Pressable>
@@ -238,14 +281,20 @@ function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
           <View style={ss.stepperRow}>
             <Pressable
               onPress={() => updateNew({ sets: Math.max(1, npSets - 1) })}
-              style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [
+                ss.stepperBtn,
+                pressed && { opacity: 0.6 },
+              ]}
             >
               <Minus size={16} color={colors.text} />
             </Pressable>
             <Text style={ss.stepperValue}>{npSets}</Text>
             <Pressable
               onPress={() => updateNew({ sets: Math.min(10, npSets + 1) })}
-              style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+              style={({ pressed }) => [
+                ss.stepperBtn,
+                pressed && { opacity: 0.6 },
+              ]}
             >
               <Plus size={16} color={colors.text} />
             </Pressable>
@@ -275,17 +324,25 @@ type EditSheetProps = {
   onDeleted: () => void;
 };
 
-function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheetProps) {
-  const [name, setName] = useState('');
+function EditSheet({
+  visible,
+  exercise,
+  onClose,
+  onSaved,
+  onDeleted,
+}: EditSheetProps) {
+  const [name, setName] = useState("");
   const [sets, setSets] = useState(3);
   const [warmupSets, setWarmupSets] = useState(0);
-  const [repRange, setRepRange] = useState('8–12');
-  const [notes, setNotes] = useState('');
-  const [type, setType] = useState<ExerciseType>('normal');
+  const [repRange, setRepRange] = useState("8–12");
+  const [notes, setNotes] = useState("");
+  const [type, setType] = useState<ExerciseType>("normal");
   const [busy, setBusy] = useState(false);
 
   const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
-  const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(null);
+  const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(
+    null,
+  );
   const [currentPartner, setCurrentPartner] = useState<Exercise | null>(null);
 
   // Sync fields when exercise changes
@@ -295,7 +352,7 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
       setSets(exercise.sets);
       setWarmupSets(exercise.warmup_sets ?? 0);
       setRepRange(exercise.rep_range);
-      setNotes(exercise.notes ?? '');
+      setNotes(exercise.notes ?? "");
       setType(exercise.type);
       setPartnerValue(null);
       setCurrentPartner(null);
@@ -305,7 +362,7 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
         getExercise(exercise.superset_partner_id).then((p) => {
           if (p) {
             setCurrentPartner(p);
-            setPartnerValue({ kind: 'existing', exercise: p });
+            setPartnerValue({ kind: "existing", exercise: p });
           }
         });
       }
@@ -314,24 +371,24 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
 
   // Load same-day exercises when superset type is active
   useEffect(() => {
-    if (type === 'superset' && exercise) {
+    if (type === "superset" && exercise) {
       getExercisesByDay(exercise.day).then((exs) => {
         setDayExercises(exs.filter((e) => e.id !== exercise.id));
       });
     }
   }, [type, exercise?.id, exercise?.day]);
 
-  const canSave = !(type === 'superset' && partnerValue === null);
+  const canSave = !(type === "superset" && partnerValue === null);
 
   const doSave = async () => {
     if (!exercise || busy || !canSave) return;
 
     const isChangingPartner =
-      type === 'superset' &&
+      type === "superset" &&
       currentPartner !== null &&
       partnerValue !== null &&
-      (partnerValue.kind === 'new' ||
-        (partnerValue.kind === 'existing' &&
+      (partnerValue.kind === "new" ||
+        (partnerValue.kind === "existing" &&
           partnerValue.exercise.id !== currentPartner.id));
 
     const performSave = async () => {
@@ -346,9 +403,9 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
           type,
         });
 
-        if (type === 'superset' && partnerValue) {
+        if (type === "superset" && partnerValue) {
           let partnerId: number;
-          if (partnerValue.kind === 'existing') {
+          if (partnerValue.kind === "existing") {
             partnerId = partnerValue.exercise.id;
           } else {
             partnerId = await createExercise({
@@ -357,13 +414,13 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
               name: partnerValue.name,
               sets: partnerValue.sets,
               warmup_sets: 0,
-              rep_range: partnerValue.repRange || '8–12',
+              rep_range: partnerValue.repRange || "8–12",
               notes: null,
-              type: 'normal',
+              type: "normal",
             });
           }
           await linkSuperset(exercise.id, partnerId);
-        } else if (type !== 'superset' && exercise.type === 'superset') {
+        } else if (type !== "superset" && exercise.type === "superset") {
           await unlinkSuperset(exercise.id);
         }
 
@@ -377,15 +434,20 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
 
     if (isChangingPartner) {
       const newName =
-        partnerValue!.kind === 'existing'
+        partnerValue!.kind === "existing"
           ? partnerValue!.exercise.name
           : partnerValue!.name;
       Alert.alert(
-        'Replace superset partner?',
+        "Replace superset partner?",
         `"${currentPartner!.name}" will be unlinked. "${newName}" will become the new partner.`,
         [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Replace', onPress: () => { performSave(); } },
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Replace",
+            onPress: () => {
+              performSave();
+            },
+          },
         ],
       );
       return;
@@ -400,10 +462,10 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
       `Remove from ${DAY_LABEL[exercise.day]}?`,
       `"${exercise.name}" will be removed from ${DAY_LABEL[exercise.day]}. All logged sets for this exercise on this day will also be deleted.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Remove',
-          style: 'destructive',
+          text: "Remove",
+          style: "destructive",
           onPress: async () => {
             setBusy(true);
             try {
@@ -423,13 +485,13 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
   const confirmDeleteAll = () => {
     if (!exercise) return;
     Alert.alert(
-      'Delete from all days?',
+      "Delete from all days?",
       `"${exercise.name}" will be permanently removed from every day it appears on. All training history for this exercise will also be deleted.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Delete everywhere',
-          style: 'destructive',
+          text: "Delete everywhere",
+          style: "destructive",
           onPress: async () => {
             setBusy(true);
             try {
@@ -447,10 +509,17 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={onClose}
+    >
       <View style={ss.backdrop}>
         <Pressable style={ss.dismiss} onPress={onClose} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <View style={ss.sheet}>
             <View style={ss.sheetHeader}>
               <Text style={ss.sheetTitle}>Edit exercise</Text>
@@ -479,14 +548,20 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
                 <View style={ss.stepperRow}>
                   <Pressable
                     onPress={() => setSets((s) => Math.max(1, s - 1))}
-                    style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                    style={({ pressed }) => [
+                      ss.stepperBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
                   >
                     <Minus size={16} color={colors.text} />
                   </Pressable>
                   <Text style={ss.stepperValue}>{sets}</Text>
                   <Pressable
                     onPress={() => setSets((s) => Math.min(10, s + 1))}
-                    style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                    style={({ pressed }) => [
+                      ss.stepperBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
                   >
                     <Plus size={16} color={colors.text} />
                   </Pressable>
@@ -496,14 +571,20 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
                 <View style={ss.stepperRow}>
                   <Pressable
                     onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                    style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                    style={({ pressed }) => [
+                      ss.stepperBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
                   >
                     <Minus size={16} color={colors.text} />
                   </Pressable>
                   <Text style={ss.stepperValue}>{warmupSets}</Text>
                   <Pressable
                     onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                    style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                    style={({ pressed }) => [
+                      ss.stepperBtn,
+                      pressed && { opacity: 0.6 },
+                    ]}
                   >
                     <Plus size={16} color={colors.text} />
                   </Pressable>
@@ -530,7 +611,14 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
 
                 <Text style={ss.fieldLabel}>Type</Text>
                 <View style={ss.segmented}>
-                  {(['normal', 'superset', 'drop', 'bodyweight'] as ExerciseType[]).map((t) => (
+                  {(
+                    [
+                      "normal",
+                      "superset",
+                      "drop",
+                      "bodyweight",
+                    ] as ExerciseType[]
+                  ).map((t) => (
                     <Pressable
                       key={t}
                       onPress={() => setType(t)}
@@ -540,30 +628,40 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
                         pressed && { opacity: 0.7 },
                       ]}
                     >
-                      <Text style={[ss.segmentText, type === t && ss.segmentTextActive]}>
-                        {t === 'normal'
-                          ? 'Normal'
-                          : t === 'superset'
-                          ? 'Superset'
-                          : t === 'drop'
-                          ? 'Drop'
-                          : 'Bodyweight'}
+                      <Text
+                        style={[
+                          ss.segmentText,
+                          type === t && ss.segmentTextActive,
+                        ]}
+                      >
+                        {t === "normal"
+                          ? "Normal"
+                          : t === "superset"
+                            ? "Superset"
+                            : t === "drop"
+                              ? "Drop"
+                              : "Bodyweight"}
                       </Text>
                     </Pressable>
                   ))}
                 </View>
 
                 {/* Superset partner picker */}
-                {type === 'superset' && (
+                {type === "superset" && (
                   <>
                     <View style={ss.partnerHeader}>
                       <Text style={ss.partnerHeaderText}>
-                        {currentPartner ? 'Superset partner' : 'Pick a superset partner'}
+                        {currentPartner
+                          ? "Superset partner"
+                          : "Pick a superset partner"}
                       </Text>
-                      {currentPartner && partnerValue?.kind === 'existing' &&
+                      {currentPartner &&
+                        partnerValue?.kind === "existing" &&
                         partnerValue.exercise.id === currentPartner.id && (
                           <View style={ss.partnerBadge}>
-                            <Text style={ss.partnerBadgeText}>{currentPartner.name}</Text>
+                            <Text style={ss.partnerBadgeText}>
+                              {currentPartner.name}
+                            </Text>
                           </View>
                         )}
                     </View>
@@ -597,18 +695,29 @@ function EditSheet({ visible, exercise, onClose, onSaved, onDeleted }: EditSheet
                 <Pressable
                   onPress={confirmDeleteOne}
                   disabled={busy}
-                  style={({ pressed }) => [ss.deleteBtn, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [
+                    ss.deleteBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
                 >
-                  <Text style={ss.deleteBtnText}>Remove from {DAY_LABEL[exercise.day]}</Text>
+                  <Text style={ss.deleteBtnText}>
+                    Remove from {DAY_LABEL[exercise.day]}
+                  </Text>
                 </Pressable>
 
                 <Pressable
                   onPress={confirmDeleteAll}
                   disabled={busy}
-                  style={({ pressed }) => [ss.deleteBtn, { marginTop: 8 }, pressed && { opacity: 0.7 }]}
+                  style={({ pressed }) => [
+                    ss.deleteBtn,
+                    { marginTop: 8 },
+                    pressed && { opacity: 0.7 },
+                  ]}
                 >
                   <Text style={ss.deleteBtnText}>Delete from all days</Text>
-                  <Text style={ss.deleteBtnSub}>Removes from every day · erases all history</Text>
+                  <Text style={ss.deleteBtnSub}>
+                    Removes from every day · erases all history
+                  </Text>
                 </Pressable>
               </ScrollView>
             ) : null}
@@ -628,25 +737,27 @@ type AddSheetProps = {
   onCreated: () => void;
 };
 
-type AddMode = 'library' | 'new';
+type AddMode = "library" | "new";
 
 function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | null>(null);
-  const [mode, setMode] = useState<AddMode>('library');
-  const [search, setSearch] = useState('');
+  const [mode, setMode] = useState<AddMode>("library");
+  const [search, setSearch] = useState("");
   const [allExercises, setAllExercises] = useState<LibraryExercise[]>([]);
   const [selected, setSelected] = useState<LibraryExercise | null>(null);
 
-  const [name, setName] = useState('');
+  const [name, setName] = useState("");
   const [sets, setSets] = useState(3);
   const [warmupSets, setWarmupSets] = useState(0);
-  const [repRange, setRepRange] = useState('8–12');
-  const [notes, setNotes] = useState('');
-  const [type, setType] = useState<ExerciseType>('normal');
+  const [repRange, setRepRange] = useState("8–12");
+  const [notes, setNotes] = useState("");
+  const [type, setType] = useState<ExerciseType>("normal");
   const [busy, setBusy] = useState(false);
 
   const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
-  const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(null);
+  const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(
+    null,
+  );
 
   useEffect(() => {
     if (visible && muscleGroup) {
@@ -658,7 +769,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   // Load same-day exercises when superset type is selected
   useEffect(() => {
-    if (type === 'superset') {
+    if (type === "superset") {
       getExercisesByDay(day).then(setDayExercises);
       setPartnerValue(null);
     }
@@ -666,15 +777,15 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const reset = () => {
     setMuscleGroup(null);
-    setMode('library');
-    setSearch('');
+    setMode("library");
+    setSearch("");
     setSelected(null);
-    setName('');
+    setName("");
     setSets(3);
     setWarmupSets(0);
-    setRepRange('8–12');
-    setNotes('');
-    setType('normal');
+    setRepRange("8–12");
+    setNotes("");
+    setType("normal");
     setDayExercises([]);
     setPartnerValue(null);
   };
@@ -687,36 +798,38 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
-    setType('normal');
+    setType("normal");
     setSets(3);
     setWarmupSets(0);
-    setRepRange('8–12');
-    setNotes(ex.notes ?? '');
+    setRepRange("8–12");
+    setNotes(ex.notes ?? "");
   };
 
   const switchMode = (m: AddMode) => {
     setMode(m);
     setSelected(null);
-    setSearch('');
-    if (m === 'new') {
-      setName('');
+    setSearch("");
+    if (m === "new") {
+      setName("");
       setSets(3);
       setWarmupSets(0);
-      setRepRange('8–12');
-      setNotes('');
-      setType('normal');
+      setRepRange("8–12");
+      setNotes("");
+      setType("normal");
     }
     setPartnerValue(null);
   };
 
   const filtered = search.trim()
-    ? allExercises.filter((e) => e.name.toLowerCase().includes(search.trim().toLowerCase()))
+    ? allExercises.filter((e) =>
+        e.name.toLowerCase().includes(search.trim().toLowerCase()),
+      )
     : allExercises;
 
   const canSave =
     muscleGroup !== null &&
-    (mode === 'library' ? selected !== null : name.trim().length > 0) &&
-    (type !== 'superset' || partnerValue !== null);
+    (mode === "library" ? selected !== null : name.trim().length > 0) &&
+    (type !== "superset" || partnerValue !== null);
 
   const doCreate = async (trimmed: string) => {
     if (!muscleGroup) return;
@@ -728,15 +841,15 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
         name: trimmed,
         sets,
         warmup_sets: warmupSets,
-        rep_range: repRange.trim() || '8–12',
+        rep_range: repRange.trim() || "8–12",
         notes: notes.trim() ? notes.trim() : null,
         type,
       });
 
       // Handle superset partner
-      if (type === 'superset' && partnerValue) {
+      if (type === "superset" && partnerValue) {
         let partnerId: number;
-        if (partnerValue.kind === 'existing') {
+        if (partnerValue.kind === "existing") {
           partnerId = partnerValue.exercise.id;
         } else {
           partnerId = await createExercise({
@@ -745,9 +858,9 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
             name: partnerValue.name,
             sets: partnerValue.sets,
             warmup_sets: 0,
-            rep_range: partnerValue.repRange || '8–12',
+            rep_range: partnerValue.repRange || "8–12",
             notes: null,
-            type: 'normal',
+            type: "normal",
           });
         }
         await linkSuperset(newId, partnerId);
@@ -764,20 +877,20 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const onSave = async () => {
     if (!canSave || busy) return;
-    const trimmed = (mode === 'library' ? selected?.name ?? '' : name).trim();
+    const trimmed = (mode === "library" ? (selected?.name ?? "") : name).trim();
     if (!trimmed) return;
 
-    if (mode === 'new') {
+    if (mode === "new") {
       setBusy(true);
       const existing = await findExercisesByName(trimmed);
       setBusy(false);
       if (existing.length > 0) {
         Alert.alert(
-          'Name already in use',
+          "Name already in use",
           `"${trimmed}" already exists in the library. Adding it will use the existing entry. Add anyway?`,
           [
-            { text: 'Change name', style: 'cancel' },
-            { text: 'Add anyway', onPress: () => doCreate(trimmed) },
+            { text: "Change name", style: "cancel" },
+            { text: "Add anyway", onPress: () => doCreate(trimmed) },
           ],
         );
         return;
@@ -789,13 +902,20 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const showConfig =
     muscleGroup !== null &&
-    (mode === 'new' || (mode === 'library' && selected !== null));
+    (mode === "new" || (mode === "library" && selected !== null));
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="slide"
+      onRequestClose={close}
+    >
       <View style={ss.backdrop}>
         <Pressable style={ss.dismiss} onPress={close} />
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+        >
           <View style={ss.sheet}>
             <View style={ss.sheetHeader}>
               <Text style={ss.sheetTitle}>Add to {DAY_LABEL[day]}</Text>
@@ -821,11 +941,19 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                       onPress={() => setMuscleGroup(active ? null : mg)}
                       style={({ pressed }) => [
                         ss.pill,
-                        active && { backgroundColor: accent + '28', borderColor: accent },
+                        active && {
+                          backgroundColor: accent + "28",
+                          borderColor: accent,
+                        },
                         pressed && { opacity: 0.7 },
                       ]}
                     >
-                      <Text style={[ss.pillText, active && { color: accent, fontWeight: '600' }]}>
+                      <Text
+                        style={[
+                          ss.pillText,
+                          active && { color: accent, fontWeight: "600" },
+                        ]}
+                      >
                         {MUSCLE_LABEL[mg]}
                       </Text>
                     </Pressable>
@@ -837,21 +965,26 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                 <>
                   {/* Mode toggle */}
                   <View style={[ss.modeToggle, { marginTop: 14 }]}>
-                    {(['library', 'new'] as AddMode[]).map((m) => (
+                    {(["library", "new"] as AddMode[]).map((m) => (
                       <Pressable
                         key={m}
                         onPress={() => switchMode(m)}
                         style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
                       >
-                        <Text style={[ss.modeBtnText, mode === m && ss.modeBtnTextActive]}>
-                          {m === 'library' ? 'From library' : 'New exercise'}
+                        <Text
+                          style={[
+                            ss.modeBtnText,
+                            mode === m && ss.modeBtnTextActive,
+                          ]}
+                        >
+                          {m === "library" ? "From library" : "New exercise"}
                         </Text>
                       </Pressable>
                     ))}
                   </View>
 
                   {/* Library search list */}
-                  {mode === 'library' && (
+                  {mode === "library" && (
                     <>
                       <TextInput
                         value={search}
@@ -879,7 +1012,12 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                                 ]}
                               >
                                 <View style={{ flex: 1 }}>
-                                  <Text style={[ss.libraryRowName, isSel && ss.libraryRowNameSelected]}>
+                                  <Text
+                                    style={[
+                                      ss.libraryRowName,
+                                      isSel && ss.libraryRowNameSelected,
+                                    ]}
+                                  >
                                     {ex.name}
                                   </Text>
                                   <Text style={ss.libraryRowMeta}>
@@ -902,7 +1040,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                   {/* Config fields */}
                   {showConfig && (
                     <>
-                      {mode === 'new' && (
+                      {mode === "new" && (
                         <>
                           <Text style={ss.fieldLabel}>Name</Text>
                           <TextInput
@@ -916,9 +1054,11 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                         </>
                       )}
 
-                      {mode === 'library' && selected && (
+                      {mode === "library" && selected && (
                         <View style={ss.selectedBanner}>
-                          <Text style={ss.selectedBannerText}>{selected.name}</Text>
+                          <Text style={ss.selectedBannerText}>
+                            {selected.name}
+                          </Text>
                           <Text style={ss.selectedBannerSub}>
                             Configure for {MUSCLE_LABEL[muscleGroup]}
                           </Text>
@@ -929,14 +1069,20 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                       <View style={ss.stepperRow}>
                         <Pressable
                           onPress={() => setSets((s) => Math.max(1, s - 1))}
-                          style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
                         >
                           <Minus size={16} color={colors.text} />
                         </Pressable>
                         <Text style={ss.stepperValue}>{sets}</Text>
                         <Pressable
                           onPress={() => setSets((s) => Math.min(10, s + 1))}
-                          style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
                         >
                           <Plus size={16} color={colors.text} />
                         </Pressable>
@@ -945,15 +1091,25 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                       <Text style={ss.fieldLabel}>Warmup sets</Text>
                       <View style={ss.stepperRow}>
                         <Pressable
-                          onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                          style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                          onPress={() =>
+                            setWarmupSets((s) => Math.max(0, s - 1))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
                         >
                           <Minus size={16} color={colors.text} />
                         </Pressable>
                         <Text style={ss.stepperValue}>{warmupSets}</Text>
                         <Pressable
-                          onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                          style={({ pressed }) => [ss.stepperBtn, pressed && { opacity: 0.6 }]}
+                          onPress={() =>
+                            setWarmupSets((s) => Math.min(5, s + 1))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
                         >
                           <Plus size={16} color={colors.text} />
                         </Pressable>
@@ -980,7 +1136,14 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
                       <Text style={ss.fieldLabel}>Type</Text>
                       <View style={ss.segmented}>
-                        {(['normal', 'superset', 'drop', 'bodyweight'] as ExerciseType[]).map((t) => (
+                        {(
+                          [
+                            "normal",
+                            "superset",
+                            "drop",
+                            "bodyweight",
+                          ] as ExerciseType[]
+                        ).map((t) => (
                           <Pressable
                             key={t}
                             onPress={() => setType(t)}
@@ -990,24 +1153,31 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                               pressed && { opacity: 0.7 },
                             ]}
                           >
-                            <Text style={[ss.segmentText, type === t && ss.segmentTextActive]}>
-                              {t === 'normal'
-                                ? 'Normal'
-                                : t === 'superset'
-                                ? 'Superset'
-                                : t === 'drop'
-                                ? 'Drop'
-                                : 'Bodyweight'}
+                            <Text
+                              style={[
+                                ss.segmentText,
+                                type === t && ss.segmentTextActive,
+                              ]}
+                            >
+                              {t === "normal"
+                                ? "Normal"
+                                : t === "superset"
+                                  ? "Superset"
+                                  : t === "drop"
+                                    ? "Drop"
+                                    : "Bodyweight"}
                             </Text>
                           </Pressable>
                         ))}
                       </View>
 
                       {/* Superset partner picker */}
-                      {type === 'superset' && (
+                      {type === "superset" && (
                         <>
                           <View style={ss.partnerHeader}>
-                            <Text style={ss.partnerHeaderText}>Pick a superset partner</Text>
+                            <Text style={ss.partnerHeaderText}>
+                              Pick a superset partner
+                            </Text>
                           </View>
                           <PartnerPicker
                             dayExercises={dayExercises}
@@ -1034,7 +1204,9 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                     ]}
                   >
                     <Text style={ss.saveBtnText}>
-                      {mode === 'library' && selected ? `Add "${selected.name}"` : 'Add exercise'}
+                      {mode === "library" && selected
+                        ? `Add "${selected.name}"`
+                        : "Add exercise"}
                     </Text>
                   </Pressable>
                 </>
@@ -1079,14 +1251,18 @@ function DraggableRow({
     const H = ITEM_HEIGHT;
 
     if (activeIdx.value === -1) {
-      return { transform: [{ translateY: 0 }, { scale: 1 }], zIndex: 0, shadowOpacity: 0 };
+      return {
+        transform: [{ translateY: 0 }, { scale: 1 }],
+        zIndex: 0,
+        shadowOpacity: 0,
+      };
     }
 
     if (activeIdx.value === displayIdx) {
       return {
         transform: [{ translateY: dragTranslation.value }, { scale: 1.02 }],
         zIndex: 20,
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOpacity: 0.18,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
@@ -1095,9 +1271,10 @@ function DraggableRow({
     }
 
     const from = activeIdx.value;
-    const target = Math.max(0, Math.min(n - 1,
-      Math.round((from * H + dragTranslation.value) / H),
-    ));
+    const target = Math.max(
+      0,
+      Math.min(n - 1, Math.round((from * H + dragTranslation.value) / H)),
+    );
 
     let shift = 0;
     if (from < target && displayIdx > from && displayIdx <= target) {
@@ -1131,9 +1308,15 @@ function DraggableRow({
       })
       .onEnd((e) => {
         if (activeIdx.value === displayIdx) {
-          const target = Math.max(0, Math.min(totalCount - 1,
-            Math.round((displayIdx * ITEM_HEIGHT + e.translationY) / ITEM_HEIGHT),
-          ));
+          const target = Math.max(
+            0,
+            Math.min(
+              totalCount - 1,
+              Math.round(
+                (displayIdx * ITEM_HEIGHT + e.translationY) / ITEM_HEIGHT,
+              ),
+            ),
+          );
           activeIdx.value = -1;
           dragTranslation.value = 0;
           runOnJS(onDrop)(displayIdx, target);
@@ -1155,7 +1338,11 @@ function DraggableRow({
   return (
     <GestureDetector gesture={gesture}>
       <Animated.View
-        onLayout={onMeasureHeight ? (e) => onMeasureHeight(e.nativeEvent.layout.height) : undefined}
+        onLayout={
+          onMeasureHeight
+            ? (e) => onMeasureHeight(e.nativeEvent.layout.height)
+            : undefined
+        }
         style={[
           ds.exerciseRow,
           !isLastInGroup && ds.exerciseDivider,
@@ -1163,13 +1350,20 @@ function DraggableRow({
           animStyle,
         ]}
       >
-        <View style={[ds.accentBar, { backgroundColor: muscleAccent[mg] ?? colors.primary }]} />
+        <View
+          style={[
+            ds.accentBar,
+            { backgroundColor: muscleAccent[mg] ?? colors.primary },
+          ]}
+        />
         <View style={{ flex: 1 }}>
-          <Text style={ds.exerciseName} numberOfLines={1}>{exercise.name}</Text>
+          <Text style={ds.exerciseName} numberOfLines={1}>
+            {exercise.name}
+          </Text>
           <Text style={ds.exerciseMeta}>
             {exercise.sets} sets · {exercise.rep_range}
-            {exercise.warmup_sets ? ` · ${exercise.warmup_sets}W` : ''}
-            {exercise.type === 'superset' ? ' · SS' : ''}
+            {exercise.warmup_sets ? ` · ${exercise.warmup_sets}W` : ""}
+            {exercise.type === "superset" ? " · SS" : ""}
           </Text>
         </View>
         <GripVertical size={16} color={colors.textMuted} strokeWidth={1.5} />
@@ -1189,7 +1383,9 @@ function DraggableExerciseGroup({
   exercises: Exercise[];
   onEdit: (ex: Exercise) => void;
 }) {
-  const [localOrder, setLocalOrder] = useState<number[]>(() => exercises.map((_, i) => i));
+  const [localOrder, setLocalOrder] = useState<number[]>(() =>
+    exercises.map((_, i) => i),
+  );
   const activeIdx = useSharedValue(-1);
   const dragTranslation = useSharedValue(0);
   const measuredHeight = useRef(ITEM_HEIGHT);
@@ -1200,30 +1396,36 @@ function DraggableExerciseGroup({
     dragTranslation.value = 0;
   }, [exercises]);
 
-  const onDrop = useCallback((from: number, to: number) => {
-    if (from === to) return;
-    hapticSuccess();
+  const onDrop = useCallback(
+    (from: number, to: number) => {
+      if (from === to) return;
+      hapticSuccess();
 
-    setLocalOrder((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(from, 1);
-      next.splice(to, 0, removed);
+      setLocalOrder((prev) => {
+        const next = [...prev];
+        const [removed] = next.splice(from, 1);
+        next.splice(to, 0, removed);
 
-      // Reassign sort_orders: new position i gets the sort_order that was at position i
-      const originalSortOrders = exercises.map((e) => e.sort_order);
-      const updates = next.map((origIdx, newPos) => ({
-        id: exercises[origIdx].id,
-        sort_order: originalSortOrders[newPos],
-      }));
-      reorderExercisesInGroup(updates);
+        // Reassign sort_orders: new position i gets the sort_order that was at position i
+        const originalSortOrders = exercises.map((e) => e.sort_order);
+        const updates = next.map((origIdx, newPos) => ({
+          id: exercises[origIdx].id,
+          sort_order: originalSortOrders[newPos],
+        }));
+        reorderExercisesInGroup(updates);
 
-      return next;
-    });
-  }, [exercises]);
+        return next;
+      });
+    },
+    [exercises],
+  );
 
   return (
     <View>
-      {(localOrder.length === exercises.length ? localOrder : exercises.map((_, i) => i)).map((origIdx, displayIdx) => {
+      {(localOrder.length === exercises.length
+        ? localOrder
+        : exercises.map((_, i) => i)
+      ).map((origIdx, displayIdx) => {
         const ex = exercises[origIdx];
         if (!ex) return null;
         return (
@@ -1238,7 +1440,13 @@ function DraggableExerciseGroup({
             dragTranslation={dragTranslation}
             onEdit={onEdit}
             onDrop={onDrop}
-            onMeasureHeight={displayIdx === 0 ? (h) => { measuredHeight.current = h; } : undefined}
+            onMeasureHeight={
+              displayIdx === 0
+                ? (h) => {
+                    measuredHeight.current = h;
+                  }
+                : undefined
+            }
           />
         );
       })}
@@ -1277,7 +1485,11 @@ function DraggableGroupContainer({
 
   const animStyle = useAnimatedStyle(() => {
     if (activeGroupIdx.value === -1) {
-      return { transform: [{ translateY: 0 }, { scale: 1 }], zIndex: 0, shadowOpacity: 0 };
+      return {
+        transform: [{ translateY: 0 }, { scale: 1 }],
+        zIndex: 0,
+        shadowOpacity: 0,
+      };
     }
 
     const from = activeGroupIdx.value;
@@ -1287,7 +1499,7 @@ function DraggableGroupContainer({
       return {
         transform: [{ translateY: drag }, { scale: 1.01 }],
         zIndex: 20,
-        shadowColor: '#000',
+        shadowColor: "#000",
         shadowOpacity: 0.18,
         shadowRadius: 8,
         shadowOffset: { width: 0, height: 4 },
@@ -1309,7 +1521,10 @@ function DraggableGroupContainer({
     // Find which slot the dragged group's center is over
     let target = from;
     for (let i = 0; i < totalGroups; i++) {
-      if (draggedCenter >= starts[i] && draggedCenter < starts[i] + groupHeights[i]) {
+      if (
+        draggedCenter >= starts[i] &&
+        draggedCenter < starts[i] + groupHeights[i]
+      ) {
         target = i;
         break;
       }
@@ -1355,10 +1570,14 @@ function DraggableGroupContainer({
           starts.push(acc);
           acc += groupHeights[i];
         }
-        const draggedCenter = starts[displayIdx] + groupHeights[displayIdx] / 2 + e.translationY;
+        const draggedCenter =
+          starts[displayIdx] + groupHeights[displayIdx] / 2 + e.translationY;
         let target = displayIdx;
         for (let i = 0; i < totalGroups; i++) {
-          if (draggedCenter >= starts[i] && draggedCenter < starts[i] + groupHeights[i]) {
+          if (
+            draggedCenter >= starts[i] &&
+            draggedCenter < starts[i] + groupHeights[i]
+          ) {
             target = i;
             break;
           }
@@ -1383,23 +1602,26 @@ function DraggableGroupContainer({
       <View style={[ds.muscleLabelRow, isFirst && { marginTop: 4 }]}>
         <GestureDetector gesture={dragHandle}>
           <View style={ds.groupGripArea} hitSlop={8}>
-            <GripVertical size={14} color={colors.textMuted} strokeWidth={1.5} />
+            <GripVertical
+              size={14}
+              color={colors.textMuted}
+              strokeWidth={1.5}
+            />
           </View>
         </GestureDetector>
         <Text style={[ds.muscleLabel, { flex: 1 }]}>{MUSCLE_LABEL[mg]}</Text>
         <Pressable
           onPress={() => onDeleteGroup(mg)}
           hitSlop={10}
-          style={({ pressed }) => [ds.groupDeleteBtn, pressed && { opacity: 0.5 }]}
+          style={({ pressed }) => [
+            ds.groupDeleteBtn,
+            pressed && { opacity: 0.5 },
+          ]}
         >
           <Trash2 size={13} color={colors.textMuted} strokeWidth={1.75} />
         </Pressable>
       </View>
-      <DraggableExerciseGroup
-        mg={mg}
-        exercises={exercises}
-        onEdit={onEdit}
-      />
+      <DraggableExerciseGroup mg={mg} exercises={exercises} onEdit={onEdit} />
     </Animated.View>
   );
 }
@@ -1448,7 +1670,9 @@ function DaySection({
     seen.get(mg)!.push(ex);
   }
 
-  const [localGroupOrder, setLocalGroupOrder] = useState<number[]>(() => grouped.map((_, i) => i));
+  const [localGroupOrder, setLocalGroupOrder] = useState<number[]>(() =>
+    grouped.map((_, i) => i),
+  );
   const activeGroupIdx = useSharedValue(-1);
   const groupDragTranslation = useSharedValue(0);
 
@@ -1458,41 +1682,57 @@ function DaySection({
     groupDragTranslation.value = 0;
   }, [exercises]);
 
-  const groupHeights = grouped.map((g) => GROUP_LABEL_HEIGHT + g.items.length * ITEM_HEIGHT);
+  const groupHeights = grouped.map(
+    (g) => GROUP_LABEL_HEIGHT + g.items.length * ITEM_HEIGHT,
+  );
 
-  const onGroupDrop = useCallback((from: number, to: number) => {
-    if (from === to) return;
-    hapticSuccess();
+  const onGroupDrop = useCallback(
+    (from: number, to: number) => {
+      if (from === to) return;
+      hapticSuccess();
 
-    setLocalGroupOrder((prev) => {
-      const next = [...prev];
-      const [removed] = next.splice(from, 1);
-      next.splice(to, 0, removed);
+      setLocalGroupOrder((prev) => {
+        const next = [...prev];
+        const [removed] = next.splice(from, 1);
+        next.splice(to, 0, removed);
 
-      // Flatten exercises in new group order and reassign sort_orders sequentially
-      const flatExercises = next.flatMap((origGroupIdx) => grouped[origGroupIdx].items);
-      const updates = flatExercises.map((ex, i) => ({ id: ex.id, sort_order: i }));
-      reorderGroupsInDay(updates);
+        // Flatten exercises in new group order and reassign sort_orders sequentially
+        const flatExercises = next.flatMap(
+          (origGroupIdx) => grouped[origGroupIdx].items,
+        );
+        const updates = flatExercises.map((ex, i) => ({
+          id: ex.id,
+          sort_order: i,
+        }));
+        reorderGroupsInDay(updates);
 
-      return next;
-    });
-  }, [grouped]);
+        return next;
+      });
+    },
+    [grouped],
+  );
 
-  const orderedGroups = (localGroupOrder.length === grouped.length
-    ? localGroupOrder
-    : grouped.map((_, i) => i)
-  ).map((origIdx) => grouped[origIdx]).filter(Boolean) as { mg: MuscleGroup; items: Exercise[] }[];
+  const orderedGroups = (
+    localGroupOrder.length === grouped.length
+      ? localGroupOrder
+      : grouped.map((_, i) => i)
+  )
+    .map((origIdx) => grouped[origIdx])
+    .filter(Boolean) as { mg: MuscleGroup; items: Exercise[] }[];
 
-  const orderedHeights = (localGroupOrder.length === grouped.length
-    ? localGroupOrder
-    : grouped.map((_, i) => i)
+  const orderedHeights = (
+    localGroupOrder.length === grouped.length
+      ? localGroupOrder
+      : grouped.map((_, i) => i)
   ).map((origIdx) => groupHeights[origIdx]);
 
   return (
     <View style={ds.card}>
       <View style={ds.headerRow}>
         <View style={{ flex: 1 }}>
-          <Text style={[ds.dayName, !enabled && ds.dayNameDisabled]}>{DAY_LABEL[day]}</Text>
+          <Text style={[ds.dayName, !enabled && ds.dayNameDisabled]}>
+            {DAY_LABEL[day]}
+          </Text>
         </View>
         <Switch
           value={enabled}
@@ -1508,7 +1748,7 @@ function DaySection({
         onChangeText={setFocusText}
         onBlur={() => onFocusBlur(focusText)}
         editable={enabled}
-        placeholder={enabled ? 'e.g. Push day' : '—'}
+        placeholder={enabled ? "e.g. Push day" : "—"}
         placeholderTextColor={colors.textMuted}
         style={[ds.focusInput, !enabled && ds.focusInputDisabled]}
         autoCapitalize="sentences"
@@ -1539,7 +1779,11 @@ function DaySection({
         <View style={ds.dayActions}>
           <Pressable
             onPress={onAdd}
-            style={({ pressed }) => [ds.addBtn, { flex: 1 }, pressed && { opacity: 0.7 }]}
+            style={({ pressed }) => [
+              ds.addBtn,
+              { flex: 1 },
+              pressed && { opacity: 0.7 },
+            ]}
           >
             <Plus size={13} color={colors.primary} strokeWidth={2.5} />
             <Text style={ds.addBtnText}>Add exercise</Text>
@@ -1569,9 +1813,12 @@ export default function PlanScreen() {
   );
   const [addSheet, setAddSheet] = useState<{ visible: boolean; day: Day }>({
     visible: false,
-    day: 'monday',
+    day: "monday",
   });
-  const [editSheet, setEditSheet] = useState<{ visible: boolean; exercise: Exercise | null }>({
+  const [editSheet, setEditSheet] = useState<{
+    visible: boolean;
+    exercise: Exercise | null;
+  }>({
     visible: false,
     exercise: null,
   });
@@ -1598,7 +1845,9 @@ export default function PlanScreen() {
   const onToggle = async (day: Day, enabled: boolean) => {
     hapticSelect();
     const val = enabled ? 1 : 0;
-    setPlans((prev) => (prev ? { ...prev, [day]: { ...prev[day], enabled: val } } : prev));
+    setPlans((prev) =>
+      prev ? { ...prev, [day]: { ...prev[day], enabled: val } } : prev,
+    );
     await updateDayPlan(day, { enabled: val });
   };
 
@@ -1611,10 +1860,10 @@ export default function PlanScreen() {
       `Remove ${MUSCLE_LABEL[mg]}?`,
       `All ${MUSCLE_LABEL[mg]} exercises will be removed from ${DAY_LABEL[day]}.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Remove',
-          style: 'destructive',
+          text: "Remove",
+          style: "destructive",
           onPress: async () => {
             await deleteExercisesByGroup(day, mg);
             hapticTap();
@@ -1629,7 +1878,7 @@ export default function PlanScreen() {
     const otherDays = DAYS.filter((d) => d !== fromDay);
     Alert.alert(
       `Copy ${DAY_LABEL[fromDay]} to…`,
-      'Exercises already on the target day will be skipped.',
+      "Exercises already on the target day will be skipped.",
       [
         ...otherDays.map((d) => ({
           text: DAY_LABEL[d],
@@ -1639,16 +1888,19 @@ export default function PlanScreen() {
             await load();
           },
         })),
-        { text: 'Cancel', style: 'cancel' as const },
+        { text: "Cancel", style: "cancel" as const },
       ],
     );
   };
 
   const enabledCount = plans ? DAYS.filter((d) => plans[d].enabled).length : 0;
-  const totalExercises = Object.values(exercises).reduce((sum, arr) => sum + arr.length, 0);
+  const totalExercises = Object.values(exercises).reduce(
+    (sum, arr) => sum + arr.length,
+    0,
+  );
 
   return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+    <SafeAreaView style={styles.root} edges={["top", "bottom"]}>
       <View style={styles.headerBar}>
         <Pressable
           onPress={() => router.back()}
@@ -1660,8 +1912,9 @@ export default function PlanScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Training plan</Text>
           <Text style={styles.subtitle}>
-            {enabledCount} day{enabledCount === 1 ? '' : 's'} · {totalExercises} exercise
-            {totalExercises === 1 ? '' : 's'}
+            {enabledCount} day{enabledCount === 1 ? "" : "s"} · {totalExercises}{" "}
+            exercise
+            {totalExercises === 1 ? "" : "s"}
           </Text>
         </View>
       </View>
@@ -1683,7 +1936,9 @@ export default function PlanScreen() {
               onAdd={() => setAddSheet({ visible: true, day })}
               onCopy={() => onCopy(day)}
               onDeleteGroup={(mg) => onDeleteGroup(day, mg)}
-              onEditExercise={(ex) => setEditSheet({ visible: true, exercise: ex })}
+              onEditExercise={(ex) =>
+                setEditSheet({ visible: true, exercise: ex })
+              }
             />
           ))}
       </ScrollView>
@@ -1711,8 +1966,8 @@ export default function PlanScreen() {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 8,
     paddingVertical: 8,
     gap: 4,
@@ -1720,8 +1975,8 @@ const styles = StyleSheet.create({
   backBtn: {
     width: 36,
     height: 36,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
   subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
@@ -1739,16 +1994,16 @@ const ds = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 14,
     paddingBottom: 10,
   },
-  dayName: { fontSize: 16, fontWeight: '600', color: colors.text },
+  dayName: { fontSize: 16, fontWeight: "600", color: colors.text },
   dayNameDisabled: { color: colors.textSecondary },
   focusInput: {
     fontSize: 14,
@@ -1764,8 +2019,8 @@ const ds = StyleSheet.create({
   },
   focusInputDisabled: {
     color: colors.textMuted,
-    backgroundColor: 'transparent',
-    borderColor: 'transparent',
+    backgroundColor: "transparent",
+    borderColor: "transparent",
   },
   exercisesBlock: {
     marginTop: 2,
@@ -1773,8 +2028,8 @@ const ds = StyleSheet.create({
     borderTopColor: colors.border,
   },
   muscleLabelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginTop: 12,
     marginHorizontal: 16,
     marginBottom: 4,
@@ -1785,17 +2040,17 @@ const ds = StyleSheet.create({
   },
   muscleLabel: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textMuted,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.7,
   },
   groupDeleteBtn: {
     padding: 2,
   },
   exerciseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 10,
     paddingLeft: 8,
     paddingRight: 14,
@@ -1806,38 +2061,38 @@ const ds = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   accentBar: { width: 3, height: 32, borderRadius: 2, flexShrink: 0 },
-  exerciseName: { fontSize: 14, fontWeight: '500', color: colors.text },
+  exerciseName: { fontSize: 14, fontWeight: "500", color: colors.text },
   exerciseMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
   dayActions: {
-    flexDirection: 'row',
+    flexDirection: "row",
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: colors.border,
   },
   addBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: '500' },
+  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: "500" },
   copyBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: colors.border,
   },
-  copyBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+  copyBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
 });
 
 const ss = StyleSheet.create({
   backdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.55)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.55)",
+    justifyContent: "flex-end",
   },
   dismiss: { flex: 1 },
   sheet: {
@@ -1847,12 +2102,12 @@ const ss = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 16,
     paddingBottom: 28,
-    maxHeight: '88%',
+    maxHeight: "88%",
   },
   sheetHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     marginBottom: 16,
   },
   sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
@@ -1860,9 +2115,9 @@ const ss = StyleSheet.create({
   fieldLabel: {
     fontSize: 11,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 14,
     marginBottom: 6,
   },
@@ -1876,27 +2131,27 @@ const ss = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
-  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  stepperRow: { flexDirection: "row", alignItems: "center", gap: 14 },
   stepperBtn: {
     width: 38,
     height: 38,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: colors.background,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
   },
   stepperValue: {
     fontSize: 18,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     minWidth: 24,
-    textAlign: 'center',
-    fontVariant: ['tabular-nums'],
+    textAlign: "center",
+    fontVariant: ["tabular-nums"],
   },
   segmented: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: colors.background,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1907,21 +2162,21 @@ const ss = StyleSheet.create({
   segment: {
     flex: 1,
     paddingVertical: 8,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
   },
   segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: 11, color: colors.textSecondary, fontWeight: '500' },
-  segmentTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  segmentText: { fontSize: 11, color: colors.textSecondary, fontWeight: "500" },
+  segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   saveBtn: {
     marginTop: 20,
     backgroundColor: colors.primary,
     paddingVertical: 14,
     borderRadius: radius.card,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  saveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 
   deleteDivider: {
     height: StyleSheet.hairlineWidth,
@@ -1934,14 +2189,14 @@ const ss = StyleSheet.create({
     paddingHorizontal: 14,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.red + '40',
-    backgroundColor: colors.red + '12',
-    alignItems: 'center',
+    borderColor: colors.red + "40",
+    backgroundColor: colors.red + "12",
+    alignItems: "center",
   },
-  deleteBtnText: { fontSize: 14, fontWeight: '600', color: colors.red },
-  deleteBtnSub: { fontSize: 11, color: colors.red + 'AA', marginTop: 2 },
+  deleteBtnText: { fontSize: 14, fontWeight: "600", color: colors.red },
+  deleteBtnSub: { fontSize: 11, color: colors.red + "AA", marginTop: 2 },
 
-  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   pill: {
     paddingVertical: 6,
     paddingHorizontal: 11,
@@ -1950,10 +2205,10 @@ const ss = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
-  pillText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  pillText: { fontSize: 12, color: colors.textSecondary, fontWeight: "500" },
 
   modeToggle: {
-    flexDirection: 'row',
+    flexDirection: "row",
     backgroundColor: colors.background,
     borderRadius: 10,
     borderWidth: StyleSheet.hairlineWidth,
@@ -1965,91 +2220,99 @@ const ss = StyleSheet.create({
   modeBtn: {
     flex: 1,
     paddingVertical: 9,
-    alignItems: 'center',
+    alignItems: "center",
     borderRadius: 8,
   },
   modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
-  modeBtnTextActive: { color: '#FFFFFF', fontWeight: '600' },
+  modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  modeBtnTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   listContainer: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    overflow: 'hidden',
+    overflow: "hidden",
     marginBottom: 4,
   },
   libraryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingVertical: 11,
     paddingHorizontal: 14,
     backgroundColor: colors.background,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  libraryRowSelected: { backgroundColor: colors.primary + '18' },
-  libraryRowName: { fontSize: 14, color: colors.text, fontWeight: '500' },
-  libraryRowNameSelected: { color: colors.primary, fontWeight: '600' },
+  libraryRowSelected: { backgroundColor: colors.primary + "18" },
+  libraryRowName: { fontSize: 14, color: colors.text, fontWeight: "500" },
+  libraryRowNameSelected: { color: colors.primary, fontWeight: "600" },
   libraryRowMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
   checkBadge: {
     width: 22,
     height: 22,
     borderRadius: 11,
     backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 8,
   },
-  checkText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  checkText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
   emptyText: {
     color: colors.textMuted,
     fontSize: 13,
-    textAlign: 'center',
+    textAlign: "center",
     paddingVertical: 16,
     lineHeight: 18,
   },
 
   selectedBanner: {
-    backgroundColor: colors.primary + '18',
+    backgroundColor: colors.primary + "18",
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
     marginBottom: 4,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.primary + '40',
+    borderColor: colors.primary + "40",
   },
-  selectedBannerText: { fontSize: 15, fontWeight: '600', color: colors.primary },
-  selectedBannerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  selectedBannerText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  selectedBannerSub: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
 
   // Superset partner section
   partnerHeader: {
     marginTop: 16,
     marginBottom: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   partnerHeaderText: {
     fontSize: 11,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   partnerBadge: {
-    backgroundColor: colors.primary + '20',
+    backgroundColor: colors.primary + "20",
     borderRadius: 6,
     paddingVertical: 2,
     paddingHorizontal: 8,
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.primary + '50',
+    borderColor: colors.primary + "50",
   },
-  partnerBadgeText: { fontSize: 11, color: colors.primary, fontWeight: '600' },
+  partnerBadgeText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
   partnerHint: {
     fontSize: 12,
     color: colors.warning,
     marginTop: 8,
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

@@ -1,21 +1,21 @@
-import { useFocusEffect, useRouter } from 'expo-router';
-import { CheckCircle2, Flame, Heart, Plus, Timer, Trash2 } from 'lucide-react-native';
-import React, { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useRouter } from "expo-router";
 import {
-  Alert,
-  Modal,
-  Pressable,
-  StyleSheet,
-  Text,
-  View,
-} from 'react-native';
-import { AddExerciseSheet } from '../../src/components/AddExerciseSheet';
-import { MuscleGroupPickerSheet } from '../../src/components/MuscleGroupPickerSheet';
-import { Card } from '../../src/components/Card';
-import { ExerciseRow } from '../../src/components/ExerciseRow';
-import { Screen } from '../../src/components/Screen';
-import { SectionLabel } from '../../src/components/SectionLabel';
-import { SwipeableExerciseRow } from '../../src/components/SwipeableExerciseRow';
+  CheckCircle2,
+  Flame,
+  Heart,
+  Plus,
+  Timer,
+  Trash2,
+} from "lucide-react-native";
+import React, { useCallback, useMemo, useState } from "react";
+import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { AddExerciseSheet } from "../../../src/components/AddExerciseSheet";
+import { MuscleGroupPickerSheet } from "../../../src/components/MuscleGroupPickerSheet";
+import { Card } from "../../../src/components/Card";
+import { ExerciseRow } from "../../../src/components/ExerciseRow";
+import { Screen } from "../../../src/components/Screen";
+import { SectionLabel } from "../../../src/components/SectionLabel";
+import { SwipeableExerciseRow } from "../../../src/components/SwipeableExerciseRow";
 import {
   bestSet,
   deleteExercisesByGroup,
@@ -27,10 +27,13 @@ import {
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
-} from '../../src/db/queries';
-import { fetchRecentWorkoutMetrics, type HealthMetrics } from '../../src/health';
-import { colors, muscleAccent } from '../../src/theme/colors';
-import { radius, typography } from '../../src/theme/spacing';
+} from "../../../src/db/queries";
+import {
+  fetchRecentWorkoutMetrics,
+  type HealthMetrics,
+} from "../../../src/health";
+import { colors, muscleAccent } from "../../../src/theme/colors";
+import { radius, typography } from "../../../src/theme/spacing";
 import {
   DAY_LABEL,
   MUSCLE_LABEL,
@@ -39,9 +42,9 @@ import {
   type Exercise,
   type MuscleGroup,
   type SetLog,
-} from '../../src/types';
-import { dayOfWeek, weekDates } from '../../src/utils/date';
-import { hapticSuccess, hapticTap } from '../../src/utils/haptics';
+} from "../../../src/types";
+import { dayOfWeek, weekDates } from "../../../src/utils/date";
+import { hapticSuccess, hapticTap } from "../../../src/utils/haptics";
 
 type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 
@@ -53,7 +56,9 @@ export default function SessionScreen() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [setLogs, setSetLogs] = useState<SetLog[]>([]);
-  const [lastBestMap, setLastBestMap] = useState<Record<number, string | null>>({});
+  const [lastBestMap, setLastBestMap] = useState<Record<number, string | null>>(
+    {},
+  );
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [addingToGroup, setAddingToGroup] = useState<MuscleGroup | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -86,10 +91,15 @@ export default function SessionScreen() {
     await Promise.all(
       filtered.map(async (e) => {
         const last = await getLastCompletedSetsForExercise(e.id, sid);
-        const b = bestSet(last, e.type === 'bodyweight');
-        lastMap[e.id] = e.type === 'bodyweight'
-          ? b?.reps != null ? `${b.reps} reps` : null
-          : b?.weight_lb != null && b.reps != null ? `${b.weight_lb} lb × ${b.reps}` : null;
+        const b = bestSet(last, e.type === "bodyweight");
+        lastMap[e.id] =
+          e.type === "bodyweight"
+            ? b?.reps != null
+              ? `${b.reps} reps`
+              : null
+            : b?.weight_lb != null && b.reps != null
+              ? `${b.weight_lb} lb × ${b.reps}`
+              : null;
       }),
     );
     setSessionId(sid);
@@ -107,7 +117,8 @@ export default function SessionScreen() {
   const grouped: GroupedExercises = useMemo(() => {
     const groupOrder = new Map<MuscleGroup, number>();
     for (const e of exercises) {
-      if (!groupOrder.has(e.muscle_group)) groupOrder.set(e.muscle_group, e.sort_order);
+      if (!groupOrder.has(e.muscle_group))
+        groupOrder.set(e.muscle_group, e.sort_order);
     }
     const sorted = [...exercises].sort((a, b) => {
       const ga = groupOrder.get(a.muscle_group)!;
@@ -139,9 +150,13 @@ export default function SessionScreen() {
   }, [exercises]);
 
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
-  const completedTotal = Object.values(completedByExercise).reduce((a, b) => a + b, 0);
+  const completedTotal = Object.values(completedByExercise).reduce(
+    (a, b) => a + b,
+    0,
+  );
   const volume = setLogs.reduce(
-    (s, l) => s + (l.completed && l.weight_lb && l.reps ? l.weight_lb * l.reps : 0),
+    (s, l) =>
+      s + (l.completed && l.weight_lb && l.reps ? l.weight_lb * l.reps : 0),
     0,
   );
 
@@ -149,12 +164,12 @@ export default function SessionScreen() {
     const count = exercises.filter((e) => e.muscle_group === group).length;
     Alert.alert(
       `Remove ${MUSCLE_LABEL[group]}?`,
-      `This will permanently delete ${count} exercise${count === 1 ? '' : 's'} and all their logged history from ${DAY_LABEL[day]}.`,
+      `This will permanently delete ${count} exercise${count === 1 ? "" : "s"} and all their logged history from ${DAY_LABEL[day]}.`,
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: "Cancel", style: "cancel" },
         {
-          text: 'Remove',
-          style: 'destructive',
+          text: "Remove",
+          style: "destructive",
           onPress: async () => {
             await deleteExercisesByGroup(day, group);
             hapticSuccess();
@@ -180,7 +195,7 @@ export default function SessionScreen() {
 
   const onCloseSummary = () => {
     setSummary(null);
-    router.replace('/(tabs)');
+    router.replace("/(tabs)");
   };
 
   if (dayPlan && !dayPlan.enabled) {
@@ -188,7 +203,9 @@ export default function SessionScreen() {
       <Screen>
         <View style={styles.header}>
           <Text style={styles.title}>Rest day</Text>
-          <Text style={styles.subtitle}>{DAY_LABEL[day]} — no training scheduled</Text>
+          <Text style={styles.subtitle}>
+            {DAY_LABEL[day]} — no training scheduled
+          </Text>
         </View>
         <Card>
           <Text style={styles.restText}>
@@ -207,7 +224,8 @@ export default function SessionScreen() {
         <View style={styles.header}>
           <Text style={styles.title}>{focusLabel}</Text>
           <Text style={styles.subtitle}>
-            {DAY_LABEL[day]} · {exercises.length} exercise{exercises.length === 1 ? '' : 's'}
+            {DAY_LABEL[day]} · {exercises.length} exercise
+            {exercises.length === 1 ? "" : "s"}
           </Text>
         </View>
 
@@ -216,7 +234,7 @@ export default function SessionScreen() {
             <SectionLabel
               trailing={
                 <View style={styles.groupTrailing}>
-                  {group === 'shoulders' ? (
+                  {group === "shoulders" ? (
                     <View style={styles.priorityBadge}>
                       <Text style={styles.priorityText}>Priority</Text>
                     </View>
@@ -226,7 +244,11 @@ export default function SessionScreen() {
                     hitSlop={8}
                     style={({ pressed }) => pressed && { opacity: 0.6 }}
                   >
-                    <Trash2 size={14} color={colors.textMuted} strokeWidth={2} />
+                    <Trash2
+                      size={14}
+                      color={colors.textMuted}
+                      strokeWidth={2}
+                    />
                   </Pressable>
                 </View>
               }
@@ -234,10 +256,7 @@ export default function SessionScreen() {
               {MUSCLE_LABEL[group]}
             </SectionLabel>
             {items.map((e) => (
-              <SwipeableExerciseRow
-                key={e.id}
-                onSkip={() => onSkipExercise(e)}
-              >
+              <SwipeableExerciseRow key={e.id} onSkip={() => onSkipExercise(e)}>
                 <ExerciseRow
                   name={e.name}
                   sets={e.sets}
@@ -246,14 +265,16 @@ export default function SessionScreen() {
                   completed={completedByExercise[e.id] ?? 0}
                   accentColor={muscleAccent[e.muscle_group] ?? colors.primary}
                   notes={e.notes}
-                  typeBadge={e.type === 'normal' ? null : e.type}
+                  typeBadge={e.type === "normal" ? null : e.type}
                   partnerName={
-                    e.type === 'superset' && e.superset_partner_id
+                    e.type === "superset" && e.superset_partner_id
                       ? (nameById[e.superset_partner_id] ?? null)
                       : null
                   }
                   onPress={() =>
-                    router.push(`/exercise/${e.id}?sessionId=${sessionId ?? ''}`)
+                    router.push(
+                      `/exercise/${e.id}?sessionId=${sessionId ?? ""}`,
+                    )
                   }
                 />
               </SwipeableExerciseRow>
@@ -263,7 +284,10 @@ export default function SessionScreen() {
                 hapticTap();
                 setAddingToGroup(group);
               }}
-              style={({ pressed }) => [styles.addExerciseBtn, pressed && { opacity: 0.7 }]}
+              style={({ pressed }) => [
+                styles.addExerciseBtn,
+                pressed && { opacity: 0.7 },
+              ]}
             >
               <Plus size={14} color={colors.primary} strokeWidth={2} />
               <Text style={styles.addExerciseText}>Add new exercise</Text>
@@ -272,8 +296,14 @@ export default function SessionScreen() {
         ))}
 
         <Pressable
-          onPress={() => { hapticTap(); setPickerOpen(true); }}
-          style={({ pressed }) => [styles.addGroupBtn, pressed && { opacity: 0.7 }]}
+          onPress={() => {
+            hapticTap();
+            setPickerOpen(true);
+          }}
+          style={({ pressed }) => [
+            styles.addGroupBtn,
+            pressed && { opacity: 0.7 },
+          ]}
         >
           <Plus size={14} color={colors.primary} strokeWidth={2} />
           <Text style={styles.addGroupText}>Add muscle group</Text>
@@ -281,7 +311,10 @@ export default function SessionScreen() {
 
         <Pressable
           onPress={onFinish}
-          style={({ pressed }) => [styles.finishBtn, pressed && { opacity: 0.85 }]}
+          style={({ pressed }) => [
+            styles.finishBtn,
+            pressed && { opacity: 0.85 },
+          ]}
           disabled={!sessionId}
         >
           <Text style={styles.finishBtnText}>Finish session</Text>
@@ -299,7 +332,7 @@ export default function SessionScreen() {
       <AddExerciseSheet
         visible={addingToGroup !== null}
         day={day}
-        muscleGroup={addingToGroup ?? 'chest'}
+        muscleGroup={addingToGroup ?? "chest"}
         onClose={() => setAddingToGroup(null)}
         onCreated={async () => {
           setAddingToGroup(null);
@@ -314,7 +347,12 @@ function SummaryModal({
   summary,
   onClose,
 }: {
-  summary: null | { completed: number; total: number; volume: number; hk: HealthMetrics };
+  summary: null | {
+    completed: number;
+    total: number;
+    volume: number;
+    hk: HealthMetrics;
+  };
   onClose: () => void;
 }) {
   return (
@@ -354,19 +392,31 @@ function SummaryModal({
 
           <View style={styles.hkRow}>
             <HkCell
-              icon={<Timer size={16} color={colors.primary} strokeWidth={1.75} />}
+              icon={
+                <Timer size={16} color={colors.primary} strokeWidth={1.75} />
+              }
               label="Duration"
-              value={summary?.hk.durationMinutes != null ? `${summary.hk.durationMinutes} min` : '—'}
+              value={
+                summary?.hk.durationMinutes != null
+                  ? `${summary.hk.durationMinutes} min`
+                  : "—"
+              }
             />
             <HkCell
               icon={<Heart size={16} color={colors.red} strokeWidth={1.75} />}
               label="Avg HR"
-              value={summary?.hk.avgHr != null ? `${summary.hk.avgHr} bpm` : '—'}
+              value={
+                summary?.hk.avgHr != null ? `${summary.hk.avgHr} bpm` : "—"
+              }
             />
             <HkCell
               icon={<Flame size={16} color={colors.amber} strokeWidth={1.75} />}
               label="Active"
-              value={summary?.hk.calories != null ? `${summary.hk.calories} kcal` : '—'}
+              value={
+                summary?.hk.calories != null
+                  ? `${summary.hk.calories} kcal`
+                  : "—"
+              }
             />
           </View>
 
@@ -378,7 +428,10 @@ function SummaryModal({
 
           <Pressable
             onPress={onClose}
-            style={({ pressed }) => [styles.modalBtn, pressed && { opacity: 0.85 }]}
+            style={({ pressed }) => [
+              styles.modalBtn,
+              pressed && { opacity: 0.85 },
+            ]}
           >
             <Text style={styles.modalBtnText}>Done</Text>
           </Pressable>
@@ -409,32 +462,36 @@ function HkCell({
 const styles = StyleSheet.create({
   header: { paddingTop: 8, paddingBottom: 4 },
   title: { ...typography.screenTitle, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
+  subtitle: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   restText: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
 
   priorityBadge: {
-    backgroundColor: colors.purple + '22',
+    backgroundColor: colors.purple + "22",
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 999,
   },
   priorityText: {
     fontSize: 10,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.purple,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
 
   groupTrailing: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   addGroupBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
     marginTop: 8,
@@ -442,13 +499,13 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary,
-    backgroundColor: colors.primary + '0F',
+    backgroundColor: colors.primary + "0F",
   },
-  addGroupText: { color: colors.primary, fontSize: 13, fontWeight: '600' },
+  addGroupText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
   addExerciseBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 6,
     paddingVertical: 10,
     marginBottom: 4,
@@ -460,40 +517,40 @@ const styles = StyleSheet.create({
   addExerciseText: {
     color: colors.primary,
     fontSize: 13,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   finishBtn: {
     marginTop: 24,
     backgroundColor: colors.primary,
     paddingVertical: 16,
     borderRadius: radius.card,
-    alignItems: 'center',
+    alignItems: "center",
   },
-  finishBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  finishBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 
   modalBackdrop: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    justifyContent: 'center',
+    backgroundColor: "rgba(0,0,0,0.45)",
+    justifyContent: "center",
     paddingHorizontal: 20,
   },
   modalCard: {
     backgroundColor: colors.card,
     borderRadius: 16,
     padding: 24,
-    alignItems: 'center',
+    alignItems: "center",
   },
   modalIconWrap: { marginBottom: 8 },
   modalTitle: {
     fontSize: 20,
-    fontWeight: '600',
+    fontWeight: "600",
     color: colors.text,
     marginBottom: 16,
   },
   metricsRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
     marginBottom: 16,
   },
   metricBox: {
@@ -506,7 +563,7 @@ const styles = StyleSheet.create({
   metricLabel: {
     ...typography.caption,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   metricValue: {
@@ -517,39 +574,49 @@ const styles = StyleSheet.create({
   metricUnit: {
     ...typography.caption,
     color: colors.textSecondary,
-    fontWeight: '400',
+    fontWeight: "400",
   },
 
   hkHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginBottom: 10,
     marginTop: 2,
   },
   hkHeaderText: {
     ...typography.caption,
     color: colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.6,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   hkRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
-    alignSelf: 'stretch',
+    alignSelf: "stretch",
   },
   hkCell: {
     flex: 1,
     backgroundColor: colors.background,
     borderRadius: 12,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 4,
   },
-  hkCellValue: { fontSize: 15, fontWeight: '600', color: colors.text, marginTop: 2 },
-  hkCellLabel: { fontSize: 10, color: colors.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6 },
+  hkCellValue: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+    marginTop: 2,
+  },
+  hkCellLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+  },
 
   hkHint: {
     ...typography.caption,
@@ -563,9 +630,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 32,
     borderRadius: radius.card,
-    alignSelf: 'stretch',
-    alignItems: 'center',
+    alignSelf: "stretch",
+    alignItems: "center",
   },
-  modalBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  modalBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
 });
-

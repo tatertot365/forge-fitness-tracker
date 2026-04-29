@@ -35,11 +35,21 @@ A personal training companion built with React Native and Expo. Forge runs entir
 
 ### Food Log
 - Log meals by name, calories, protein, fat, and carbs (fat and carbs optional — default to 0)
+- **Barcode scanner** — camera-based food lookup via Open Food Facts; auto-fills name and per-serving macros; adjust servings before adding; no account required
+- **Macro calculator** — enter a serving size and amount eaten to auto-calculate scaled macros before logging
 - Recent entries surface as quick-add chips with full macro breakdown
 - Daily summary card with progress bars for all four macros
 - Configurable calorie and macro goals — carry forward until changed; can be calculated automatically from TDEE
 - 14-day trend charts for calories, protein, fat, and carbs; tap any bar to see that day's full entry list
 - History sheet shows per-entry breakdown and daily totals vs. goals
+
+### Data Export
+
+- Export all your data as CSV files directly from the Measurements screen — three files generated in one tap:
+  - **forge_measurements.csv** — date, weight, body fat %, lean mass (auto-derived), and all circumferences
+  - **forge_food_log.csv** — every food entry with date, name, calories, protein, fat, and carbs
+  - **forge_sessions.csv** — full set-log history with date, day, exercise, muscle group, set number, weight, reps, and completion flag
+- Shared via the iOS share sheet — save to Files, send to Numbers, or open in any CSV-compatible app
 
 ### Measurements
 - Log body stats: weight (lb), body fat %, shoulders, waist, arms (flexed), chest, and quads (in)

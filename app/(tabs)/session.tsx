@@ -9,13 +9,13 @@ import {
 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { AddExerciseSheet } from "../../../src/components/AddExerciseSheet";
-import { MuscleGroupPickerSheet } from "../../../src/components/MuscleGroupPickerSheet";
-import { Card } from "../../../src/components/Card";
-import { ExerciseRow } from "../../../src/components/ExerciseRow";
-import { Screen } from "../../../src/components/Screen";
-import { SectionLabel } from "../../../src/components/SectionLabel";
-import { SwipeableExerciseRow } from "../../../src/components/SwipeableExerciseRow";
+import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
+import { MuscleGroupPickerSheet } from "../../src/components/MuscleGroupPickerSheet";
+import { Card } from "../../src/components/Card";
+import { ExerciseRow } from "../../src/components/ExerciseRow";
+import { Screen } from "../../src/components/Screen";
+import { SectionLabel } from "../../src/components/SectionLabel";
+import { SwipeableExerciseRow } from "../../src/components/SwipeableExerciseRow";
 import {
   bestSet,
   deleteExercisesByGroup,
@@ -27,13 +27,13 @@ import {
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
-} from "../../../src/db/queries";
+} from "../../src/db/queries";
 import {
   fetchRecentWorkoutMetrics,
   type HealthMetrics,
-} from "../../../src/health";
-import { colors, muscleAccent } from "../../../src/theme/colors";
-import { radius, typography } from "../../../src/theme/spacing";
+} from "../../src/health";
+import { colors, muscleAccent } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
 import {
   DAY_LABEL,
   MUSCLE_LABEL,
@@ -42,9 +42,9 @@ import {
   type Exercise,
   type MuscleGroup,
   type SetLog,
-} from "../../../src/types";
-import { dayOfWeek, weekDates } from "../../../src/utils/date";
-import { hapticSuccess, hapticTap } from "../../../src/utils/haptics";
+} from "../../src/types";
+import { dayOfWeek, weekDates } from "../../src/utils/date";
+import { hapticSuccess, hapticTap } from "../../src/utils/haptics";
 
 type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 

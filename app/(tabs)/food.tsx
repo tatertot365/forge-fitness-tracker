@@ -32,10 +32,10 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import Svg, { Line, Rect } from "react-native-svg";
-import { Card } from "../../../src/components/Card";
-import { ProgressBar } from "../../../src/components/ProgressBar";
-import { Screen } from "../../../src/components/Screen";
-import { SectionLabel } from "../../../src/components/SectionLabel";
+import { Card } from "../../src/components/Card";
+import { ProgressBar } from "../../src/components/ProgressBar";
+import { Screen } from "../../src/components/Screen";
+import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   addFoodEntry,
   deleteFoodEntry,
@@ -52,31 +52,31 @@ import {
   setGoalsMode,
   setNutritionGoal,
   updateFoodEntry,
-} from "../../../src/db/queries";
+} from "../../src/db/queries";
 import {
   ACTIVITY_LABEL,
   calculateTdee,
   type ActivityLevel,
   type MacroGoals,
-} from "../../../src/utils/tdee";
-import { colors } from "../../../src/theme/colors";
-import { radius, typography } from "../../../src/theme/spacing";
+} from "../../src/utils/tdee";
+import { colors } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
 import {
   type DailyNutritionTotal,
   type FoodEntry,
   type FoodRecent,
   type NutritionGoal,
-} from "../../../src/types";
-import { todayISO } from "../../../src/utils/date";
+} from "../../src/types";
+import { todayISO } from "../../src/utils/date";
 import {
   hapticSelect,
   hapticSuccess,
   hapticTap,
-} from "../../../src/utils/haptics";
+} from "../../src/utils/haptics";
 import {
   lookupBarcode,
   type FoodFactsResult,
-} from "../../../src/utils/openFoodFacts";
+} from "../../src/utils/openFoodFacts";
 
 export default function FoodScreen() {
   const [goal, setGoal] = useState<NutritionGoal | null>(null);

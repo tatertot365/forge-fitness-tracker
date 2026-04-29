@@ -25,12 +25,12 @@ import {
 import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
-import { Card } from "../../../src/components/Card";
-import { PhaseBadge } from "../../../src/components/PhaseBadge";
-import { PhasePills } from "../../../src/components/PhasePills";
-import { ProgressBar } from "../../../src/components/ProgressBar";
-import { Screen } from "../../../src/components/Screen";
-import { SectionLabel } from "../../../src/components/SectionLabel";
+import { Card } from "../../src/components/Card";
+import { PhaseBadge } from "../../src/components/PhaseBadge";
+import { PhasePills } from "../../src/components/PhasePills";
+import { ProgressBar } from "../../src/components/ProgressBar";
+import { Screen } from "../../src/components/Screen";
+import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   addCardioToday,
   getActivityLevel,
@@ -61,15 +61,15 @@ import {
   skipDay,
   type BodyGoals,
   type CardioInfo,
-} from "../../../src/db/queries";
-import { calculateTdee } from "../../../src/utils/tdee";
+} from "../../src/db/queries";
+import { calculateTdee } from "../../src/utils/tdee";
 import {
   isHealthKitAvailable,
   requestHealthKitAccess,
   verifyHealthKitAccess,
-} from "../../../src/health";
-import { colors, muscleAccent } from "../../../src/theme/colors";
-import { radius, typography } from "../../../src/theme/spacing";
+} from "../../src/health";
+import { colors, muscleAccent } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
 import {
   DAY_LABEL,
   DAYS,
@@ -82,13 +82,13 @@ import {
   type MuscleGroup,
   type Phase,
   type Session,
-} from "../../../src/types";
-import { dayOfWeek, todayISO, weekDates } from "../../../src/utils/date";
+} from "../../src/types";
+import { dayOfWeek, todayISO, weekDates } from "../../src/utils/date";
 import {
   hapticSelect,
   hapticSuccess,
   hapticTap,
-} from "../../../src/utils/haptics";
+} from "../../src/utils/haptics";
 
 const CARDIO_TARGET: Record<Phase, number> = { cut: 4, maintain: 3, bulk: 2 };
 const SCREEN_WIDTH = Dimensions.get("window").width;

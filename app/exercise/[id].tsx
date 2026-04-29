@@ -23,12 +23,12 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Card } from "../../../src/components/Card";
-import { HistorySheet } from "../../../src/components/HistorySheet";
-import { HistorySparkline } from "../../../src/components/HistorySparkline";
-import { RestTimer } from "../../../src/components/RestTimer";
-import { SectionLabel } from "../../../src/components/SectionLabel";
-import { SetCheckButton } from "../../../src/components/SetCheckButton";
+import { Card } from "../../src/components/Card";
+import { HistorySheet } from "../../src/components/HistorySheet";
+import { HistorySparkline } from "../../src/components/HistorySparkline";
+import { RestTimer } from "../../src/components/RestTimer";
+import { SectionLabel } from "../../src/components/SectionLabel";
+import { SetCheckButton } from "../../src/components/SetCheckButton";
 import {
   bestSet,
   deleteExercise,
@@ -45,17 +45,17 @@ import {
   updateExercise,
   upsertSetLog,
   type ExerciseSessionHistory,
-} from "../../../src/db/queries";
-import { colors } from "../../../src/theme/colors";
-import { radius, typography } from "../../../src/theme/spacing";
+} from "../../src/db/queries";
+import { colors } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
 import {
   MUSCLE_LABEL,
   type Exercise,
   type ExerciseType,
   type SetLog,
-} from "../../../src/types";
-import { dayOfWeek, todayISO } from "../../../src/utils/date";
-import { hapticTap, hapticSuccess } from "../../../src/utils/haptics";
+} from "../../src/types";
+import { dayOfWeek, todayISO } from "../../src/utils/date";
+import { hapticTap, hapticSuccess } from "../../src/utils/haptics";
 
 type Row = {
   setNumber: number;

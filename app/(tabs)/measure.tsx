@@ -1,10 +1,13 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
+import { File, Paths } from "expo-file-system";
 import { useFocusEffect } from "expo-router";
+import * as Sharing from "expo-sharing";
 import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
   ChevronUp,
+  Download,
   Minus,
   Pencil,
 } from "lucide-react-native";
@@ -25,10 +28,13 @@ import {
   View,
 } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
-import { ProgressBar } from "../../../src/components/ProgressBar";
-import { Screen } from "../../../src/components/Screen";
-import { SectionLabel } from "../../../src/components/SectionLabel";
+import { ProgressBar } from "../../src/components/ProgressBar";
+import { Screen } from "../../src/components/Screen";
+import { SectionLabel } from "../../src/components/SectionLabel";
 import {
+  exportFoodLogCSV,
+  exportMeasurementsCSV,
+  exportSessionsCSV,
   getActivityLevel,
   getBodyGoals,
   getGoalsMode,
@@ -42,16 +48,16 @@ import {
   setUserProfile,
   upsertMeasurement,
   type BodyGoals,
-} from "../../../src/db/queries";
+} from "../../src/db/queries";
 import {
   calculateTdee,
   type Sex,
   type UserProfile,
-} from "../../../src/utils/tdee";
-import { colors } from "../../../src/theme/colors";
-import { radius, typography } from "../../../src/theme/spacing";
-import { type Measurement } from "../../../src/types";
-import { todayISO } from "../../../src/utils/date";
+} from "../../src/utils/tdee";
+import { colors } from "../../src/theme/colors";
+import { radius, typography } from "../../src/theme/spacing";
+import { type Measurement } from "../../src/types";
+import { todayISO } from "../../src/utils/date";
 
 const TARGET_RATIO = 1.618;
 
@@ -256,6 +262,35 @@ export default function MeasureScreen() {
   const profileComplete =
     profile.height_in != null && profile.dob != null && profile.sex != null;
 
+  const exportData = async () => {
+    try {
+      const [measurements, food, sessions] = await Promise.all([
+        exportMeasurementsCSV(),
+        exportFoodLogCSV(),
+        exportSessionsCSV(),
+      ]);
+
+      const ts = new Date().toISOString().slice(0, 10);
+      const files = [
+        { name: `forge_measurements_${ts}.csv`, content: measurements },
+        { name: `forge_food_log_${ts}.csv`, content: food },
+        { name: `forge_sessions_${ts}.csv`, content: sessions },
+      ];
+
+      for (const f of files) {
+        const file = new File(Paths.cache, f.name);
+        file.write(f.content);
+        await Sharing.shareAsync(file.uri, {
+          mimeType: 'text/csv',
+          dialogTitle: f.name,
+          UTI: 'public.comma-separated-values-text',
+        });
+      }
+    } catch (e) {
+      Alert.alert('Export failed', 'Could not export data. Please try again.');
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -271,6 +306,17 @@ export default function MeasureScreen() {
             </Text>
           </View>
           <View style={styles.headerBtns}>
+            <Pressable
+              onPress={exportData}
+              hitSlop={10}
+              style={({ pressed }) => [
+                styles.editBtn,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Download size={12} color={colors.primary} strokeWidth={2} />
+              <Text style={styles.editBtnText}>Export</Text>
+            </Pressable>
             <Pressable
               onPress={() => setGoalsModalVisible(true)}
               hitSlop={10}

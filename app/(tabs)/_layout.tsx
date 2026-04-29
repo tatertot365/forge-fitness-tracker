@@ -1,7 +1,7 @@
 import { Tabs } from "expo-router";
 import { Apple, Dumbbell, House, Ruler } from "lucide-react-native";
 import { StyleSheet } from "react-native";
-import { colors } from "../../../src/theme/colors";
+import { colors } from "../../src/theme/colors";
 
 const ICON_SIZE = 22;
 const STROKE = 1.75;
@@ -28,7 +28,7 @@ export default function TabsLayout() {
         name="index"
         options={{
           title: "Home",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <House color={color} size={ICON_SIZE} strokeWidth={STROKE} />
           ),
         }}
@@ -37,7 +37,7 @@ export default function TabsLayout() {
         name="session"
         options={{
           title: "Today",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <Dumbbell color={color} size={ICON_SIZE} strokeWidth={STROKE} />
           ),
         }}
@@ -46,7 +46,7 @@ export default function TabsLayout() {
         name="food"
         options={{
           title: "Food",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <Apple color={color} size={ICON_SIZE} strokeWidth={STROKE} />
           ),
         }}
@@ -55,7 +55,7 @@ export default function TabsLayout() {
         name="measure"
         options={{
           title: "Measure",
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <Ruler color={color} size={ICON_SIZE} strokeWidth={STROKE} />
           ),
         }}

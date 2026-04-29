@@ -19,11 +19,11 @@ import {
   View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
-import { MuscleGroupPickerSheet } from "../../src/components/MuscleGroupPickerSheet";
-import { ExerciseRow } from "../../src/components/ExerciseRow";
-import { SectionLabel } from "../../src/components/SectionLabel";
-import { SwipeableExerciseRow } from "../../src/components/SwipeableExerciseRow";
+import { AddExerciseSheet } from "../src/components/AddExerciseSheet";
+import { MuscleGroupPickerSheet } from "../src/components/MuscleGroupPickerSheet";
+import { ExerciseRow } from "../src/components/ExerciseRow";
+import { SectionLabel } from "../src/components/SectionLabel";
+import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
 import {
   bestSet,
   deleteExercisesByGroup,
@@ -35,13 +35,13 @@ import {
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
-} from "../../src/db/queries";
+} from "../src/db/queries";
 import {
   fetchRecentWorkoutMetrics,
   type HealthMetrics,
-} from "../../src/health";
-import { colors, muscleAccent } from "../../src/theme/colors";
-import { radius, spacing, typography } from "../../src/theme/spacing";
+} from "../src/health";
+import { colors, muscleAccent } from "../src/theme/colors";
+import { radius, spacing, typography } from "../src/theme/spacing";
 import {
   DAY_LABEL,
   DAYS,
@@ -50,9 +50,9 @@ import {
   type Exercise,
   type MuscleGroup,
   type SetLog,
-} from "../../src/types";
-import { weekDates } from "../../src/utils/date";
-import { hapticSuccess, hapticTap } from "../../src/utils/haptics";
+} from "../src/types";
+import { weekDates } from "../src/utils/date";
+import { hapticSuccess, hapticTap } from "../src/utils/haptics";
 
 type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 

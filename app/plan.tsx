@@ -49,9 +49,9 @@ import {
   unlinkSuperset,
   updateDayPlan,
   updateExercise,
-} from "../../src/db/queries";
-import { colors, muscleAccent } from "../../src/theme/colors";
-import { radius, typography } from "../../src/theme/spacing";
+} from "../src/db/queries";
+import { colors, muscleAccent } from "../src/theme/colors";
+import { radius, typography } from "../src/theme/spacing";
 import {
   DAY_LABEL,
   DAYS,
@@ -62,12 +62,12 @@ import {
   type ExerciseType,
   type LibraryExercise,
   type MuscleGroup,
-} from "../../src/types";
+} from "../src/types";
 import {
   hapticSelect,
   hapticSuccess,
   hapticTap,
-} from "../../src/utils/haptics";
+} from "../src/utils/haptics";
 
 const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   "chest",

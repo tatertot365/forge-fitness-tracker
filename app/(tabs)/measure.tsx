@@ -1,6 +1,6 @@
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
-import { ArrowDown, ArrowUp, Minus } from 'lucide-react-native';
+import { ArrowDown, ArrowUp, ChevronDown, ChevronUp, Minus, Pencil } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
   ActionSheetIOS,
@@ -8,6 +8,7 @@ import {
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
+  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -39,6 +40,8 @@ import { type Measurement } from '../../src/types';
 import { todayISO } from '../../src/utils/date';
 
 const TARGET_RATIO = 1.618;
+const STAGE_READY_MIN = 4;
+const STAGE_READY_MAX = 6;
 
 type CircField = {
   key: keyof Pick<Measurement, 'shoulders_in' | 'waist_in' | 'arms_flexed_in' | 'chest_in' | 'quads_in'>;
@@ -74,16 +77,9 @@ const EMPTY_INPUTS: Inputs = {
   quads_in: '',
 };
 
-function measurementToInputs(m: Measurement): Inputs {
-  return {
-    weight_lb: m.weight_lb != null ? String(m.weight_lb) : '',
-    body_fat_pct: m.body_fat_pct != null ? String(m.body_fat_pct) : '',
-    shoulders_in: m.shoulders_in != null ? String(m.shoulders_in) : '',
-    waist_in: m.waist_in != null ? String(m.waist_in) : '',
-    arms_flexed_in: m.arms_flexed_in != null ? String(m.arms_flexed_in) : '',
-    chest_in: m.chest_in != null ? String(m.chest_in) : '',
-    quads_in: m.quads_in != null ? String(m.quads_in) : '',
-  };
+function leanMass(weight_lb: number | null | undefined, body_fat_pct: number | null | undefined): number | null {
+  if (weight_lb == null || body_fat_pct == null) return null;
+  return weight_lb * (1 - body_fat_pct / 100);
 }
 
 export default function MeasureScreen() {
@@ -91,10 +87,12 @@ export default function MeasureScreen() {
   const [prior, setPrior] = useState<Measurement | null>(null);
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
+  const [editModalVisible, setEditModalVisible] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({ height_in: null, dob: null, sex: null });
   const [heightInput, setHeightInput] = useState('');
   const [dobDate, setDobDate] = useState<Date | null>(null);
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [profileExpanded, setProfileExpanded] = useState(false);
 
   const load = useCallback(async () => {
     const [l, p, h, prof] = await Promise.all([
@@ -126,6 +124,23 @@ export default function MeasureScreen() {
         else if (idx === 1) await saveProfile({ sex: 'female' });
       },
     );
+  };
+
+  const openEdit = () => {
+    if (latest) {
+      setInputs({
+        weight_lb: latest.weight_lb != null ? String(latest.weight_lb) : '',
+        body_fat_pct: latest.body_fat_pct != null ? String(latest.body_fat_pct) : '',
+        shoulders_in: latest.shoulders_in != null ? String(latest.shoulders_in) : '',
+        waist_in: latest.waist_in != null ? String(latest.waist_in) : '',
+        arms_flexed_in: latest.arms_flexed_in != null ? String(latest.arms_flexed_in) : '',
+        chest_in: latest.chest_in != null ? String(latest.chest_in) : '',
+        quads_in: latest.quads_in != null ? String(latest.quads_in) : '',
+      });
+    } else {
+      setInputs(EMPTY_INPUTS);
+    }
+    setEditModalVisible(true);
   };
 
   const save = async () => {
@@ -170,6 +185,7 @@ export default function MeasureScreen() {
     }
 
     Keyboard.dismiss();
+    setEditModalVisible(false);
     setInputs(EMPTY_INPUTS);
     load();
   };
@@ -180,7 +196,19 @@ export default function MeasureScreen() {
       : null;
   const pctOff = ratio != null ? Math.abs((TARGET_RATIO - ratio) / TARGET_RATIO) * 100 : null;
 
+  const currentLean = leanMass(latest?.weight_lb, latest?.body_fat_pct);
+  const priorLean = leanMass(prior?.weight_lb, prior?.body_fat_pct);
+
+  const bf = latest?.body_fat_pct ?? null;
+  const weight = latest?.weight_lb ?? null;
+  const stageReady = bf != null && bf >= STAGE_READY_MIN && bf <= STAGE_READY_MAX;
+  const lbsToStage =
+    bf != null && weight != null && bf > STAGE_READY_MAX
+      ? Math.round(weight * (bf - STAGE_READY_MAX) / 100 * 10) / 10
+      : null;
+
   const hasBfHistory = history.some((m) => m.body_fat_pct != null);
+  const profileComplete = profile.height_in != null && profile.dob != null && profile.sex != null;
 
   return (
     <KeyboardAvoidingView
@@ -188,61 +216,97 @@ export default function MeasureScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <Screen>
+        {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.title}>Measurements</Text>
-          <Text style={styles.subtitle}>Shoulder-to-waist ratio · target {TARGET_RATIO}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Measurements</Text>
+            <Text style={styles.subtitle}>Shoulder-to-waist ratio · target {TARGET_RATIO}</Text>
+          </View>
+          <Pressable
+            onPress={openEdit}
+            hitSlop={10}
+            style={({ pressed }) => [styles.editBtn, pressed && { opacity: 0.6 }]}
+          >
+            <Pencil size={12} color={colors.primary} strokeWidth={2} />
+            <Text style={styles.editBtnText}>Update</Text>
+          </Pressable>
         </View>
 
-        {/* Weight + body fat summary */}
-        <View style={styles.bodyCompRow}>
-          <View style={[styles.bodyCompCard, { flex: 1 }]}>
-            <Text style={styles.bodyCompLabel}>Weight</Text>
-            <Text style={styles.bodyCompValue}>
-              {latest?.weight_lb != null ? `${latest.weight_lb} lbs` : '—'}
-            </Text>
-            <DeltaChip
-              current={latest?.weight_lb ?? null}
-              prior={prior?.weight_lb ?? null}
-              goodOnIncrease={false}
-              neutral
-              unit=" lbs"
-            />
-          </View>
-          <View style={[styles.bodyCompCard, { flex: 1 }]}>
-            <Text style={styles.bodyCompLabel}>Body fat</Text>
-            <Text style={styles.bodyCompValue}>
-              {latest?.body_fat_pct != null ? `${latest.body_fat_pct}%` : '—'}
-            </Text>
-            <DeltaChip
-              current={latest?.body_fat_pct ?? null}
-              prior={prior?.body_fat_pct ?? null}
-              goodOnIncrease={false}
-              unit="%"
-            />
-          </View>
+        {/* Stats grid: weight, body fat, lean mass */}
+        <View style={styles.statsGrid}>
+          <StatCard
+            label="Weight"
+            value={latest?.weight_lb != null ? `${latest.weight_lb}` : '—'}
+            unit="lbs"
+            current={latest?.weight_lb ?? null}
+            prior={prior?.weight_lb ?? null}
+            goodOnIncrease={false}
+            neutral
+          />
+          <StatCard
+            label="Body fat"
+            value={latest?.body_fat_pct != null ? `${latest.body_fat_pct}` : '—'}
+            unit="%"
+            current={latest?.body_fat_pct ?? null}
+            prior={prior?.body_fat_pct ?? null}
+            goodOnIncrease={false}
+          />
+          <StatCard
+            label="Lean mass"
+            value={currentLean != null ? currentLean.toFixed(1) : '—'}
+            unit="lbs"
+            current={currentLean}
+            prior={priorLean}
+            goodOnIncrease={true}
+          />
         </View>
+
+        {/* Stage readiness */}
+        {bf != null && (
+          <View style={[styles.stageCard, stageReady && styles.stageCardReady]}>
+            <View style={styles.stageHeader}>
+              <Text style={[styles.stageLabel, stageReady && styles.stageLabelReady]}>
+                Stage readiness
+              </Text>
+              <Text style={[styles.stageBadge, stageReady && styles.stageBadgeReady]}>
+                {stageReady ? 'In range' : 'Not ready'}
+              </Text>
+            </View>
+            <Text style={styles.stageTarget}>Target: {STAGE_READY_MIN}–{STAGE_READY_MAX}% body fat</Text>
+            <View style={{ marginTop: 10 }}>
+              <ProgressBar
+                value={Math.min(bf, STAGE_READY_MAX + 4)}
+                max={STAGE_READY_MAX + 4}
+                color={stageReady ? colors.green : colors.primary}
+              />
+            </View>
+            <Text style={styles.stageHint}>
+              {stageReady
+                ? `You're at ${bf}% — within stage range.`
+                : lbsToStage != null
+                ? `~${lbsToStage} lbs of fat to lose to reach ${STAGE_READY_MAX}%.`
+                : `Currently at ${bf}% — below stage range, consider bulking.`}
+            </Text>
+          </View>
+        )}
 
         {/* Shoulder-to-waist ratio */}
-        <View style={styles.ratioCard}>
-          <Text style={styles.ratioLabel}>Shoulder-to-waist ratio</Text>
-          <View style={styles.ratioValueRow}>
-            <Text style={styles.ratioValue}>{ratio != null ? ratio.toFixed(2) : '—'}</Text>
-            <Text style={styles.ratioTarget}>/ {TARGET_RATIO}</Text>
-          </View>
-          <View style={{ marginTop: 10 }}>
-            <ProgressBar value={ratio ?? 0} max={TARGET_RATIO} color={colors.primary} />
-          </View>
-          <View style={styles.ratioFooter}>
+        {(latest?.shoulders_in != null && latest?.waist_in != null) && (
+          <View style={styles.ratioCard}>
+            <Text style={styles.ratioLabel}>Shoulder-to-waist ratio</Text>
+            <View style={styles.ratioValueRow}>
+              <Text style={styles.ratioValue}>{ratio != null ? ratio.toFixed(2) : '—'}</Text>
+              <Text style={styles.ratioTarget}>/ {TARGET_RATIO}</Text>
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <ProgressBar value={ratio ?? 0} max={TARGET_RATIO} color={colors.primary} />
+            </View>
             <Text style={styles.ratioPct}>
-              {pctOff != null
-                ? `${pctOff.toFixed(1)}% off`
-                : 'Log shoulders + waist to see progress'}
+              {pctOff != null ? `${pctOff.toFixed(1)}% off target` : ''}
             </Text>
+            <Text style={styles.ratioHint}>Expand shoulders or tighten waist to close the gap.</Text>
           </View>
-          <Text style={styles.ratioHint}>
-            Expand shoulders or tighten waist to close the gap.
-          </Text>
-        </View>
+        )}
 
         {/* Circumference measurements */}
         <SectionLabel>Current</SectionLabel>
@@ -272,121 +336,91 @@ export default function MeasureScreen() {
           })}
         </View>
 
-        {/* Profile */}
-        <SectionLabel>Profile</SectionLabel>
-        <View style={styles.formCard}>
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Height (inches)</Text>
-            <TextInput
-              value={heightInput}
-              onChangeText={setHeightInput}
-              onBlur={async () => {
-                const v = parseField(heightInput);
-                if (v != null) await saveProfile({ height_in: v });
-              }}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="e.g. 70 (5′10″)"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Date of birth</Text>
-            <Pressable
-              onPress={() => setShowDobPicker((v) => !v)}
-              style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
-            >
-              <Text style={dobDate ? styles.pickerText : styles.pickerPlaceholder}>
-                {dobDate ? formatDob(dobDate) : 'Select date…'}
-              </Text>
-              <Text style={styles.pickerChevron}>›</Text>
-            </Pressable>
-            {showDobPicker && (
-              <DateTimePicker
-                value={dobDate ?? new Date(2000, 0, 1)}
-                mode="date"
-                display="spinner"
-                maximumDate={new Date()}
-                textColor="#FFFFFF"
-                onChange={async (_, date) => {
-                  if (date) {
-                    setDobDate(date);
-                    const iso = toISODate(date);
-                    await saveProfile({ dob: iso });
-                  }
-                }}
-                style={{ marginTop: 4 }}
-              />
-            )}
-          </View>
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Sex</Text>
-            <Pressable
-              onPress={pickSex}
-              style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
-            >
-              <Text style={profile.sex ? styles.pickerText : styles.pickerPlaceholder}>
-                {profile.sex === 'male' ? 'Male' : profile.sex === 'female' ? 'Female' : 'Select…'}
-              </Text>
-              <Text style={styles.pickerChevron}>›</Text>
-            </Pressable>
-          </View>
-        </View>
-
         {/* Body fat prompt banner */}
         {latest?.body_fat_pct == null && (
           <View style={styles.bfBanner}>
             <Text style={styles.bfBannerText}>
-              Log your body fat % below for more accurate macro calculations. Without it, height, age & sex are used instead.
+              Log your body fat % to unlock lean mass tracking, stage readiness, and more accurate macro calculations.
             </Text>
           </View>
         )}
 
-        {/* Update form */}
-        <SectionLabel>Update</SectionLabel>
-        <View style={styles.formCard}>
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Weight (lbs)</Text>
-            <TextInput
-              value={inputs.weight_lb}
-              onChangeText={(t) => setInputs((p) => ({ ...p, weight_lb: t }))}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="optional"
-              placeholderTextColor={colors.textMuted}
-            />
+        {/* Profile — collapsible */}
+        <Pressable
+          onPress={() => setProfileExpanded((v) => !v)}
+          style={styles.profileHeader}
+        >
+          <Text style={styles.profileHeaderText}>Profile</Text>
+          <View style={styles.profileHeaderRight}>
+            {!profileComplete && (
+              <Text style={styles.profileIncomplete}>Incomplete</Text>
+            )}
+            {profileExpanded
+              ? <ChevronUp size={14} color={colors.textSecondary} strokeWidth={2} />
+              : <ChevronDown size={14} color={colors.textSecondary} strokeWidth={2} />
+            }
           </View>
-          <View style={styles.formRow}>
-            <Text style={styles.formLabel}>Body fat (%)</Text>
-            <TextInput
-              value={inputs.body_fat_pct}
-              onChangeText={(t) => setInputs((p) => ({ ...p, body_fat_pct: t }))}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="optional"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-          {CIRC_FIELDS.map((f) => (
-            <View key={f.key} style={styles.formRow}>
-              <Text style={styles.formLabel}>{f.label} (inches)</Text>
+        </Pressable>
+        {profileExpanded && (
+          <View style={styles.formCard}>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Height (inches)</Text>
               <TextInput
-                value={inputs[f.key]}
-                onChangeText={(t) => setInputs((p) => ({ ...p, [f.key]: t }))}
+                value={heightInput}
+                onChangeText={setHeightInput}
+                onBlur={async () => {
+                  const v = parseField(heightInput);
+                  if (v != null) await saveProfile({ height_in: v });
+                }}
                 keyboardType="decimal-pad"
                 style={styles.input}
-                placeholder="optional"
+                placeholder="e.g. 70 (5′10″)"
                 placeholderTextColor={colors.textMuted}
               />
             </View>
-          ))}
-          <Pressable
-            onPress={save}
-            style={({ pressed }) => [styles.saveBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Text style={styles.saveBtnText}>Save measurements</Text>
-          </Pressable>
-        </View>
+            <View style={styles.formRow}>
+              <Text style={styles.formLabel}>Date of birth</Text>
+              <Pressable
+                onPress={() => setShowDobPicker((v) => !v)}
+                style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={dobDate ? styles.pickerText : styles.pickerPlaceholder}>
+                  {dobDate ? formatDob(dobDate) : 'Select date…'}
+                </Text>
+                <Text style={styles.pickerChevron}>›</Text>
+              </Pressable>
+              {showDobPicker && (
+                <DateTimePicker
+                  value={dobDate ?? new Date(2000, 0, 1)}
+                  mode="date"
+                  display="spinner"
+                  maximumDate={new Date()}
+                  textColor="#FFFFFF"
+                  onChange={async (_, date) => {
+                    if (date) {
+                      setDobDate(date);
+                      const iso = toISODate(date);
+                      await saveProfile({ dob: iso });
+                    }
+                  }}
+                  style={{ marginTop: 4 }}
+                />
+              )}
+            </View>
+            <View style={[styles.formRow, { marginBottom: 0 }]}>
+              <Text style={styles.formLabel}>Sex</Text>
+              <Pressable
+                onPress={pickSex}
+                style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
+              >
+                <Text style={profile.sex ? styles.pickerText : styles.pickerPlaceholder}>
+                  {profile.sex === 'male' ? 'Male' : profile.sex === 'female' ? 'Female' : 'Select…'}
+                </Text>
+                <Text style={styles.pickerChevron}>›</Text>
+              </Pressable>
+            </View>
+          </View>
+        )}
 
         {/* Trend chart */}
         {history.length >= 2 ? (
@@ -415,9 +449,109 @@ export default function MeasureScreen() {
           </>
         ) : null}
       </Screen>
+
+      {/* Edit modal */}
+      <Modal
+        visible={editModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setEditModalVisible(false)}
+      >
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+          style={styles.sheetBackdrop}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setEditModalVisible(false)} />
+          <View style={styles.sheet}>
+            <View style={styles.sheetHeader}>
+              <Text style={styles.sheetTitle}>Update measurements</Text>
+              <Pressable onPress={() => setEditModalVisible(false)} hitSlop={10}>
+                <Text style={styles.sheetClose}>✕</Text>
+              </Pressable>
+            </View>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+              <View style={styles.formRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formLabel}>Weight (lbs)</Text>
+                  <TextInput
+                    value={inputs.weight_lb}
+                    onChangeText={(t) => setInputs((p) => ({ ...p, weight_lb: t }))}
+                    keyboardType="decimal-pad"
+                    style={[styles.input, styles.sheetInput]}
+                    placeholder="optional"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.formLabel}>Body fat (%)</Text>
+                  <TextInput
+                    value={inputs.body_fat_pct}
+                    onChangeText={(t) => setInputs((p) => ({ ...p, body_fat_pct: t }))}
+                    keyboardType="decimal-pad"
+                    style={[styles.input, styles.sheetInput]}
+                    placeholder="optional"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              </View>
+              {CIRC_FIELDS.map((f) => (
+                <View key={f.key} style={[styles.formRow, { marginTop: 10 }]}>
+                  <Text style={styles.formLabel}>{f.label} (inches)</Text>
+                  <TextInput
+                    value={inputs[f.key]}
+                    onChangeText={(t) => setInputs((p) => ({ ...p, [f.key]: t }))}
+                    keyboardType="decimal-pad"
+                    style={[styles.input, styles.sheetInput]}
+                    placeholder="optional"
+                    placeholderTextColor={colors.textMuted}
+                  />
+                </View>
+              ))}
+              <Pressable
+                onPress={save}
+                style={({ pressed }) => [styles.saveBtn, { marginTop: 16 }, pressed && { opacity: 0.85 }]}
+              >
+                <Text style={styles.saveBtnText}>Save measurements</Text>
+              </Pressable>
+              <View style={{ height: 8 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
+
+// ─── Stat card ─────────────────────────���──────────────────────────────
+
+function StatCard({
+  label,
+  value,
+  unit,
+  current,
+  prior,
+  goodOnIncrease,
+  neutral,
+}: {
+  label: string;
+  value: string;
+  unit: string;
+  current: number | null;
+  prior: number | null;
+  goodOnIncrease: boolean;
+  neutral?: boolean;
+}) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statUnit}>{value !== '—' ? unit : ''}</Text>
+      <DeltaChip current={current} prior={prior} goodOnIncrease={goodOnIncrease} neutral={neutral} unit={unit === 'lbs' ? ' lbs' : unit === '%' ? '%' : ' lbs'} />
+    </View>
+  );
+}
+
+// ─── Chart ────────────────────────────���───────────────────────────────
 
 function MeasurementLineChart({
   data,
@@ -456,7 +590,6 @@ function MeasurementLineChart({
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
   const range = maxVal - minVal || 1;
-
   const totalSlots = data.length - 1 || 1;
 
   const toX = (idx: number) => padX + (idx / totalSlots) * innerW;
@@ -470,7 +603,9 @@ function MeasurementLineChart({
   const last = points[points.length - 1];
   const delta = last.value - first.value;
   const deltaStr = `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}${unit}`;
-  const deltaColor = delta === 0 ? colors.textMuted : valueKey === 'weight_lb'
+  const deltaColor = delta === 0
+    ? colors.textMuted
+    : valueKey === 'weight_lb'
     ? colors.textSecondary
     : delta < 0 ? colors.green : colors.red;
 
@@ -480,33 +615,21 @@ function MeasurementLineChart({
         <Text style={styles.chartLabel}>{label}</Text>
         <View style={styles.chartMeta}>
           <Text style={[styles.chartDelta, { color: deltaColor }]}>{deltaStr}</Text>
-          <Text style={styles.chartRange}>
-            {last.value.toFixed(1)}{unit}
-          </Text>
+          <Text style={styles.chartRange}>{last.value.toFixed(1)}{unit}</Text>
         </View>
       </View>
       <Svg width={chartWidth} height={chartHeight}>
-        {/* Baseline grid line */}
         <Line
           x1={padX} x2={chartWidth - padX}
           y1={chartHeight - padY} y2={chartHeight - padY}
           stroke={colors.border}
           strokeWidth={1}
         />
-        {/* Trend line */}
         <Path d={pathD} stroke={color} strokeWidth={2} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        {/* Data points */}
         {points.map((p) => (
-          <Circle
-            key={p.date}
-            cx={toX(p.i)}
-            cy={toY(p.value)}
-            r={3}
-            fill={color}
-          />
+          <Circle key={p.date} cx={toX(p.i)} cy={toY(p.value)} r={3} fill={color} />
         ))}
       </Svg>
-      {/* X-axis date labels: first and last */}
       <View style={[styles.xAxis, { width: chartWidth, paddingHorizontal: padX }]}>
         <Text style={styles.xLabel}>{shortDate(first.date)}</Text>
         <Text style={styles.xLabel}>{shortDate(last.date)}</Text>
@@ -514,6 +637,8 @@ function MeasurementLineChart({
     </View>
   );
 }
+
+// ─── Helpers ───────────────────────────��──────────────────────────────
 
 function shortDate(iso: string): string {
   const [, m, d] = iso.split('-');
@@ -551,11 +676,10 @@ function DeltaChip({
     : colors.red;
   return (
     <View style={styles.deltaChip}>
-      {up ? (
-        <ArrowUp size={11} color={tint} strokeWidth={2.5} />
-      ) : (
-        <ArrowDown size={11} color={tint} strokeWidth={2.5} />
-      )}
+      {up
+        ? <ArrowUp size={11} color={tint} strokeWidth={2.5} />
+        : <ArrowDown size={11} color={tint} strokeWidth={2.5} />
+      }
       <Text style={[styles.deltaText, { color: tint }]}>
         {Math.abs(d).toFixed(1)}{unit}
       </Text>
@@ -580,29 +704,86 @@ function parseField(v: string): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
+// ─── Styles ─────────────────────────────���─────────────────────────────
+
 const styles = StyleSheet.create({
-  header: { paddingTop: 8, paddingBottom: 8 },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
   title: { ...typography.screenTitle, color: colors.text },
   subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 2 },
 
-  bodyCompRow: { flexDirection: 'row', gap: 10, marginBottom: 2 },
-  bodyCompCard: {
+  editBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  editBtnText: { fontSize: 12, fontWeight: '600', color: colors.primary },
+
+  // Stats grid
+  statsGrid: { flexDirection: 'row', gap: 8, marginBottom: 2 },
+  statCard: {
+    flex: 1,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    padding: 12,
+    gap: 1,
+  },
+  statLabel: {
+    fontSize: 10,
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    fontWeight: '600',
+  },
+  statValue: { fontSize: 20, fontWeight: '600', color: colors.text, marginTop: 3 },
+  statUnit: { fontSize: 11, color: colors.textSecondary, marginBottom: 2 },
+
+  // Stage card
+  stageCard: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
     padding: 14,
-    gap: 2,
+    marginTop: 6,
   },
-  bodyCompLabel: {
+  stageCardReady: { borderColor: colors.green },
+  stageHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  stageLabel: {
     fontSize: 11,
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     fontWeight: '600',
   },
-  bodyCompValue: { fontSize: 22, fontWeight: '600', color: colors.text, marginTop: 2 },
+  stageLabelReady: { color: colors.green },
+  stageBadge: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textMuted,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 20,
+    backgroundColor: colors.background,
+    overflow: 'hidden',
+  },
+  stageBadgeReady: { color: colors.green, backgroundColor: 'rgba(29,158,117,0.12)' },
+  stageTarget: { fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  stageHint: { fontSize: 12, color: colors.textSecondary, marginTop: 8 },
 
+  // Ratio card
   ratioCard: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -621,10 +802,10 @@ const styles = StyleSheet.create({
   ratioValueRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6, marginTop: 4 },
   ratioValue: { fontSize: 34, fontWeight: '600', color: colors.text },
   ratioTarget: { fontSize: 14, color: colors.textSecondary },
-  ratioFooter: { marginTop: 8 },
-  ratioPct: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
-  ratioHint: { fontSize: 12, color: colors.textMuted, marginTop: 8, fontStyle: 'italic' },
+  ratioPct: { fontSize: 12, color: colors.textSecondary, fontWeight: '500', marginTop: 8 },
+  ratioHint: { fontSize: 12, color: colors.textMuted, marginTop: 4, fontStyle: 'italic' },
 
+  // List
   listCard: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -646,6 +827,29 @@ const styles = StyleSheet.create({
   deltaChip: { flexDirection: 'row', alignItems: 'center', gap: 2 },
   deltaText: { fontSize: 11, fontWeight: '600' },
 
+  // Profile collapsible
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 10,
+    marginTop: 8,
+  },
+  profileHeaderText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  profileHeaderRight: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  profileIncomplete: {
+    fontSize: 11,
+    color: colors.warning,
+    fontWeight: '500',
+  },
+
+  // Form
   formCard: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -670,8 +874,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background,
   },
+  sheetInput: {
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
   saveBtn: {
-    marginTop: 6,
     backgroundColor: colors.primary,
     paddingVertical: 12,
     borderRadius: radius.card,
@@ -688,6 +896,7 @@ const styles = StyleSheet.create({
   pickerPlaceholder: { fontSize: 15, color: colors.textMuted },
   pickerChevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
 
+  // BF banner
   bfBanner: {
     marginTop: 8,
     padding: 12,
@@ -696,12 +905,9 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary,
   },
-  bfBannerText: {
-    fontSize: 13,
-    color: colors.textSecondary,
-    lineHeight: 18,
-  },
+  bfBannerText: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
 
+  // Chart
   chartCard: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -721,10 +927,26 @@ const styles = StyleSheet.create({
   chartDelta: { fontSize: 12, fontWeight: '600' },
   chartRange: { fontSize: 12, color: colors.textSecondary, fontVariant: ['tabular-nums'] },
   chartEmpty: { fontSize: 13, color: colors.textMuted, paddingVertical: 8 },
-  xAxis: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginTop: 2,
-  },
+  xAxis: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 2 },
   xLabel: { fontSize: 10, color: colors.textMuted },
+
+  // Edit sheet
+  sheetBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.4)' },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 28,
+    maxHeight: '85%',
+  },
+  sheetHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  sheetClose: { fontSize: 18, color: colors.textSecondary, padding: 4 },
 });

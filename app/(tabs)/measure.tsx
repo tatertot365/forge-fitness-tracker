@@ -1,3 +1,4 @@
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useFocusEffect } from 'expo-router';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
@@ -92,7 +93,8 @@ export default function MeasureScreen() {
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
   const [profile, setProfile] = useState<UserProfile>({ height_in: null, dob: null, sex: null });
   const [heightInput, setHeightInput] = useState('');
-  const [dobInput, setDobInput] = useState('');
+  const [dobDate, setDobDate] = useState<Date | null>(null);
+  const [showDobPicker, setShowDobPicker] = useState(false);
 
   const load = useCallback(async () => {
     const [l, p, h, prof] = await Promise.all([
@@ -106,7 +108,7 @@ export default function MeasureScreen() {
     setHistory(h);
     setProfile(prof);
     setHeightInput(prof.height_in != null ? String(prof.height_in) : '');
-    setDobInput(prof.dob ?? '');
+    setDobDate(prof.dob ? new Date(prof.dob) : null);
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -290,20 +292,31 @@ export default function MeasureScreen() {
           </View>
           <View style={styles.formRow}>
             <Text style={styles.formLabel}>Date of birth</Text>
-            <TextInput
-              value={dobInput}
-              onChangeText={setDobInput}
-              onBlur={async () => {
-                const trimmed = dobInput.trim();
-                if (trimmed && !Number.isNaN(Date.parse(trimmed))) {
-                  await saveProfile({ dob: trimmed });
-                }
-              }}
-              keyboardType="default"
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor={colors.textMuted}
-            />
+            <Pressable
+              onPress={() => setShowDobPicker((v) => !v)}
+              style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={dobDate ? styles.pickerText : styles.pickerPlaceholder}>
+                {dobDate ? formatDob(dobDate) : 'Select date…'}
+              </Text>
+              <Text style={styles.pickerChevron}>›</Text>
+            </Pressable>
+            {showDobPicker && (
+              <DateTimePicker
+                value={dobDate ?? new Date(2000, 0, 1)}
+                mode="date"
+                display="spinner"
+                maximumDate={new Date()}
+                onChange={async (_, date) => {
+                  if (date) {
+                    setDobDate(date);
+                    const iso = toISODate(date);
+                    await saveProfile({ dob: iso });
+                  }
+                }}
+                style={{ marginTop: 4 }}
+              />
+            )}
           </View>
           <View style={styles.formRow}>
             <Text style={styles.formLabel}>Sex</Text>
@@ -547,6 +560,17 @@ function DeltaChip({
       </Text>
     </View>
   );
+}
+
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+function formatDob(d: Date): string {
+  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
 }
 
 function parseField(v: string): number | null {

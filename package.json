@@ -10,6 +10,7 @@
     "android": "expo run:android"
   },
   "dependencies": {
+    "@react-native-community/datetimepicker": "^9.1.0",
     "expo": "~54.0.33",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",

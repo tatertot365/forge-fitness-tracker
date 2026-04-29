@@ -307,6 +307,7 @@ export default function MeasureScreen() {
                 mode="date"
                 display="spinner"
                 maximumDate={new Date()}
+                textColor="#FFFFFF"
                 onChange={async (_, date) => {
                   if (date) {
                     setDobDate(date);

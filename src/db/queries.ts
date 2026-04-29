@@ -52,6 +52,25 @@ export async function setActivityLevel(level: import('../utils/tdee').ActivityLe
   await setSetting('activity_level', level);
 }
 
+export async function getUserProfile(): Promise<import('../utils/tdee').UserProfile> {
+  const [h, d, s] = await Promise.all([
+    getSetting('profile_height_in'),
+    getSetting('profile_dob'),
+    getSetting('profile_sex'),
+  ]);
+  return {
+    height_in: h ? Number(h) : null,
+    dob: d ?? null,
+    sex: (s as import('../utils/tdee').Sex) ?? null,
+  };
+}
+
+export async function setUserProfile(profile: Partial<import('../utils/tdee').UserProfile>): Promise<void> {
+  if (profile.height_in != null) await setSetting('profile_height_in', String(profile.height_in));
+  if (profile.dob != null) await setSetting('profile_dob', profile.dob);
+  if (profile.sex != null) await setSetting('profile_sex', profile.sex);
+}
+
 export async function getPhase(): Promise<Phase> {
   const db = await getDb();
   const row = await db.getFirstAsync<{ value: string }>(

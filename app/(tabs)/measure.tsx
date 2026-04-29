@@ -2,6 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { ArrowDown, ArrowUp, Minus } from 'lucide-react-native';
 import React, { useCallback, useState } from 'react';
 import {
+  ActionSheetIOS,
   Alert,
   Dimensions,
   Keyboard,
@@ -23,12 +24,14 @@ import {
   getGoalsMode,
   getMeasurementHistory,
   getPhase,
+  getUserProfile,
   latestMeasurement,
   measurementOneWeekAgo,
   setNutritionGoal,
+  setUserProfile,
   upsertMeasurement,
 } from '../../src/db/queries';
-import { calculateTdee } from '../../src/utils/tdee';
+import { calculateTdee, type Sex, type UserProfile } from '../../src/utils/tdee';
 import { colors } from '../../src/theme/colors';
 import { radius, typography } from '../../src/theme/spacing';
 import { type Measurement } from '../../src/types';
@@ -87,19 +90,41 @@ export default function MeasureScreen() {
   const [prior, setPrior] = useState<Measurement | null>(null);
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
+  const [profile, setProfile] = useState<UserProfile>({ height_in: null, dob: null, sex: null });
+  const [heightInput, setHeightInput] = useState('');
+  const [dobInput, setDobInput] = useState('');
 
   const load = useCallback(async () => {
-    const [l, p, h] = await Promise.all([
+    const [l, p, h, prof] = await Promise.all([
       latestMeasurement(),
       measurementOneWeekAgo(),
       getMeasurementHistory(),
+      getUserProfile(),
     ]);
     setLatest(l);
     setPrior(p);
     setHistory(h);
+    setProfile(prof);
+    setHeightInput(prof.height_in != null ? String(prof.height_in) : '');
+    setDobInput(prof.dob ?? '');
   }, []);
 
   useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const saveProfile = async (patch: Partial<UserProfile>) => {
+    await setUserProfile(patch);
+    setProfile((p) => ({ ...p, ...patch }));
+  };
+
+  const pickSex = () => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      { options: ['Male', 'Female', 'Cancel'], cancelButtonIndex: 2 },
+      async (idx) => {
+        if (idx === 0) await saveProfile({ sex: 'male' });
+        else if (idx === 1) await saveProfile({ sex: 'female' });
+      },
+    );
+  };
 
   const save = async () => {
     const parsed = {
@@ -120,16 +145,17 @@ export default function MeasureScreen() {
     const today = todayISO();
     await upsertMeasurement(today, parsed);
 
-    const [goalsMode, activity, phase] = await Promise.all([
+    const [goalsMode, activity, phase, freshProfile] = await Promise.all([
       getGoalsMode(),
       getActivityLevel(),
       getPhase(),
+      getUserProfile(),
     ]);
     if (goalsMode === 'calculated' && activity) {
       const weight = parsed.weight_lb ?? (await latestMeasurement())?.weight_lb;
       const bodyFat = parsed.body_fat_pct ?? (await latestMeasurement())?.body_fat_pct ?? null;
       if (weight) {
-        const result = calculateTdee({ weight_lb: weight, body_fat_pct: bodyFat, activity, phase });
+        const result = calculateTdee({ weight_lb: weight, body_fat_pct: bodyFat, profile: freshProfile, activity, phase });
         if (result.ok) {
           await setNutritionGoal(today, {
             calorie_goal: result.goals.calories,
@@ -243,6 +269,64 @@ export default function MeasureScreen() {
             );
           })}
         </View>
+
+        {/* Profile */}
+        <SectionLabel>Profile</SectionLabel>
+        <View style={styles.formCard}>
+          <View style={styles.formRow}>
+            <Text style={styles.formLabel}>Height (inches)</Text>
+            <TextInput
+              value={heightInput}
+              onChangeText={setHeightInput}
+              onBlur={async () => {
+                const v = parseField(heightInput);
+                if (v != null) await saveProfile({ height_in: v });
+              }}
+              keyboardType="decimal-pad"
+              style={styles.input}
+              placeholder="e.g. 70 (5′10″)"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.formRow}>
+            <Text style={styles.formLabel}>Date of birth</Text>
+            <TextInput
+              value={dobInput}
+              onChangeText={setDobInput}
+              onBlur={async () => {
+                const trimmed = dobInput.trim();
+                if (trimmed && !Number.isNaN(Date.parse(trimmed))) {
+                  await saveProfile({ dob: trimmed });
+                }
+              }}
+              keyboardType="default"
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor={colors.textMuted}
+            />
+          </View>
+          <View style={styles.formRow}>
+            <Text style={styles.formLabel}>Sex</Text>
+            <Pressable
+              onPress={pickSex}
+              style={({ pressed }) => [styles.input, styles.pickerRow, pressed && { opacity: 0.7 }]}
+            >
+              <Text style={profile.sex ? styles.pickerText : styles.pickerPlaceholder}>
+                {profile.sex === 'male' ? 'Male' : profile.sex === 'female' ? 'Female' : 'Select…'}
+              </Text>
+              <Text style={styles.pickerChevron}>›</Text>
+            </Pressable>
+          </View>
+        </View>
+
+        {/* Body fat prompt banner */}
+        {latest?.body_fat_pct == null && (
+          <View style={styles.bfBanner}>
+            <Text style={styles.bfBannerText}>
+              Log your body fat % below for more accurate macro calculations. Without it, height, age & sex are used instead.
+            </Text>
+          </View>
+        )}
 
         {/* Update form */}
         <SectionLabel>Update</SectionLabel>
@@ -569,6 +653,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   saveBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '600' },
+
+  pickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  pickerText: { fontSize: 15, color: colors.text },
+  pickerPlaceholder: { fontSize: 15, color: colors.textMuted },
+  pickerChevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
+
+  bfBanner: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: radius.card,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+  },
+  bfBannerText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
 
   chartCard: {
     backgroundColor: colors.card,

@@ -35,6 +35,7 @@ import {
   getGoalsMode,
   getNutritionGoalForDate,
   getPhase,
+  getUserProfile,
   latestMeasurement,
   setActivityLevel,
   setGoalsMode,
@@ -983,15 +984,16 @@ function GoalSheet({
       return;
     }
     (async () => {
-      const [measurement, phase] = await Promise.all([latestMeasurement(), getPhase()]);
+      const [measurement, phase, profile] = await Promise.all([latestMeasurement(), getPhase(), getUserProfile()]);
       if (!measurement?.weight_lb) {
-        setCalcError('No weight logged yet. Add an entry in the Body tab first.');
+        setCalcError('No weight logged yet. Add an entry in the Measurements tab first.');
         setCalculated(null);
         return;
       }
       const result = calculateTdee({
         weight_lb: measurement.weight_lb,
         body_fat_pct: measurement.body_fat_pct,
+        profile,
         activity,
         phase,
       });
@@ -999,6 +1001,9 @@ function GoalSheet({
         setCalculated(result.goals);
         setCalcNote(result.note);
         setCalcError(null);
+      } else {
+        setCalcError(result.reason);
+        setCalculated(null);
       }
     })();
   }, [visible, mode, activity]);

@@ -39,6 +39,7 @@ import {
   getPhase,
   getSessionsForWeek,
   getSkippedDaysThisWeek,
+  getUserProfile,
   getWeekSetLogCounts,
   isHealthKitAsked,
   latestMeasurement,
@@ -152,13 +153,14 @@ export default function TodayScreen() {
     setPhaseState(p);
     await saveBasePhase(p);
 
-    const [goalsMode, activity, measurement] = await Promise.all([
+    const [goalsMode, activity, measurement, profile] = await Promise.all([
       getGoalsMode(),
       getActivityLevel(),
       latestMeasurement(),
+      getUserProfile(),
     ]);
     if (goalsMode === 'calculated' && activity && measurement?.weight_lb) {
-      const result = calculateTdee({ weight_lb: measurement.weight_lb, body_fat_pct: measurement.body_fat_pct, activity, phase: p });
+      const result = calculateTdee({ weight_lb: measurement.weight_lb, body_fat_pct: measurement.body_fat_pct, profile, activity, phase: p });
       if (result.ok) {
         await setNutritionGoal(todayISO(), {
           calorie_goal: result.goals.calories,

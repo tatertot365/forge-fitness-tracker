@@ -4,9 +4,7 @@
 let HK: any = null;
 try {
   HK = require('@kingstinct/react-native-healthkit');
-  console.log('[HK] module loaded successfully');
-} catch (e) {
-  console.log('[HK] failed to require @kingstinct/react-native-healthkit:', e);
+} catch {
   HK = null;
 }
 
@@ -29,22 +27,16 @@ export function isHealthKitAvailable(): boolean {
 }
 
 export function initHealthKit(): Promise<boolean> {
-  if (!HK) {
-    console.log('[HK] initHealthKit called but module is null');
-    return Promise.resolve(false);
-  }
+  if (!HK) return Promise.resolve(false);
   if (authPromise) return authPromise;
-  console.log('[HK] requesting authorization');
   authPromise = (async () => {
     try {
       const ok = await HK.requestAuthorization({
         toRead: READ_TYPES,
         toWrite: [],
       });
-      console.log('[HK] requestAuthorization result:', ok);
       return !!ok;
-    } catch (e) {
-      console.log('[HK] requestAuthorization threw:', e);
+    } catch {
       return false;
     }
   })();

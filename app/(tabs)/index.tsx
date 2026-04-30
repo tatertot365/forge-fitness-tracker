@@ -69,6 +69,7 @@ import {
 } from "../../src/db/queries";
 import { calculateTdee } from "../../src/utils/tdee";
 import {
+  initHealthKit,
   isHealthKitAvailable,
   requestHealthKitAccess,
   verifyHealthKitAccess,
@@ -192,6 +193,9 @@ export default function TodayScreen() {
     setTodayCompletedSets(completedSets);
     setDayPlans(plans);
     setShowHealthConnect(!hkAsked && isHealthKitAvailable());
+    // Always trigger the native permission sheet on load so a fresh install
+    // gets prompted even if healthkit_asked was set from a prior build.
+    if (isHealthKitAvailable()) initHealthKit();
     setSkippedDays(skips);
     setWeekLogCounts(logCounts);
     setCardioInfo(ci);

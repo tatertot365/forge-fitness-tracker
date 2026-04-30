@@ -1,103 +1,80 @@
-// Thin wrapper around react-native-health. Returns nulls on any failure so
-// session completion is never blocked.
+// Thin wrapper around @kingstinct/react-native-healthkit. Returns nulls on
+// any failure so session completion is never blocked.
 
-let AppleHealthKit: any = null;
+let HK: any = null;
 try {
-  const m = require('react-native-health');
-  AppleHealthKit = m?.default ?? m;
-  if (AppleHealthKit && typeof AppleHealthKit.initHealthKit !== 'function') {
-    AppleHealthKit = null;
-  }
-} catch {
-  AppleHealthKit = null;
+  HK = require('@kingstinct/react-native-healthkit');
+  console.log('[HK] module loaded successfully');
+} catch (e) {
+  console.log('[HK] failed to require @kingstinct/react-native-healthkit:', e);
+  HK = null;
 }
 
-// Built lazily so a missing/changed `Constants` shape can't crash module load.
-function buildPerms(): { permissions: { read: string[]; write: string[] } } | null {
-  if (!AppleHealthKit?.Constants?.Permissions) return null;
-  try {
-    const P = AppleHealthKit.Constants.Permissions;
-    return {
-      permissions: {
-        read: [P.Steps, P.HeartRate, P.ActiveEnergyBurned, P.Workout],
-        write: [],
-      },
-    };
-  } catch {
-    return null;
-  }
-}
+const READ_TYPES = [
+  'HKWorkoutTypeIdentifier',
+  'HKQuantityTypeIdentifierHeartRate',
+  'HKQuantityTypeIdentifierActiveEnergyBurned',
+  'HKQuantityTypeIdentifierStepCount',
+] as const;
 
-let initPromise: Promise<boolean> | null = null;
+let authPromise: Promise<boolean> | null = null;
 
 export function isHealthKitAvailable(): boolean {
-  return !!AppleHealthKit;
+  if (!HK) return false;
+  try {
+    return !!HK.isHealthDataAvailable?.();
+  } catch {
+    return false;
+  }
 }
 
 export function initHealthKit(): Promise<boolean> {
-  if (!AppleHealthKit) return Promise.resolve(false);
-  if (initPromise) return initPromise;
-  initPromise = new Promise<boolean>((resolve) => {
-    const perms = buildPerms();
-    if (!perms) return resolve(false);
+  if (!HK) {
+    console.log('[HK] initHealthKit called but module is null');
+    return Promise.resolve(false);
+  }
+  if (authPromise) return authPromise;
+  console.log('[HK] requesting authorization');
+  authPromise = (async () => {
     try {
-      AppleHealthKit.initHealthKit(perms, (err: unknown) => {
-        resolve(!err);
+      const ok = await HK.requestAuthorization({
+        toRead: READ_TYPES,
+        toWrite: [],
       });
-    } catch {
-      resolve(false);
+      console.log('[HK] requestAuthorization result:', ok);
+      return !!ok;
+    } catch (e) {
+      console.log('[HK] requestAuthorization threw:', e);
+      return false;
     }
-  });
-  return initPromise;
+  })();
+  return authPromise;
 }
 
-// Forces a fresh permission request (clears cached promise so the native
-// sheet shows if the system decides one is needed).
 export function requestHealthKitAccess(): Promise<boolean> {
-  initPromise = null;
+  authPromise = null;
   return initHealthKit();
 }
 
-// iOS deliberately hides HealthKit read-permission denials from apps (a privacy
-// choice — apps can't distinguish "denied" from "no data"). So `initHealthKit`
-// resolving `true` doesn't prove access was granted. This probes by attempting
-// a small read (recent workout → today's steps); a positive result confirms
-// access. A negative result is inconclusive (could be denial, could be a new
-// user with no data), so callers should treat it as "not verified" rather than
-// "definitely denied."
+// iOS deliberately hides HealthKit read-permission denials from apps. So
+// `requestAuthorization` resolving truthy doesn't prove access was granted.
+// This probes by attempting a small read; a positive result confirms access.
+// A negative result is inconclusive (could be denial, could be a new user
+// with no data).
 export async function verifyHealthKitAccess(): Promise<boolean> {
-  if (!AppleHealthKit) return false;
+  if (!HK) return false;
   const ok = await initHealthKit();
   if (!ok) return false;
-
-  const end = new Date().toISOString();
-  const workoutStart = new Date(Date.now() - 90 * 86_400_000).toISOString();
-
-  const hasWorkout = await new Promise<boolean>((resolve) => {
-    try {
-      AppleHealthKit.getSamples(
-        { startDate: workoutStart, endDate: end, type: 'Workout', ascending: false, limit: 1 },
-        (err: unknown, samples: any[]) => {
-          if (err) return resolve(false);
-          resolve(Array.isArray(samples) && samples.length > 0);
-        },
-      );
-    } catch {
-      resolve(false);
-    }
-  });
-  if (hasWorkout) return true;
-
-  return new Promise<boolean>((resolve) => {
-    try {
-      AppleHealthKit.getStepCount({ date: end }, (err: unknown, result: any) => {
-        if (err) return resolve(false);
-        resolve(!!result && typeof result.value === 'number' && result.value > 0);
-      });
-    } catch {
-      resolve(false);
-    }
-  });
+  try {
+    const workout = await HK.getMostRecentWorkout();
+    if (workout) return true;
+    const stepSample = await HK.getMostRecentQuantitySample(
+      'HKQuantityTypeIdentifierStepCount',
+    );
+    return !!stepSample;
+  } catch {
+    return false;
+  }
 }
 
 export type HealthMetrics = {
@@ -107,68 +84,79 @@ export type HealthMetrics = {
 };
 
 export async function fetchRecentWorkoutMetrics(): Promise<HealthMetrics> {
-  const empty: HealthMetrics = { durationMinutes: null, avgHr: null, calories: null };
-  if (!AppleHealthKit) return empty;
+  const empty: HealthMetrics = {
+    durationMinutes: null,
+    avgHr: null,
+    calories: null,
+  };
+  if (!HK) return empty;
   const ok = await initHealthKit();
   if (!ok) return empty;
 
-  const now = new Date();
-  const startDate = new Date(now.getTime() - 3 * 60 * 60 * 1000).toISOString();
-  const endDate = now.toISOString();
-
-  const workout = await new Promise<any | null>((resolve) => {
-    try {
-      AppleHealthKit.getSamples(
-        { startDate, endDate, type: 'Workout', ascending: false, limit: 1 },
-        (err: unknown, results: any[]) => {
-          if (err || !results || results.length === 0) return resolve(null);
-          resolve(results[0]);
-        },
-      );
-    } catch {
-      resolve(null);
-    }
-  });
-
+  let workout: any;
+  try {
+    workout = await HK.getMostRecentWorkout();
+  } catch {
+    return empty;
+  }
   if (!workout) return empty;
 
-  const wStart = workout.start ?? workout.startDate;
-  const wEnd = workout.end ?? workout.endDate;
-  if (!wStart || !wEnd) return empty;
+  const start = workout.startDate ?? workout.start;
+  const end = workout.endDate ?? workout.end;
+  if (!start || !end) return empty;
+
+  const startDate = start instanceof Date ? start : new Date(start);
+  const endDate = end instanceof Date ? end : new Date(end);
+  // Only pull metrics from a workout that finished within the last 3 hours,
+  // matching the previous library's behavior.
+  if (Date.now() - endDate.getTime() > 3 * 60 * 60 * 1000) return empty;
 
   const durationMinutes = Math.round(
-    (new Date(wEnd).getTime() - new Date(wStart).getTime()) / 60000,
+    (endDate.getTime() - startDate.getTime()) / 60000,
   );
 
-  const avgHr = await new Promise<number | null>((resolve) => {
-    try {
-      AppleHealthKit.getHeartRateSamples(
-        { startDate: wStart, endDate: wEnd, limit: 500 },
-        (err: unknown, samples: any[]) => {
-          if (err || !samples || samples.length === 0) return resolve(null);
-          const sum = samples.reduce((s, x) => s + (x.value ?? 0), 0);
-          resolve(Math.round(sum / samples.length));
-        },
+  let avgHr: number | null = null;
+  try {
+    const samples = await HK.queryQuantitySamples(
+      'HKQuantityTypeIdentifierHeartRate',
+      {
+        from: startDate,
+        to: endDate,
+        limit: 500,
+        ascending: true,
+      },
+    );
+    if (samples?.length) {
+      const sum = samples.reduce(
+        (s: number, x: any) => s + (x.quantity ?? 0),
+        0,
       );
-    } catch {
-      resolve(null);
+      avgHr = Math.round(sum / samples.length);
     }
-  });
+  } catch {
+    avgHr = null;
+  }
 
-  const calories = await new Promise<number | null>((resolve) => {
-    try {
-      AppleHealthKit.getActiveEnergyBurned(
-        { startDate: wStart, endDate: wEnd },
-        (err: unknown, samples: any[]) => {
-          if (err || !samples) return resolve(null);
-          const sum = samples.reduce((s, x) => s + (x.value ?? 0), 0);
-          resolve(Math.round(sum));
-        },
+  let calories: number | null = null;
+  try {
+    const samples = await HK.queryQuantitySamples(
+      'HKQuantityTypeIdentifierActiveEnergyBurned',
+      {
+        from: startDate,
+        to: endDate,
+        ascending: true,
+      },
+    );
+    if (samples?.length) {
+      const sum = samples.reduce(
+        (s: number, x: any) => s + (x.quantity ?? 0),
+        0,
       );
-    } catch {
-      resolve(null);
+      calories = Math.round(sum);
     }
-  });
+  } catch {
+    calories = null;
+  }
 
   return { durationMinutes, avgHr, calories };
 }

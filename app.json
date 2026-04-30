@@ -26,6 +26,13 @@
       "expo-router",
       "expo-sqlite",
       "expo-camera",
+      [
+        "@kingstinct/react-native-healthkit",
+        {
+          "NSHealthShareUsageDescription": "Used to read workout duration, heart rate, and calories after each training session.",
+          "background": false
+        }
+      ],
       "./plugins/withCleanEntitlements"
     ],
     "experiments": {

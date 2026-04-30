@@ -14,12 +14,12 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.tategillespie.classicphysique",
+      "bundleIdentifier": "com.tategillespie.forge",
+      "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
-        "NSHealthShareUsageDescription": "Used to read workout duration, heart rate, and calories after each training session.",
-        "NSHealthUpdateUsageDescription": "Not used.",
-        "NSCameraUsageDescription": "Used to scan food barcodes to look up nutrition facts."
+        "NSHealthShareUsageDescription": "Forge reads your most recent Apple Watch workout to show duration, heart rate, and active calories on your session summary.",
+        "NSCameraUsageDescription": "Forge uses the camera to scan food barcodes and look up nutrition information."
       }
     },
     "plugins": [
@@ -29,7 +29,7 @@
       [
         "@kingstinct/react-native-healthkit",
         {
-          "NSHealthShareUsageDescription": "Used to read workout duration, heart rate, and calories after each training session.",
+          "NSHealthShareUsageDescription": "Forge reads your most recent Apple Watch workout to show duration, heart rate, and active calories on your session summary.",
           "background": false
         }
       ],
@@ -39,7 +39,7 @@
       "typedRoutes": true
     },
     "android": {
-      "package": "com.tategillespie.classicphysique"
+      "package": "com.tategillespie.forge"
     }
   }
 }

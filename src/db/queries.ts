@@ -589,7 +589,7 @@ export async function getWeekSetLogCounts(reference?: Date): Promise<Record<Day,
   const rows = await db.getAllAsync<{ day: Day; log_count: number }>(
     `SELECT s.day, COUNT(sl.id) AS log_count
      FROM sessions s
-     LEFT JOIN set_logs sl ON sl.session_id = s.id
+     LEFT JOIN set_logs sl ON sl.session_id = s.id AND sl.completed = 1
      WHERE s.date IN (${dates.map(() => '?').join(',')})
      GROUP BY s.day`,
     dates,
@@ -597,6 +597,17 @@ export async function getWeekSetLogCounts(reference?: Date): Promise<Record<Day,
   const out = {} as Record<Day, number>;
   for (const d of DAYS) out[d] = 0;
   for (const r of rows) out[r.day] = r.log_count;
+  return out;
+}
+
+export async function getWeekTotalSetCounts(): Promise<Record<Day, number>> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ day: Day; total: number }>(
+    `SELECT day, SUM(sets) AS total FROM day_exercises GROUP BY day`,
+  );
+  const out = {} as Record<Day, number>;
+  for (const d of DAYS) out[d] = 0;
+  for (const r of rows) out[r.day] = r.total;
   return out;
 }
 

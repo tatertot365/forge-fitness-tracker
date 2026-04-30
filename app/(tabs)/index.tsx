@@ -55,6 +55,7 @@ import {
   getSkippedDaysThisWeek,
   getUserProfile,
   getWeekSetLogCounts,
+  getWeekTotalSetCounts,
   isHealthKitAsked,
   latestMeasurement,
   markHealthKitAsked,
@@ -126,6 +127,10 @@ export default function TodayScreen() {
     Day,
     number
   > | null>(null);
+  const [weekTotalSetCounts, setWeekTotalSetCounts] = useState<Record<
+    Day,
+    number
+  > | null>(null);
   const [cardioInfo, setCardioInfo] = useState<CardioInfo>({
     name: "Incline treadmill walk",
     description: "12° / 3 mph / 20–30 min",
@@ -155,6 +160,7 @@ export default function TodayScreen() {
       hkAsked,
       skips,
       logCounts,
+      totalCounts,
       ci,
       mgSets,
       foodEntries,
@@ -172,6 +178,7 @@ export default function TodayScreen() {
       isHealthKitAsked(),
       getSkippedDaysThisWeek(),
       getWeekSetLogCounts(),
+      getWeekTotalSetCounts(),
       getCardioInfo(),
       getMuscleGroupSetsThisWeek(),
       getFoodEntriesForDate(todayDate),
@@ -198,6 +205,7 @@ export default function TodayScreen() {
     if (isHealthKitAvailable()) initHealthKit();
     setSkippedDays(skips);
     setWeekLogCounts(logCounts);
+    setWeekTotalSetCounts(totalCounts);
     setCardioInfo(ci);
     setMuscleGroupSets(mgSets);
     setTodayNutrition({
@@ -315,8 +323,13 @@ export default function TodayScreen() {
   const todayPlan = dayPlans?.[today];
   const todayEnabled = !!todayPlan?.enabled;
   const todayFocus = todayPlan?.name || DAY_LABEL[today];
-  const sessionIsComplete = !!weekSessions?.[today]?.completed_at;
-  const sessionInProgress = !sessionIsComplete && todayCompletedSets > 0;
+  const sessionFinalized = !!weekSessions?.[today]?.completed_at;
+  const sessionIsComplete =
+    sessionFinalized &&
+    todayTotalSets > 0 &&
+    todayCompletedSets >= todayTotalSets;
+  const sessionInProgress =
+    !sessionIsComplete && (sessionFinalized || todayCompletedSets > 0);
 
   let sessionMetaText: string;
   if (!todayEnabled) {
@@ -472,6 +485,7 @@ export default function TodayScreen() {
         dayPlans={dayPlans}
         weekSessions={weekSessions}
         weekLogCounts={weekLogCounts}
+        weekTotalSetCounts={weekTotalSetCounts}
         skippedDays={skippedDays}
         onPressDay={(d) =>
           router.push({ pathname: "/day-session" as any, params: { day: d } })
@@ -744,6 +758,7 @@ function WeekStrip({
   dayPlans,
   weekSessions,
   weekLogCounts,
+  weekTotalSetCounts,
   skippedDays,
   onPressDay,
   onLongPressDay,
@@ -754,6 +769,7 @@ function WeekStrip({
   dayPlans: Record<Day, DayPlan> | null;
   weekSessions: Record<Day, Session | null> | null;
   weekLogCounts: Record<Day, number> | null;
+  weekTotalSetCounts: Record<Day, number> | null;
   skippedDays: Partial<Record<Day, true>>;
   onPressDay: (d: Day) => void;
   onLongPressDay: (d: Day) => void;
@@ -764,19 +780,27 @@ function WeekStrip({
     <View style={styles.strip}>
       {DAYS.map((d) => {
         const isTraining = !!dayPlans?.[d]?.enabled;
-        const completed = !!weekSessions?.[d]?.completed_at;
+        const finalized = !!weekSessions?.[d]?.completed_at;
         const isSkipped = !!skippedDays[d];
         const isPast = thisWeek[d] < todayDate;
         const isToday = d === today;
-        const hasLogs = (weekLogCounts?.[d] ?? 0) > 0;
-        const isPartial = isTraining && !completed && !isSkipped && hasLogs;
+        const completedSetsForDay = weekLogCounts?.[d] ?? 0;
+        const totalSetsForDay = weekTotalSetCounts?.[d] ?? 0;
+        const hasLogs = completedSetsForDay > 0;
+        const allSetsComplete =
+          finalized &&
+          totalSetsForDay > 0 &&
+          completedSetsForDay >= totalSetsForDay;
+        const completed = allSetsComplete;
+        const isPartial = isTraining && !completed && !isSkipped && (hasLogs || finalized);
         const isMissed =
           isTraining &&
           isPast &&
           !isToday &&
           !completed &&
           !isSkipped &&
-          !hasLogs;
+          !hasLogs &&
+          !finalized;
         const canSkip =
           isTraining && !completed && !isSkipped && (isPast || isToday);
 

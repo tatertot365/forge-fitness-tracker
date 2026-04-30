@@ -5,6 +5,7 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { colors } from '../theme/colors';
+import { radius } from '../theme/spacing';
 import { hapticTap } from '../utils/haptics';
 
 type Props = {
@@ -86,6 +87,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingHorizontal: 6,
+    borderRadius: radius.card,
   },
   actionLabel: {
     color: '#FFFFFF',

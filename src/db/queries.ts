@@ -71,22 +71,25 @@ export async function setUserProfile(profile: Partial<import('../utils/tdee').Us
   if (profile.sex != null) await setSetting('profile_sex', profile.sex);
 }
 
-export type BodyGoals = { goal_weight_lb: number | null; goal_body_fat_pct: number | null };
+export type BodyGoals = { goal_weight_lb: number | null; goal_body_fat_pct: number | null; show_ratio_card: boolean };
 
 export async function getBodyGoals(): Promise<BodyGoals> {
-  const [w, b] = await Promise.all([
+  const [w, b, r] = await Promise.all([
     getSetting('goal_weight_lb'),
     getSetting('goal_body_fat_pct'),
+    getSetting('show_ratio_card'),
   ]);
   return {
     goal_weight_lb: w ? Number(w) : null,
     goal_body_fat_pct: b ? Number(b) : null,
+    show_ratio_card: r === '1',
   };
 }
 
 export async function setBodyGoals(goals: Partial<BodyGoals>): Promise<void> {
   if (goals.goal_weight_lb != null) await setSetting('goal_weight_lb', String(goals.goal_weight_lb));
   if (goals.goal_body_fat_pct != null) await setSetting('goal_body_fat_pct', String(goals.goal_body_fat_pct));
+  if (goals.show_ratio_card != null) await setSetting('show_ratio_card', goals.show_ratio_card ? '1' : '0');
 }
 
 export async function getPhase(): Promise<Phase> {

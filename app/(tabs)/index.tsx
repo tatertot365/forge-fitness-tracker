@@ -1,12 +1,15 @@
+import * as FileSystem from "expo-file-system";
 import { useFocusEffect, useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import {
   AlertTriangle,
   Clock,
+  Download,
   Heart,
   Pencil,
   Plus,
+  SkipForward,
   X,
-  XCircle,
 } from "lucide-react-native";
 import React, { useCallback, useRef, useState } from "react";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
@@ -26,13 +29,15 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Card } from "../../src/components/Card";
-import { PhaseBadge } from "../../src/components/PhaseBadge";
 import { PhasePills } from "../../src/components/PhasePills";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   addCardioToday,
+  exportFoodLogCSV,
+  exportMeasurementsCSV,
+  exportSessionsCSV,
   getActivityLevel,
   getBodyGoals,
   getCardioCountThisWeek,
@@ -125,6 +130,7 @@ export default function TodayScreen() {
     description: "12° / 3 mph / 20–30 min",
   });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [todayNutrition, setTodayNutrition] =
     useState<DailyNutritionTotal | null>(null);
   const [bodyStats, setBodyStats] = useState<{
@@ -134,6 +140,7 @@ export default function TodayScreen() {
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
     goal_body_fat_pct: null,
+    show_ratio_card: false,
   });
 
   const load = useCallback(async () => {
@@ -238,6 +245,19 @@ export default function TodayScreen() {
         });
       }
     }
+
+    const updatedGoal = await getNutritionGoalForDate(todayDate);
+    setTodayNutrition((prev) =>
+      prev
+        ? {
+            ...prev,
+            calorie_goal: updatedGoal.calorie_goal,
+            protein_goal: updatedGoal.protein_goal,
+            fat_goal: updatedGoal.fat_goal,
+            carbs_goal: updatedGoal.carbs_goal,
+          }
+        : prev,
+    );
   };
 
   const onSkipDay = async (d: Day) => {
@@ -312,6 +332,7 @@ export default function TodayScreen() {
       ? "Resume"
       : "Open";
 
+
   return (
     <Screen>
       {/* ── Header ── */}
@@ -323,7 +344,14 @@ export default function TodayScreen() {
             {todayEnabled ? todayFocus.toLowerCase() : "rest day"}
           </Text>
         </View>
-        <PhaseBadge phase={phase} />
+        <Pressable
+          onPress={() => setExportModalOpen(true)}
+          hitSlop={10}
+          style={({ pressed }) => [styles.exportBtn, pressed && { opacity: 0.6 }]}
+        >
+          <Download size={12} color={colors.primary} strokeWidth={2} />
+          <Text style={styles.exportBtnText}>Export</Text>
+        </Pressable>
       </View>
 
       <View style={{ paddingTop: 8 }}>
@@ -505,6 +533,10 @@ export default function TodayScreen() {
           setEditCardioOpen(false);
         }}
       />
+      <ExportSheet
+        visible={exportModalOpen}
+        onClose={() => setExportModalOpen(false)}
+      />
     </Screen>
   );
 }
@@ -597,6 +629,103 @@ function EditCardioSheet({
             </Pressable>
           </View>
         </KeyboardAvoidingView>
+      </View>
+    </Modal>
+  );
+}
+
+// ── Export sheet ──────────────────────────────────────────────────────────────
+
+function ExportSheet({
+  visible,
+  onClose,
+}: {
+  visible: boolean;
+  onClose: () => void;
+}) {
+  const [sessions, setSessions] = useState(true);
+  const [nutrition, setNutrition] = useState(true);
+  const [measurements, setMeasurements] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const noneSelected = !sessions && !nutrition && !measurements;
+
+  const handleExport = async () => {
+    if (noneSelected) return;
+    setBusy(true);
+    try {
+      const ts = new Date().toISOString().slice(0, 10);
+      const files: { name: string; content: string }[] = [];
+      if (sessions) {
+        files.push({ name: `forge_sessions_${ts}.csv`, content: await exportSessionsCSV() });
+      }
+      if (nutrition) {
+        files.push({ name: `forge_food_log_${ts}.csv`, content: await exportFoodLogCSV() });
+      }
+      if (measurements) {
+        files.push({ name: `forge_measurements_${ts}.csv`, content: await exportMeasurementsCSV() });
+      }
+      for (const f of files) {
+        const uri = FileSystem.cacheDirectory + f.name;
+        await FileSystem.writeAsStringAsync(uri, f.content, { encoding: FileSystem.EncodingType.UTF8 });
+        await Sharing.shareAsync(uri, {
+          mimeType: 'text/csv',
+          dialogTitle: f.name,
+          UTI: 'public.comma-separated-values-text',
+        });
+      }
+      onClose();
+    } catch {
+      Alert.alert('Export failed', 'Could not export data. Please try again.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const CheckRow = ({
+    label,
+    value,
+    onToggle,
+  }: {
+    label: string;
+    value: boolean;
+    onToggle: () => void;
+  }) => (
+    <Pressable onPress={onToggle} style={styles.exportCheckRow}>
+      <Text style={styles.exportCheckLabel}>{label}</Text>
+      <View style={[styles.exportCheckbox, value && styles.exportCheckboxChecked]}>
+        {value && <Text style={styles.exportCheckmark}>✓</Text>}
+      </View>
+    </Pressable>
+  );
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.sheetBackdrop}>
+        <Pressable style={styles.sheetDismiss} onPress={onClose} />
+        <View style={styles.sheet}>
+          <View style={styles.sheetHeader}>
+            <Text style={styles.sheetTitle}>Export data</Text>
+            <Pressable onPress={onClose} hitSlop={10}>
+              <X size={20} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+          <CheckRow label="Exercise history" value={sessions} onToggle={() => setSessions((v) => !v)} />
+          <CheckRow label="Nutrition history" value={nutrition} onToggle={() => setNutrition((v) => !v)} />
+          <CheckRow label="Measurement history" value={measurements} onToggle={() => setMeasurements((v) => !v)} />
+          <Pressable
+            onPress={handleExport}
+            disabled={busy || noneSelected}
+            style={({ pressed }) => [
+              styles.sheetSaveBtn,
+              { marginTop: 20 },
+              (busy || noneSelected) && { opacity: 0.4 },
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.sheetSaveBtnText}>{busy ? 'Exporting…' : 'Export'}</Text>
+          </Pressable>
+        </View>
       </View>
     </Modal>
   );
@@ -729,7 +858,7 @@ function SwipeableCatchupRow({
       onPress={handleSkip}
       style={({ pressed }) => [styles.skipAction, pressed && { opacity: 0.85 }]}
     >
-      <XCircle size={18} color="#FFFFFF" strokeWidth={2} />
+      <SkipForward size={18} color="#FFFFFF" strokeWidth={2} />
       <Text style={styles.skipLabel}>Skip</Text>
     </Pressable>
   );
@@ -1365,6 +1494,43 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
   },
   editPlanText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+
+  exportBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  exportBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+
+  exportCheckRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: colors.border,
+  },
+  exportCheckLabel: { fontSize: 15, fontWeight: "500", color: colors.text },
+  exportCheckbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  exportCheckboxChecked: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  exportCheckmark: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", lineHeight: 16 },
 
   skipAction: {
     width: 76,

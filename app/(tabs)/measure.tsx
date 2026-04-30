@@ -1,13 +1,10 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
-import * as FileSystem from "expo-file-system";
 import { useFocusEffect } from "expo-router";
-import * as Sharing from "expo-sharing";
 import {
   ArrowDown,
   ArrowUp,
   ChevronDown,
   ChevronUp,
-  Download,
   Minus,
   Pencil,
 } from "lucide-react-native";
@@ -32,9 +29,6 @@ import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import {
-  exportFoodLogCSV,
-  exportMeasurementsCSV,
-  exportSessionsCSV,
   getActivityLevel,
   getBodyGoals,
   getGoalsMode,
@@ -115,6 +109,7 @@ export default function MeasureScreen() {
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
     goal_body_fat_pct: null,
+    show_ratio_card: false,
   });
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
   const [profile, setProfile] = useState<UserProfile>({
@@ -262,35 +257,6 @@ export default function MeasureScreen() {
   const profileComplete =
     profile.height_in != null && profile.dob != null && profile.sex != null;
 
-  const exportData = async () => {
-    try {
-      const [measurements, food, sessions] = await Promise.all([
-        exportMeasurementsCSV(),
-        exportFoodLogCSV(),
-        exportSessionsCSV(),
-      ]);
-
-      const ts = new Date().toISOString().slice(0, 10);
-      const files = [
-        { name: `forge_measurements_${ts}.csv`, content: measurements },
-        { name: `forge_food_log_${ts}.csv`, content: food },
-        { name: `forge_sessions_${ts}.csv`, content: sessions },
-      ];
-
-      for (const f of files) {
-        const uri = FileSystem.cacheDirectory + f.name;
-        await FileSystem.writeAsStringAsync(uri, f.content, { encoding: FileSystem.EncodingType.UTF8 });
-        await Sharing.shareAsync(uri, {
-          mimeType: 'text/csv',
-          dialogTitle: f.name,
-          UTI: 'public.comma-separated-values-text',
-        });
-      }
-    } catch (e) {
-      Alert.alert('Export failed', 'Could not export data. Please try again.');
-    }
-  };
-
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -306,17 +272,6 @@ export default function MeasureScreen() {
             </Text>
           </View>
           <View style={styles.headerBtns}>
-            <Pressable
-              onPress={exportData}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.editBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Download size={12} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.editBtnText}>Export</Text>
-            </Pressable>
             <Pressable
               onPress={() => setGoalsModalVisible(true)}
               hitSlop={10}
@@ -371,112 +326,6 @@ export default function MeasureScreen() {
             goodOnIncrease={true}
           />
         </View>
-
-        {/* Body goals */}
-        {(bodyGoals.goal_weight_lb != null ||
-          bodyGoals.goal_body_fat_pct != null) && (
-          <View style={styles.goalsCard}>
-            <View style={styles.goalsCardHeader}>
-              <Text style={styles.goalsCardTitle}>Goals</Text>
-              <Pressable
-                onPress={() => setGoalsModalVisible(true)}
-                hitSlop={10}
-                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
-              >
-                <Pencil
-                  size={13}
-                  color={colors.textSecondary}
-                  strokeWidth={2}
-                />
-              </Pressable>
-            </View>
-            {bodyGoals.goal_weight_lb != null && (
-              <GoalProgressRow
-                label="Weight"
-                current={latest?.weight_lb ?? null}
-                goal={bodyGoals.goal_weight_lb}
-                unit=" lbs"
-                lowerIsBetter
-              />
-            )}
-            {bodyGoals.goal_body_fat_pct != null && (
-              <GoalProgressRow
-                label="Body fat"
-                current={latest?.body_fat_pct ?? null}
-                goal={bodyGoals.goal_body_fat_pct}
-                unit="%"
-                lowerIsBetter
-              />
-            )}
-          </View>
-        )}
-
-        {/* Shoulder-to-waist ratio */}
-        {latest?.shoulders_in != null && latest?.waist_in != null && (
-          <View style={styles.ratioCard}>
-            <Text style={styles.ratioLabel}>Shoulder-to-waist ratio</Text>
-            <View style={styles.ratioValueRow}>
-              <Text style={styles.ratioValue}>
-                {ratio != null ? ratio.toFixed(2) : "—"}
-              </Text>
-              <Text style={styles.ratioTarget}>/ {TARGET_RATIO}</Text>
-            </View>
-            <View style={{ marginTop: 10 }}>
-              <ProgressBar
-                value={ratio ?? 0}
-                max={TARGET_RATIO}
-                color={colors.primary}
-              />
-            </View>
-            <Text style={styles.ratioPct}>
-              {pctOff != null ? `${pctOff.toFixed(1)}% off target` : ""}
-            </Text>
-            <Text style={styles.ratioHint}>
-              Expand shoulders or tighten waist to close the gap.
-            </Text>
-          </View>
-        )}
-
-        {/* Circumference measurements */}
-        <SectionLabel>Current</SectionLabel>
-        <View style={styles.listCard}>
-          {CIRC_FIELDS.map((f, i) => {
-            const current = latest?.[f.key] ?? null;
-            const previous = prior?.[f.key] ?? null;
-            return (
-              <View
-                key={f.key}
-                style={[
-                  styles.listRow,
-                  i !== CIRC_FIELDS.length - 1 && styles.listDivider,
-                ]}
-              >
-                <Text style={styles.listLabel}>{f.label}</Text>
-                <View style={styles.listTrailing}>
-                  <Text style={styles.listValue}>
-                    {current != null ? `${current.toFixed(1)}″` : "—"}
-                  </Text>
-                  <DeltaChip
-                    current={current}
-                    prior={previous}
-                    goodOnIncrease={f.goodOnIncrease}
-                    unit="″"
-                  />
-                </View>
-              </View>
-            );
-          })}
-        </View>
-
-        {/* Body fat prompt banner */}
-        {latest?.body_fat_pct == null && (
-          <View style={styles.bfBanner}>
-            <Text style={styles.bfBannerText}>
-              Log your body fat % to unlock lean mass tracking and more accurate
-              macro calculations.
-            </Text>
-          </View>
-        )}
 
         {/* Profile — collapsible */}
         <Pressable
@@ -579,6 +428,112 @@ export default function MeasureScreen() {
                 <Text style={styles.pickerChevron}>›</Text>
               </Pressable>
             </View>
+          </View>
+        )}
+
+        {/* Body goals */}
+        {(bodyGoals.goal_weight_lb != null ||
+          bodyGoals.goal_body_fat_pct != null) && (
+          <View style={styles.goalsCard}>
+            <View style={styles.goalsCardHeader}>
+              <Text style={styles.goalsCardTitle}>Goals</Text>
+              <Pressable
+                onPress={() => setGoalsModalVisible(true)}
+                hitSlop={10}
+                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+              >
+                <Pencil
+                  size={13}
+                  color={colors.textSecondary}
+                  strokeWidth={2}
+                />
+              </Pressable>
+            </View>
+            {bodyGoals.goal_weight_lb != null && (
+              <GoalProgressRow
+                label="Weight"
+                current={latest?.weight_lb ?? null}
+                goal={bodyGoals.goal_weight_lb}
+                unit=" lbs"
+                lowerIsBetter
+              />
+            )}
+            {bodyGoals.goal_body_fat_pct != null && (
+              <GoalProgressRow
+                label="Body fat"
+                current={latest?.body_fat_pct ?? null}
+                goal={bodyGoals.goal_body_fat_pct}
+                unit="%"
+                lowerIsBetter
+              />
+            )}
+          </View>
+        )}
+
+        {/* Shoulder-to-waist ratio */}
+        {bodyGoals.show_ratio_card && latest?.shoulders_in != null && latest?.waist_in != null && (
+          <View style={styles.ratioCard}>
+            <Text style={styles.ratioLabel}>Shoulder-to-waist ratio</Text>
+            <View style={styles.ratioValueRow}>
+              <Text style={styles.ratioValue}>
+                {ratio != null ? ratio.toFixed(2) : "—"}
+              </Text>
+              <Text style={styles.ratioTarget}>/ {TARGET_RATIO}</Text>
+            </View>
+            <View style={{ marginTop: 10 }}>
+              <ProgressBar
+                value={ratio ?? 0}
+                max={TARGET_RATIO}
+                color={colors.primary}
+              />
+            </View>
+            <Text style={styles.ratioPct}>
+              {pctOff != null ? `${pctOff.toFixed(1)}% off target` : ""}
+            </Text>
+            <Text style={styles.ratioHint}>
+              Expand shoulders or tighten waist to close the gap.
+            </Text>
+          </View>
+        )}
+
+        {/* Circumference measurements */}
+        <SectionLabel>Current</SectionLabel>
+        <View style={styles.listCard}>
+          {CIRC_FIELDS.map((f, i) => {
+            const current = latest?.[f.key] ?? null;
+            const previous = prior?.[f.key] ?? null;
+            return (
+              <View
+                key={f.key}
+                style={[
+                  styles.listRow,
+                  i !== CIRC_FIELDS.length - 1 && styles.listDivider,
+                ]}
+              >
+                <Text style={styles.listLabel}>{f.label}</Text>
+                <View style={styles.listTrailing}>
+                  <Text style={styles.listValue}>
+                    {current != null ? `${current.toFixed(1)}″` : "—"}
+                  </Text>
+                  <DeltaChip
+                    current={current}
+                    prior={previous}
+                    goodOnIncrease={f.goodOnIncrease}
+                    unit="″"
+                  />
+                </View>
+              </View>
+            );
+          })}
+        </View>
+
+        {/* Body fat prompt banner */}
+        {latest?.body_fat_pct == null && (
+          <View style={styles.bfBanner}>
+            <Text style={styles.bfBannerText}>
+              Log your body fat % to unlock lean mass tracking and more accurate
+              macro calculations.
+            </Text>
           </View>
         )}
 
@@ -815,6 +770,7 @@ function BodyGoalsSheet({
 }) {
   const [weightInput, setWeightInput] = useState("");
   const [bfInput, setBfInput] = useState("");
+  const [showRatio, setShowRatio] = useState(false);
 
   React.useEffect(() => {
     if (!visible) return;
@@ -826,6 +782,7 @@ function BodyGoalsSheet({
         ? String(current.goal_body_fat_pct)
         : "",
     );
+    setShowRatio(current.show_ratio_card);
   }, [visible]);
 
   const save = () => {
@@ -843,7 +800,7 @@ function BodyGoalsSheet({
       Alert.alert("Body fat goal should be between 1 and 50%");
       return;
     }
-    const goals: Partial<BodyGoals> = {};
+    const goals: Partial<BodyGoals> = { show_ratio_card: showRatio };
     if (w != null) goals.goal_weight_lb = w;
     if (b != null) goals.goal_body_fat_pct = b;
     onSave(goals);
@@ -890,6 +847,18 @@ function BodyGoalsSheet({
               placeholder="e.g. 5"
               placeholderTextColor={colors.textMuted}
             />
+            <Pressable
+              onPress={() => setShowRatio((v) => !v)}
+              style={styles.toggleRow}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.toggleLabel}>Shoulder-to-waist ratio</Text>
+                <Text style={styles.toggleSub}>Show ratio card on Measurements tab</Text>
+              </View>
+              <View style={[styles.toggleTrack, showRatio && styles.toggleTrackOn]}>
+                <View style={[styles.toggleThumb, showRatio && styles.toggleThumbOn]} />
+              </View>
+            </Pressable>
             <Pressable
               onPress={save}
               style={({ pressed }) => [
@@ -1325,6 +1294,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   saveBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+
+  toggleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    marginTop: 14,
+    gap: 12,
+  },
+  toggleLabel: { fontSize: 14, fontWeight: "500", color: colors.text },
+  toggleSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  toggleTrack: {
+    width: 44,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: colors.border,
+    padding: 3,
+  },
+  toggleTrackOn: { backgroundColor: colors.primary },
+  toggleThumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: "#FFFFFF",
+  },
+  toggleThumbOn: { transform: [{ translateX: 18 }] },
 
   pickerRow: {
     flexDirection: "row",

@@ -236,11 +236,6 @@ export default function SessionScreen() {
             <SectionLabel
               trailing={
                 <View style={styles.groupTrailing}>
-                  {group === "shoulders" ? (
-                    <View style={styles.priorityBadge}>
-                      <Text style={styles.priorityText}>Priority</Text>
-                    </View>
-                  ) : null}
                   <Pressable
                     onPress={() => onDeleteGroup(group)}
                     hitSlop={8}
@@ -470,20 +465,6 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   restText: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
-
-  priorityBadge: {
-    backgroundColor: colors.purple + "22",
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 999,
-  },
-  priorityText: {
-    fontSize: 10,
-    fontWeight: "600",
-    color: colors.purple,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
 
   groupTrailing: {
     flexDirection: "row",

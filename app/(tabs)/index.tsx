@@ -29,7 +29,6 @@ import ReanimatedSwipeable, {
   type SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Card } from "../../src/components/Card";
-import { PhasePills } from "../../src/components/PhasePills";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
@@ -38,7 +37,6 @@ import {
   exportFoodLogCSV,
   exportMeasurementsCSV,
   exportSessionsCSV,
-  getActivityLevel,
   getBodyGoals,
   getCardioCountThisWeek,
   getCardioInfo,
@@ -47,13 +45,11 @@ import {
   getDayPlans,
   getExercisesByDay,
   getFoodEntriesForDate,
-  getGoalsMode,
   getMuscleGroupSetsThisWeek,
   getNutritionGoalForDate,
   getPhase,
   getSessionsForWeek,
   getSkippedDaysThisWeek,
-  getUserProfile,
   getWeekSetLogCounts,
   getWeekTotalSetCounts,
   isHealthKitAsked,
@@ -61,14 +57,11 @@ import {
   markHealthKitAsked,
   measurementOneWeekAgo,
   setCardioInfo,
-  setNutritionGoal,
-  setPhase as saveBasePhase,
   skipCatchupItem,
   skipDay,
   type BodyGoals,
   type CardioInfo,
 } from "../../src/db/queries";
-import { calculateTdee } from "../../src/utils/tdee";
 import {
   initHealthKit,
   isHealthKitAvailable,
@@ -229,49 +222,6 @@ export default function TodayScreen() {
     }, [load]),
   );
 
-  const onChangePhase = async (p: Phase) => {
-    hapticSelect();
-    setPhaseState(p);
-    await saveBasePhase(p);
-
-    const [goalsMode, activity, measurement, profile] = await Promise.all([
-      getGoalsMode(),
-      getActivityLevel(),
-      latestMeasurement(),
-      getUserProfile(),
-    ]);
-    if (goalsMode === "calculated" && activity && measurement?.weight_lb) {
-      const result = calculateTdee({
-        weight_lb: measurement.weight_lb,
-        body_fat_pct: measurement.body_fat_pct,
-        profile,
-        activity,
-        phase: p,
-      });
-      if (result.ok) {
-        await setNutritionGoal(todayISO(), {
-          calorie_goal: result.goals.calories,
-          protein_goal: result.goals.protein_g,
-          fat_goal: result.goals.fat_g,
-          carbs_goal: result.goals.carbs_g,
-        });
-      }
-    }
-
-    const updatedGoal = await getNutritionGoalForDate(todayDate);
-    setTodayNutrition((prev) =>
-      prev
-        ? {
-            ...prev,
-            calorie_goal: updatedGoal.calorie_goal,
-            protein_goal: updatedGoal.protein_goal,
-            fat_goal: updatedGoal.fat_goal,
-            carbs_goal: updatedGoal.carbs_goal,
-          }
-        : prev,
-    );
-  };
-
   const onSkipDay = async (d: Day) => {
     const date = thisWeek[d];
     await skipDay(d, date);
@@ -369,10 +319,6 @@ export default function TodayScreen() {
           <Download size={12} color={colors.primary} strokeWidth={2} />
           <Text style={styles.exportBtnText}>Export</Text>
         </Pressable>
-      </View>
-
-      <View style={{ paddingTop: 8 }}>
-        <PhasePills value={phase} onChange={onChangePhase} />
       </View>
 
       {/* ── Session card (dominant) ── */}

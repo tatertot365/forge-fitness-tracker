@@ -34,6 +34,7 @@ import ReanimatedSwipeable, {
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import Svg, { Line, Rect } from "react-native-svg";
 import { Card } from "../../src/components/Card";
+import { PhasePills } from "../../src/components/PhasePills";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
@@ -52,6 +53,7 @@ import {
   setActivityLevel,
   setGoalsMode,
   setNutritionGoal,
+  setPhase as saveBasePhase,
   updateFoodEntry,
 } from "../../src/db/queries";
 import {
@@ -67,6 +69,7 @@ import {
   type FoodEntry,
   type FoodRecent,
   type NutritionGoal,
+  type Phase,
 } from "../../src/types";
 import { todayISO } from "../../src/utils/date";
 import {
@@ -80,6 +83,7 @@ import {
 } from "../../src/utils/openFoodFacts";
 
 export default function FoodScreen() {
+  const [phase, setPhaseState] = useState<Phase>("maintain");
   const [goal, setGoal] = useState<NutritionGoal | null>(null);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [recents, setRecents] = useState<FoodRecent[]>([]);
@@ -101,16 +105,18 @@ export default function FoodScreen() {
   const today = todayISO();
 
   const load = useCallback(async () => {
-    const [g, e, r, t] = await Promise.all([
+    const [g, e, r, t, p] = await Promise.all([
       getNutritionGoalForDate(today),
       getFoodEntriesForDate(today),
       getFoodRecents(12),
       getDailyNutritionTotals(14),
+      getPhase(),
     ]);
     setGoal(g);
     setEntries(e);
     setRecents(r);
     setTotals(t);
+    setPhaseState(p);
   }, [today]);
 
   useFocusEffect(
@@ -232,6 +238,39 @@ export default function FoodScreen() {
     load();
   };
 
+  const onChangePhase = async (p: Phase) => {
+    hapticSelect();
+    setPhaseState(p);
+    await saveBasePhase(p);
+
+    const [goalsMode, activity, measurement, profile] = await Promise.all([
+      getGoalsMode(),
+      getActivityLevel(),
+      latestMeasurement(),
+      getUserProfile(),
+    ]);
+    if (goalsMode === "calculated" && activity && measurement?.weight_lb) {
+      const result = calculateTdee({
+        weight_lb: measurement.weight_lb,
+        body_fat_pct: measurement.body_fat_pct,
+        profile,
+        activity,
+        phase: p,
+      });
+      if (result.ok) {
+        await setNutritionGoal(today, {
+          calorie_goal: result.goals.calories,
+          protein_goal: result.goals.protein_g,
+          fat_goal: result.goals.fat_g,
+          carbs_goal: result.goals.carbs_g,
+        });
+      }
+    }
+
+    const updatedGoal = await getNutritionGoalForDate(today);
+    setGoal(updatedGoal);
+  };
+
   return (
     <Screen>
       <View style={styles.header}>
@@ -253,6 +292,10 @@ export default function FoodScreen() {
           <Pencil size={12} color={colors.primary} strokeWidth={2} />
           <Text style={styles.editGoalText}>Goals</Text>
         </Pressable>
+      </View>
+
+      <View style={{ paddingTop: 8 }}>
+        <PhasePills value={phase} onChange={onChangePhase} />
       </View>
 
       <Card>

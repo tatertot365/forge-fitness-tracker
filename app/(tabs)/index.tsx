@@ -11,10 +11,11 @@ import {
   SkipForward,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
 import {
   Alert,
+  AppState,
   Dimensions,
   KeyboardAvoidingView,
   Modal,
@@ -56,7 +57,7 @@ import {
   latestMeasurement,
   markHealthKitAsked,
   measurementOneWeekAgo,
-  setCardioInfo,
+  setCardioInfo as saveCardioInfo,
   skipCatchupItem,
   skipDay,
   type BodyGoals,
@@ -95,9 +96,14 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function TodayScreen() {
   const router = useRouter();
-  const today = dayOfWeek();
-  const todayDate = todayISO();
-  const thisWeek = weekDates();
+  // today/todayDate/thisWeek are state, not module-time constants, so they
+  // refresh when the app returns to foreground or focus changes — otherwise a
+  // session left open across midnight keeps logging to "yesterday".
+  const [today, setToday] = useState<Day>(() => dayOfWeek());
+  const [todayDate, setTodayDate] = useState<string>(() => todayISO());
+  const [thisWeek, setThisWeek] = useState<Record<Day, string>>(() =>
+    weekDates(),
+  );
   const [phase, setPhaseState] = useState<Phase>("maintain");
   const [catchup, setCatchup] = useState<CatchupItem[]>([]);
   const [weekSessions, setWeekSessions] = useState<Record<
@@ -143,6 +149,16 @@ export default function TodayScreen() {
   });
 
   const load = useCallback(async () => {
+    // Recompute date state up-front so values used below — and the rest of the
+    // screen — reflect the actual current day, not whatever was captured the
+    // last time the component mounted.
+    const currentDay = dayOfWeek();
+    const currentDate = todayISO();
+    const currentWeek = weekDates();
+    setToday(currentDay);
+    setTodayDate(currentDate);
+    setThisWeek(currentWeek);
+
     const [
       p,
       c,
@@ -166,7 +182,7 @@ export default function TodayScreen() {
       getCatchupItems(),
       getSessionsForWeek(),
       getCardioCountThisWeek(),
-      getExercisesByDay(today),
+      getExercisesByDay(currentDay),
       getDayPlans(),
       isHealthKitAsked(),
       getSkippedDaysThisWeek(),
@@ -174,13 +190,13 @@ export default function TodayScreen() {
       getWeekTotalSetCounts(),
       getCardioInfo(),
       getMuscleGroupSetsThisWeek(),
-      getFoodEntriesForDate(todayDate),
-      getNutritionGoalForDate(todayDate),
+      getFoodEntriesForDate(currentDate),
+      getNutritionGoalForDate(currentDate),
       latestMeasurement(),
       measurementOneWeekAgo(),
       getBodyGoals(),
     ]);
-    const todaySessionId = w[today]?.id;
+    const todaySessionId = w[currentDay]?.id;
     const completedSets = todaySessionId
       ? await getCompletedSetCountForSession(todaySessionId)
       : 0;
@@ -202,7 +218,7 @@ export default function TodayScreen() {
     setCardioInfo(ci);
     setMuscleGroupSets(mgSets);
     setTodayNutrition({
-      date: todayDate,
+      date: currentDate,
       calories: foodEntries.reduce((s, e) => s + e.calories, 0),
       protein_g: foodEntries.reduce((s, e) => s + e.protein_g, 0),
       fat_g: foodEntries.reduce((s, e) => s + e.fat_g, 0),
@@ -214,13 +230,23 @@ export default function TodayScreen() {
     });
     setBodyStats({ latest: latestM, prev: prevM });
     setBodyGoalsState(goals);
-  }, [today]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
+
+  // Re-run load whenever the app returns to the foreground — catches the case
+  // where the user left the app open across midnight (date rollover) or for an
+  // extended period (stale data).
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const onSkipDay = async (d: Day) => {
     const date = thisWeek[d];
@@ -403,6 +429,25 @@ export default function TodayScreen() {
               />
             ))}
           </View>
+          {/* Per-day skip — discoverable alternative to the long-press dot. */}
+          <View style={styles.skipDayRow}>
+            {Array.from(new Set(catchup.map((c) => c.day))).map((d) => (
+              <Pressable
+                key={d}
+                onPress={() => onLongPressDay(d as Day)}
+                hitSlop={6}
+                style={({ pressed }) => [
+                  styles.skipDayBtn,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <SkipForward size={12} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={styles.skipDayBtnText}>
+                  Skip {DAY_LABEL[d as Day]}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
         </>
       ) : null}
 
@@ -492,7 +537,7 @@ export default function TodayScreen() {
         current={cardioInfo}
         onClose={() => setEditCardioOpen(false)}
         onSave={async (info) => {
-          await setCardioInfo(info);
+          await saveCardioInfo(info);
           setCardioInfo(info);
           setEditCardioOpen(false);
         }}
@@ -1520,6 +1565,29 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "600",
     letterSpacing: 0.3,
+  },
+  skipDayRow: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 4,
+  },
+  skipDayBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: radius.pill,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  skipDayBtnText: {
+    fontSize: 12,
+    color: colors.textSecondary,
+    fontWeight: "500",
   },
 
   sheetBackdrop: {

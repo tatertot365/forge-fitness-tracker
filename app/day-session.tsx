@@ -203,12 +203,32 @@ export default function DaySessionScreen() {
     setExercises((prev) => prev.filter((e) => e.id !== ex.id));
   };
 
-  const onFinish = async () => {
+  const finalizeAndShow = async () => {
     if (!sessionId) return;
     const hk = await fetchRecentWorkoutMetrics();
     await finalizeSession(sessionId, hk);
     hapticSuccess();
     setSummary({ completed: completedTotal, total: totalSets, volume, hk });
+  };
+
+  const onFinish = () => {
+    if (!sessionId) return;
+    if (totalSets > 0 && completedTotal < totalSets) {
+      Alert.alert(
+        "Finish without completing all sets?",
+        `${completedTotal} of ${totalSets} sets logged. The session will be marked complete.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Finish",
+            style: "destructive",
+            onPress: () => finalizeAndShow(),
+          },
+        ],
+      );
+      return;
+    }
+    finalizeAndShow();
   };
 
   if (!day) return null;

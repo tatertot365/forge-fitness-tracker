@@ -9,7 +9,7 @@ import {
   TrendingUp,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -234,6 +234,84 @@ export default function ExerciseDetailScreen() {
     );
   };
 
+  // Debounced persist: saves typed values without waiting for blur, so a tab
+  // switch / phone call / app kill mid-input doesn't lose the entry.
+  const rowsRef = useRef(rows);
+  rowsRef.current = rows;
+  const warmupRowsRef = useRef(warmupRows);
+  warmupRowsRef.current = warmupRows;
+  const ctxRef = useRef({ sessionId, exercise });
+  ctxRef.current = { sessionId, exercise };
+
+  const persistTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
+    new Map(),
+  );
+
+  const flushRowNow = (idx: number) => {
+    const { sessionId: sid, exercise: ex } = ctxRef.current;
+    if (!sid || !ex) return;
+    const r = rowsRef.current[idx];
+    if (!r) return;
+    upsertSetLog(sid, ex.id, r.setNumber, rowToPatch(r, ex.type === "drop"));
+  };
+
+  const flushWarmupNow = (idx: number) => {
+    const { sessionId: sid, exercise: ex } = ctxRef.current;
+    if (!sid || !ex) return;
+    const r = warmupRowsRef.current[idx];
+    if (!r) return;
+    const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
+    upsertSetLog(sid, ex.id, r.setNumber, {
+      weight_lb: toNum(r.weight),
+      reps: toNum(r.reps),
+      completed: 0,
+    });
+  };
+
+  const schedulePersistRow = (idx: number) => {
+    const key = `r:${idx}`;
+    const timers = persistTimers.current;
+    const existing = timers.get(key);
+    if (existing) clearTimeout(existing);
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key);
+        flushRowNow(idx);
+      }, 400),
+    );
+  };
+
+  const schedulePersistWarmup = (idx: number) => {
+    const key = `w:${idx}`;
+    const timers = persistTimers.current;
+    const existing = timers.get(key);
+    if (existing) clearTimeout(existing);
+    timers.set(
+      key,
+      setTimeout(() => {
+        timers.delete(key);
+        flushWarmupNow(idx);
+      }, 400),
+    );
+  };
+
+  // On unmount, immediately flush every pending row so navigating away mid-edit
+  // never loses the in-flight value.
+  useEffect(() => {
+    const timers = persistTimers.current;
+    return () => {
+      timers.forEach((t, key) => {
+        clearTimeout(t);
+        const [kind, idxStr] = key.split(":");
+        const idx = Number(idxStr);
+        if (kind === "r") flushRowNow(idx);
+        else if (kind === "w") flushWarmupNow(idx);
+      });
+      timers.clear();
+    };
+  }, []);
+
   const updateWarmupRow = (idx: number, patch: Partial<WarmupRow>) => {
     setWarmupRows((prev) => {
       const next = prev.slice();
@@ -426,9 +504,10 @@ export default function ExerciseDetailScreen() {
                     ) : (
                       <TextInput
                         value={r.weight}
-                        onChangeText={(t: string) =>
-                          updateWarmupRow(idx, { weight: t })
-                        }
+                        onChangeText={(t: string) => {
+                          updateWarmupRow(idx, { weight: t });
+                          schedulePersistWarmup(idx);
+                        }}
                         onBlur={() => persistWarmup(idx)}
                         keyboardType="decimal-pad"
                         style={[styles.input, { flex: 1 }]}
@@ -439,7 +518,10 @@ export default function ExerciseDetailScreen() {
                     )}
                     <TextInput
                       value={r.reps}
-                      onChangeText={(t: string) => updateWarmupRow(idx, { reps: t })}
+                      onChangeText={(t: string) => {
+                        updateWarmupRow(idx, { reps: t });
+                        schedulePersistWarmup(idx);
+                      }}
                       onBlur={() => persistWarmup(idx)}
                       keyboardType="number-pad"
                       style={[styles.input, { flex: 1 }]}
@@ -506,7 +588,10 @@ export default function ExerciseDetailScreen() {
                     ) : (
                       <TextInput
                         value={r.weight}
-                        onChangeText={(t: string) => updateRow(idx, { weight: t })}
+                        onChangeText={(t: string) => {
+                          updateRow(idx, { weight: t });
+                          schedulePersistRow(idx);
+                        }}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
                         style={[styles.input, { flex: 1 }]}
@@ -517,7 +602,10 @@ export default function ExerciseDetailScreen() {
                     )}
                     <TextInput
                       value={r.reps}
-                      onChangeText={(t: string) => updateRow(idx, { reps: t })}
+                      onChangeText={(t: string) => {
+                        updateRow(idx, { reps: t });
+                        schedulePersistRow(idx);
+                      }}
                       onBlur={() => persist(idx)}
                       keyboardType="number-pad"
                       style={[styles.input, { flex: 1 }]}
@@ -537,7 +625,10 @@ export default function ExerciseDetailScreen() {
                       <Text style={[styles.dropLabel, { width: 32 }]}>↓</Text>
                       <TextInput
                         value={r.dropWeight}
-                        onChangeText={(t: string) => updateRow(idx, { dropWeight: t })}
+                        onChangeText={(t: string) => {
+                          updateRow(idx, { dropWeight: t });
+                          schedulePersistRow(idx);
+                        }}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
                         style={[styles.input, { flex: 1 }]}
@@ -547,7 +638,10 @@ export default function ExerciseDetailScreen() {
                       />
                       <TextInput
                         value={r.dropReps}
-                        onChangeText={(t: string) => updateRow(idx, { dropReps: t })}
+                        onChangeText={(t: string) => {
+                          updateRow(idx, { dropReps: t });
+                          schedulePersistRow(idx);
+                        }}
                         onBlur={() => persist(idx)}
                         keyboardType="number-pad"
                         style={[styles.input, { flex: 1 }]}

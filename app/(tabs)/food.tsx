@@ -16,6 +16,7 @@ import {
 import React, { useCallback, useRef, useState } from "react";
 import {
   ActionSheetIOS,
+  ActivityIndicator,
   Alert,
   Dimensions,
   Keyboard,
@@ -101,6 +102,7 @@ export default function FoodScreen() {
   const [calcSheet, setCalcSheet] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
+  const [scanLookupBusy, setScanLookupBusy] = useState(false);
 
   const today = todayISO();
 
@@ -527,11 +529,16 @@ export default function FoodScreen() {
 
       <BarcodeScannerModal
         visible={scannerVisible}
-        onClose={() => setScannerVisible(false)}
-        onScanned={async (barcode) => {
+        loading={scanLookupBusy}
+        onClose={() => {
+          if (scanLookupBusy) return;
           setScannerVisible(false);
+        }}
+        onScanned={async (barcode) => {
+          setScanLookupBusy(true);
           try {
             const result = await lookupBarcode(barcode);
+            setScannerVisible(false);
             if (!result.found) {
               Alert.alert(
                 "Product not found",
@@ -543,7 +550,10 @@ export default function FoodScreen() {
             }
             setScanResult(result);
           } catch (e: any) {
+            setScannerVisible(false);
             Alert.alert("Error", e.message ?? "Could not look up barcode.");
+          } finally {
+            setScanLookupBusy(false);
           }
         }}
       />
@@ -566,10 +576,12 @@ export default function FoodScreen() {
 
 function BarcodeScannerModal({
   visible,
+  loading,
   onClose,
   onScanned,
 }: {
   visible: boolean;
+  loading: boolean;
   onClose: () => void;
   onScanned: (barcode: string) => void;
 }) {
@@ -603,51 +615,60 @@ function BarcodeScannerModal({
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={scan.container}>
-        <CameraView
-          style={StyleSheet.absoluteFill}
-          facing="back"
-          onBarcodeScanned={(result) => {
-            if (scanned.current) return;
-            scanned.current = true;
-            onScanned(result.data);
-          }}
-          barcodeScannerSettings={{
-            barcodeTypes: [
-              "ean13",
-              "ean8",
-              "upc_a",
-              "upc_e",
-              "code128",
-              "code39",
-            ],
-          }}
-        />
-        {/* Overlay */}
-        <View style={scan.overlay}>
-          <View style={scan.topShade} />
-          <View style={scan.middleRow}>
-            <View style={scan.sideShade} />
-            <View style={scan.window}>
-              <View style={[scan.corner, scan.tl]} />
-              <View style={[scan.corner, scan.tr]} />
-              <View style={[scan.corner, scan.bl]} />
-              <View style={[scan.corner, scan.br]} />
+        {loading ? (
+          <View style={scan.loadingPane}>
+            <ActivityIndicator size="large" color={colors.primary} />
+            <Text style={scan.loadingText}>Looking up product…</Text>
+          </View>
+        ) : (
+          <>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              onBarcodeScanned={(result) => {
+                if (scanned.current) return;
+                scanned.current = true;
+                onScanned(result.data);
+              }}
+              barcodeScannerSettings={{
+                barcodeTypes: [
+                  "ean13",
+                  "ean8",
+                  "upc_a",
+                  "upc_e",
+                  "code128",
+                  "code39",
+                ],
+              }}
+            />
+            {/* Overlay */}
+            <View style={scan.overlay}>
+              <View style={scan.topShade} />
+              <View style={scan.middleRow}>
+                <View style={scan.sideShade} />
+                <View style={scan.window}>
+                  <View style={[scan.corner, scan.tl]} />
+                  <View style={[scan.corner, scan.tr]} />
+                  <View style={[scan.corner, scan.bl]} />
+                  <View style={[scan.corner, scan.br]} />
+                </View>
+                <View style={scan.sideShade} />
+              </View>
+              <View style={scan.bottomShade}>
+                <Text style={scan.hint}>Point at a barcode</Text>
+                <Pressable
+                  onPress={onClose}
+                  style={({ pressed }) => [
+                    scan.cancelBtn,
+                    pressed && { opacity: 0.7 },
+                  ]}
+                >
+                  <Text style={scan.cancelBtnText}>Cancel</Text>
+                </Pressable>
+              </View>
             </View>
-            <View style={scan.sideShade} />
-          </View>
-          <View style={scan.bottomShade}>
-            <Text style={scan.hint}>Point at a barcode</Text>
-            <Pressable
-              onPress={onClose}
-              style={({ pressed }) => [
-                scan.cancelBtn,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={scan.cancelBtnText}>Cancel</Text>
-            </Pressable>
-          </View>
-        </View>
+          </>
+        )}
       </View>
     </Modal>
   );
@@ -2596,4 +2617,16 @@ const scan = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.2)",
   },
   closeBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  loadingPane: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 14,
+  },
+  loadingText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "500",
+  },
 });

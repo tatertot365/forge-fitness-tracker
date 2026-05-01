@@ -510,6 +510,7 @@ export default function ExerciseDetailScreen() {
                         }}
                         onBlur={() => persistWarmup(idx)}
                         keyboardType="decimal-pad"
+                        selectTextOnFocus
                         style={[styles.input, { flex: 1 }]}
                         placeholder="—"
                         placeholderTextColor={colors.textMuted}
@@ -524,6 +525,7 @@ export default function ExerciseDetailScreen() {
                       }}
                       onBlur={() => persistWarmup(idx)}
                       keyboardType="number-pad"
+                      selectTextOnFocus
                       style={[styles.input, { flex: 1 }]}
                       placeholder="—"
                       placeholderTextColor={colors.textMuted}
@@ -594,6 +596,7 @@ export default function ExerciseDetailScreen() {
                         }}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
+                        selectTextOnFocus
                         style={[styles.input, { flex: 1 }]}
                         placeholder="—"
                         placeholderTextColor={colors.textMuted}
@@ -608,6 +611,7 @@ export default function ExerciseDetailScreen() {
                       }}
                       onBlur={() => persist(idx)}
                       keyboardType="number-pad"
+                      selectTextOnFocus
                       style={[styles.input, { flex: 1 }]}
                       placeholder="—"
                       placeholderTextColor={colors.textMuted}
@@ -631,6 +635,7 @@ export default function ExerciseDetailScreen() {
                         }}
                         onBlur={() => persist(idx)}
                         keyboardType="decimal-pad"
+                        selectTextOnFocus
                         style={[styles.input, { flex: 1 }]}
                         placeholder="drop wt"
                         placeholderTextColor={colors.textMuted}
@@ -644,6 +649,7 @@ export default function ExerciseDetailScreen() {
                         }}
                         onBlur={() => persist(idx)}
                         keyboardType="number-pad"
+                        selectTextOnFocus
                         style={[styles.input, { flex: 1 }]}
                         placeholder="reps"
                         placeholderTextColor={colors.textMuted}
@@ -662,13 +668,27 @@ export default function ExerciseDetailScreen() {
           </View>
 
           <Pressable
-            onPress={() => router.back()}
+            onPress={() => {
+              // Flush any pending in-flight edits (debounced or unblurred)
+              // before navigating back. The unmount cleanup also flushes, but
+              // doing it here keeps the action explicit.
+              const timers = persistTimers.current;
+              timers.forEach((t, key) => {
+                clearTimeout(t);
+                const [kind, idxStr] = key.split(":");
+                const idx = Number(idxStr);
+                if (kind === "r") flushRowNow(idx);
+                else if (kind === "w") flushWarmupNow(idx);
+              });
+              timers.clear();
+              router.back();
+            }}
             style={({ pressed }) => [
               styles.saveBtn,
               pressed && { opacity: 0.85 },
             ]}
           >
-            <Text style={styles.saveBtnText}>Save & back</Text>
+            <Text style={styles.saveBtnText}>Done</Text>
           </Pressable>
         </ScrollView>
       </KeyboardAvoidingView>

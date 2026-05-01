@@ -1103,6 +1103,15 @@ export async function getNutritionGoalForDate(date: string): Promise<NutritionGo
   return { date, calorie_goal: DEFAULT_CALORIE_GOAL, protein_goal: DEFAULT_PROTEIN_GOAL, fat_goal: DEFAULT_FAT_GOAL, carbs_goal: DEFAULT_CARBS_GOAL };
 }
 
+export async function hasNutritionGoal(date: string): Promise<boolean> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ c: number }>(
+    'SELECT COUNT(*) AS c FROM nutrition_goals WHERE date <= ?',
+    [date],
+  );
+  return (row?.c ?? 0) > 0;
+}
+
 export async function setNutritionGoal(
   date: string,
   patch: { calorie_goal?: number; protein_goal?: number; fat_goal?: number; carbs_goal?: number },

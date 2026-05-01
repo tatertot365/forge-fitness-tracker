@@ -49,6 +49,7 @@ import {
   getMuscleGroupSetsThisWeek,
   getNutritionGoalForDate,
   getPhase,
+  hasNutritionGoal,
   getSessionsForWeek,
   getSkippedDaysThisWeek,
   getWeekSetLogCounts,
@@ -138,6 +139,7 @@ export default function TodayScreen() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [todayNutrition, setTodayNutrition] =
     useState<DailyNutritionTotal | null>(null);
+  const [nutritionGoalSet, setNutritionGoalSet] = useState(false);
   const [bodyStats, setBodyStats] = useState<{
     latest: Measurement | null;
     prev: Measurement | null;
@@ -196,6 +198,8 @@ export default function TodayScreen() {
       measurementOneWeekAgo(),
       getBodyGoals(),
     ]);
+    const hasGoal = await hasNutritionGoal(currentDate);
+    setNutritionGoalSet(hasGoal);
     const todaySessionId = w[currentDay]?.id;
     const completedSets = todaySessionId
       ? await getCompletedSetCountForSession(todaySessionId)
@@ -383,6 +387,7 @@ export default function TodayScreen() {
       {/* ── At-a-glance cards ── */}
       <MacroRingCard
         data={todayNutrition}
+        goalSet={nutritionGoalSet}
         onPress={() => router.push("/food" as any)}
       />
       <BodyStatsCard
@@ -979,11 +984,34 @@ const RING_CIRC = 2 * Math.PI * RING_RADIUS;
 
 function MacroRingCard({
   data,
+  goalSet,
   onPress,
 }: {
   data: DailyNutritionTotal | null;
+  goalSet: boolean;
   onPress: () => void;
 }) {
+  // No real goal set yet → show a CTA instead of fake-default rings, otherwise
+  // first-launch users log against placeholder targets that look real.
+  if (!goalSet) {
+    return (
+      <Pressable
+        onPress={onPress}
+        style={({ pressed }) => pressed && { opacity: 0.85 }}
+      >
+        <Card style={{ marginTop: 12 }}>
+          <View style={styles.glanceHeader}>
+            <Text style={styles.glanceTitle}>Today's nutrition</Text>
+            <Text style={styles.glanceNav}>Set goals →</Text>
+          </View>
+          <Text style={styles.macroEmptyText}>
+            Set your nutrition goals to start tracking macros against real
+            targets.
+          </Text>
+        </Card>
+      </Pressable>
+    );
+  }
   const macros = [
     {
       key: "cal",
@@ -1417,6 +1445,12 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
     color: colors.primary,
+  },
+  macroEmptyText: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+    marginTop: 6,
   },
 
   // Macro rings

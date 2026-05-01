@@ -1,5 +1,12 @@
 import React from 'react';
-import { ScrollView, StyleSheet, View, type ScrollViewProps } from 'react-native';
+import {
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  View,
+  type ScrollViewProps,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -25,13 +32,19 @@ export function Screen({ children, scroll = true, edges = ['top'], contentContai
 
   return (
     <SafeAreaView edges={edges} style={styles.root}>
-      {body}
+      <KeyboardAvoidingView
+        style={styles.fill}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        {body}
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  fill: { flex: 1 },
   content: {
     paddingHorizontal: spacing.screenX,
     paddingBottom: 120,

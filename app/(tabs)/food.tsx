@@ -103,6 +103,13 @@ export default function FoodScreen() {
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
   const [scanLookupBusy, setScanLookupBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const showToast = (msg: string) => {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(() => setToast(null), 3200);
+  };
 
   const today = todayISO();
 
@@ -266,6 +273,10 @@ export default function FoodScreen() {
           fat_goal: result.goals.fat_g,
           carbs_goal: result.goals.carbs_g,
         });
+        const phaseLabel = p === "cut" ? "cut" : p === "bulk" ? "bulk" : "maintain";
+        showToast(
+          `Goals updated for ${phaseLabel}: ${result.goals.calories} cal · ${result.goals.protein_g}P · ${result.goals.fat_g}F · ${result.goals.carbs_g}C`,
+        );
       }
     }
 
@@ -274,6 +285,7 @@ export default function FoodScreen() {
   };
 
   return (
+    <>
     <Screen>
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
@@ -338,7 +350,69 @@ export default function FoodScreen() {
         />
       </Card>
 
-      <SectionLabel>Log food</SectionLabel>
+      {/* Quick-add: scan / calculator promoted above the manual form so users
+          reach the lower-friction options first. */}
+      <SectionLabel>Add food</SectionLabel>
+      <View style={styles.quickAddRow}>
+        <Pressable
+          onPress={() => {
+            hapticTap();
+            setScannerVisible(true);
+          }}
+          style={({ pressed }) => [
+            styles.quickAddBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <ScanLine size={18} color={colors.primary} strokeWidth={2} />
+          <Text style={styles.quickAddText}>Scan barcode</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => {
+            hapticTap();
+            setCalcSheet(true);
+          }}
+          style={({ pressed }) => [
+            styles.quickAddBtn,
+            pressed && { opacity: 0.85 },
+          ]}
+        >
+          <Calculator size={18} color={colors.primary} strokeWidth={2} />
+          <Text style={styles.quickAddText}>Calculator</Text>
+        </Pressable>
+      </View>
+
+      {recents.length > 0 ? (
+        <>
+          <SectionLabel>Recent — tap to re-add</SectionLabel>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recentsRow}
+          >
+            {recents.map((r) => (
+              <Pressable
+                key={r.name}
+                onPress={() => onTapRecent(r)}
+                style={({ pressed }) => [
+                  styles.recentChip,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={styles.recentName} numberOfLines={1}>
+                  {r.name}
+                </Text>
+                <Text style={styles.recentMeta}>
+                  {Math.round(r.calories)} cal · P {Math.round(r.protein_g)}g ·
+                  F {Math.round(r.fat_g)}g · C {Math.round(r.carbs_g)}g
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </>
+      ) : null}
+
+      <SectionLabel>Or enter manually</SectionLabel>
       <Card>
         <Text style={styles.formLabel}>Name</Text>
         <TextInput
@@ -403,67 +477,7 @@ export default function FoodScreen() {
           <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
           <Text style={styles.addBtnText}>Add</Text>
         </Pressable>
-        <View style={styles.secondaryBtnRow}>
-          <Pressable
-            onPress={() => {
-              hapticTap();
-              setCalcSheet(true);
-            }}
-            style={({ pressed }) => [
-              styles.calcBtn,
-              { flex: 1 },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Calculator size={14} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.calcBtnText}>Calculate macros</Text>
-          </Pressable>
-          <Pressable
-            onPress={() => {
-              hapticTap();
-              setScannerVisible(true);
-            }}
-            style={({ pressed }) => [
-              styles.calcBtn,
-              { flex: 1 },
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <ScanLine size={14} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.calcBtnText}>Scan barcode</Text>
-          </Pressable>
-        </View>
       </Card>
-
-      {recents.length > 0 ? (
-        <>
-          <SectionLabel>Recent — tap to re-add</SectionLabel>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.recentsRow}
-          >
-            {recents.map((r) => (
-              <Pressable
-                key={r.name}
-                onPress={() => onTapRecent(r)}
-                style={({ pressed }) => [
-                  styles.recentChip,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Text style={styles.recentName} numberOfLines={1}>
-                  {r.name}
-                </Text>
-                <Text style={styles.recentMeta}>
-                  {Math.round(r.calories)} cal · P {Math.round(r.protein_g)}g ·
-                  F {Math.round(r.fat_g)}g · C {Math.round(r.carbs_g)}g
-                </Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        </>
-      ) : null}
 
       <SectionLabel>Today&apos;s log</SectionLabel>
       <Card padded={false}>
@@ -569,6 +583,16 @@ export default function FoodScreen() {
         }}
       />
     </Screen>
+    {toast ? (
+      <View pointerEvents="none" style={styles.toastWrap}>
+        <View style={styles.toast}>
+          <Text style={styles.toastText} numberOfLines={2}>
+            {toast}
+          </Text>
+        </View>
+      </View>
+    ) : null}
+    </>
   );
 }
 
@@ -2400,6 +2424,24 @@ const styles = StyleSheet.create({
   },
   calcBtnText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
 
+  quickAddRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  quickAddBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: radius.card,
+    backgroundColor: colors.primary + "15",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary + "40",
+  },
+  quickAddText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+
   calcSectionLabel: {
     fontSize: 11,
     color: colors.textSecondary,
@@ -2537,6 +2579,30 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     marginTop: 8,
     lineHeight: 17,
+  },
+
+  toastWrap: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 100,
+    alignItems: "center",
+    paddingHorizontal: 24,
+  },
+  toast: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.borderStrong,
+    maxWidth: "100%",
+  },
+  toastText: {
+    color: colors.text,
+    fontSize: 13,
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
 

@@ -105,6 +105,7 @@ export default function MeasureScreen() {
   const [prior, setPrior] = useState<Measurement | null>(null);
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Inputs, true>>>({});
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
@@ -190,15 +191,20 @@ export default function MeasureScreen() {
       chest_in: parseField(inputs.chest_in),
       quads_in: parseField(inputs.quads_in),
     };
+    const errs: Partial<Record<keyof Inputs, true>> = {};
     for (const [k, v] of Object.entries(parsed) as [
       keyof typeof parsed,
       number | null,
     ][]) {
       if (inputs[k].trim() !== "" && v == null) {
-        Alert.alert(`Invalid value for ${k}`);
-        return;
+        errs[k] = true;
       }
     }
+    if (Object.keys(errs).length > 0) {
+      setFieldErrors(errs);
+      return;
+    }
+    setFieldErrors({});
     const today = todayISO();
     await upsertMeasurement(today, parsed);
 
@@ -599,42 +605,74 @@ export default function MeasureScreen() {
                   <Text style={styles.formLabel}>Weight (lbs)</Text>
                   <TextInput
                     value={inputs.weight_lb}
-                    onChangeText={(t: string) =>
-                      setInputs((p) => ({ ...p, weight_lb: t }))
-                    }
+                    onChangeText={(t: string) => {
+                      setInputs((p) => ({ ...p, weight_lb: t }));
+                      if (fieldErrors.weight_lb)
+                        setFieldErrors((e) => ({ ...e, weight_lb: undefined }));
+                    }}
                     keyboardType="decimal-pad"
-                    style={[styles.input, styles.sheetInput]}
+                    style={[
+                      styles.input,
+                      styles.sheetInput,
+                      fieldErrors.weight_lb && styles.inputError,
+                    ]}
                     placeholder="optional"
                     placeholderTextColor={colors.textMuted}
                   />
+                  {fieldErrors.weight_lb ? (
+                    <Text style={styles.errorText}>Enter a valid number</Text>
+                  ) : null}
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.formLabel}>Body fat (%)</Text>
                   <TextInput
                     value={inputs.body_fat_pct}
-                    onChangeText={(t: string) =>
-                      setInputs((p) => ({ ...p, body_fat_pct: t }))
-                    }
+                    onChangeText={(t: string) => {
+                      setInputs((p) => ({ ...p, body_fat_pct: t }));
+                      if (fieldErrors.body_fat_pct)
+                        setFieldErrors((e) => ({
+                          ...e,
+                          body_fat_pct: undefined,
+                        }));
+                    }}
                     keyboardType="decimal-pad"
-                    style={[styles.input, styles.sheetInput]}
+                    style={[
+                      styles.input,
+                      styles.sheetInput,
+                      fieldErrors.body_fat_pct && styles.inputError,
+                    ]}
                     placeholder="optional"
                     placeholderTextColor={colors.textMuted}
                   />
+                  {fieldErrors.body_fat_pct ? (
+                    <Text style={styles.errorText}>Enter a valid number</Text>
+                  ) : null}
                 </View>
               </View>
               {CIRC_FIELDS.map((f) => (
                 <View key={f.key} style={[styles.formRow, { marginTop: 10 }]}>
-                  <Text style={styles.formLabel}>{f.label} (inches)</Text>
-                  <TextInput
-                    value={inputs[f.key]}
-                    onChangeText={(t: string) =>
-                      setInputs((p) => ({ ...p, [f.key]: t }))
-                    }
-                    keyboardType="decimal-pad"
-                    style={[styles.input, styles.sheetInput]}
-                    placeholder="optional"
-                    placeholderTextColor={colors.textMuted}
-                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.formLabel}>{f.label} (inches)</Text>
+                    <TextInput
+                      value={inputs[f.key]}
+                      onChangeText={(t: string) => {
+                        setInputs((p) => ({ ...p, [f.key]: t }));
+                        if (fieldErrors[f.key])
+                          setFieldErrors((e) => ({ ...e, [f.key]: undefined }));
+                      }}
+                      keyboardType="decimal-pad"
+                      style={[
+                        styles.input,
+                        styles.sheetInput,
+                        fieldErrors[f.key] && styles.inputError,
+                      ]}
+                      placeholder="optional"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                    {fieldErrors[f.key] ? (
+                      <Text style={styles.errorText}>Enter a valid number</Text>
+                    ) : null}
+                  </View>
                 </View>
               ))}
               <Pressable
@@ -790,6 +828,10 @@ function BodyGoalsSheet({
     const b = parseField(bfInput);
     if (weightInput.trim() !== "" && w == null) {
       Alert.alert("Enter a valid weight goal");
+      return;
+    }
+    if (w != null && (w < 50 || w > 700)) {
+      Alert.alert("Weight goal should be between 50 and 700 lb");
       return;
     }
     if (bfInput.trim() !== "" && b == null) {
@@ -1073,6 +1115,15 @@ function parseField(v: string): number | null {
 // ─── Styles ─────────────────────────────���─────────────────────────────
 
 const styles = StyleSheet.create({
+  inputError: {
+    borderColor: colors.red,
+    borderWidth: 1,
+  },
+  errorText: {
+    color: colors.red,
+    fontSize: 12,
+    marginTop: 4,
+  },
   header: {
     flexDirection: "row",
     alignItems: "center",

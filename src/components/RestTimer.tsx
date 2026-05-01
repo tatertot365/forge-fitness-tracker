@@ -10,6 +10,18 @@ export const REST_PRESETS = [60, 120, 180, 300] as const;
 export type RestPreset = (typeof REST_PRESETS)[number];
 const DEFAULT_PRESET: RestPreset = 60;
 
+// Module-level state so the timer survives navigation (component unmount /
+// remount). Cleared on stop or when the timer fires. App-kill recovery is
+// handled by the scheduled local notification, not this state.
+type TimerState = {
+  preset: RestPreset;
+  endTime: number | null;
+  pausedSecs: number | null;
+  notifId: string | null;
+};
+let saved: TimerState | null = null;
+let lastAutoStartKeySeen: number | null = null;
+
 type Props = {
   defaultSeconds?: RestPreset;
   onPresetChange?: (seconds: RestPreset) => void;
@@ -17,17 +29,31 @@ type Props = {
 };
 
 export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, autoStartKey }: Props) {
-  const [preset, setPreset] = useState<RestPreset>(defaultSeconds);
+  const [preset, setPreset] = useState<RestPreset>(saved?.preset ?? defaultSeconds);
 
   // endTime: epoch ms when countdown reaches zero (null = idle or paused)
   // pausedSecs: seconds left when paused (null = not paused)
   // displaySecs: what we show; updated on every tick from Date.now()
-  const [endTime, setEndTime] = useState<number | null>(null);
-  const [pausedSecs, setPausedSecs] = useState<number | null>(null);
-  const [displaySecs, setDisplaySecs] = useState<number | null>(null);
+  const [endTime, setEndTime] = useState<number | null>(saved?.endTime ?? null);
+  const [pausedSecs, setPausedSecs] = useState<number | null>(saved?.pausedSecs ?? null);
+  const [displaySecs, setDisplaySecs] = useState<number | null>(() => {
+    if (saved?.endTime != null) {
+      return Math.max(0, Math.ceil((saved.endTime - Date.now()) / 1000));
+    }
+    return saved?.pausedSecs ?? null;
+  });
 
-  const notifId = useRef<string | null>(null);
+  const notifId = useRef<string | null>(saved?.notifId ?? null);
   const fired = useRef(false);
+
+  // Sync module-level snapshot whenever the relevant pieces change.
+  useEffect(() => {
+    if (endTime == null && pausedSecs == null) {
+      saved = null;
+    } else {
+      saved = { preset, endTime, pausedSecs, notifId: notifId.current };
+    }
+  }, [preset, endTime, pausedSecs]);
 
   const active = endTime != null || pausedSecs != null;
   const isPaused = endTime == null && pausedSecs != null;
@@ -55,17 +81,23 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
     if (notifId.current) {
       await cancelRestNotification(notifId.current);
       notifId.current = null;
+      if (saved) saved.notifId = null;
     }
   };
 
   const scheduleNotif = async (seconds: number) => {
     await cancelNotif();
     notifId.current = await scheduleRestComplete(seconds);
+    if (saved) saved.notifId = notifId.current;
   };
 
-  // Auto-start when a set is completed
+  // Auto-start when a set is completed. Module-level guard so a remount with
+  // the same key (e.g. navigating away and back) doesn't reseed an already-
+  // running timer.
   useEffect(() => {
     if (autoStartKey == null) return;
+    if (lastAutoStartKeySeen === autoStartKey) return;
+    lastAutoStartKeySeen = autoStartKey;
     fired.current = false;
     const end = Date.now() + preset * 1000;
     setEndTime(end);

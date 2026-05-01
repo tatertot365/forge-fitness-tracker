@@ -298,7 +298,7 @@ export default function FoodScreen() {
         <PhasePills value={phase} onChange={onChangePhase} />
       </View>
 
-      <Card>
+      <Card style={{ marginTop: 12 }}>
         <GoalRow
           icon={<Flame size={14} color={colors.red} strokeWidth={2} />}
           label="Calories"

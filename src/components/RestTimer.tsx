@@ -60,9 +60,13 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
   const remaining = isPaused ? pausedSecs : displaySecs;
   const done = active && !isPaused && remaining != null && remaining <= 0;
 
-  // Tick from wall clock — accurate even after backgrounding
+  // Tick from wall clock — accurate even after backgrounding. Once the timer
+  // hits zero, stop the interval so a stale tick can't race a fresh restart
+  // (e.g. user completes another set while "Done" is showing) and overwrite
+  // the new countdown back to 0.
   useEffect(() => {
     if (endTime == null) return;
+    let id: ReturnType<typeof setInterval> | null = null;
     const tick = () => {
       const r = Math.ceil((endTime - Date.now()) / 1000);
       const clamped = Math.max(0, r);
@@ -71,10 +75,18 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
         fired.current = true;
         hapticSuccess();
       }
+      if (clamped <= 0 && id != null) {
+        clearInterval(id);
+        id = null;
+      }
     };
     tick();
-    const id = setInterval(tick, 500);
-    return () => clearInterval(id);
+    if (endTime - Date.now() > 0) {
+      id = setInterval(tick, 500);
+    }
+    return () => {
+      if (id != null) clearInterval(id);
+    };
   }, [endTime]);
 
   const cancelNotif = async () => {
@@ -91,12 +103,16 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
     if (saved) saved.notifId = notifId.current;
   };
 
-  // Auto-start when a set is completed. Module-level guard so a remount with
-  // the same key (e.g. navigating away and back) doesn't reseed an already-
-  // running timer.
+  // Auto-start when a set is completed. The module-level guard only blocks the
+  // FIRST mount with an already-seen key (e.g. nav away and back while the
+  // timer is running). After mount we compare against a per-instance ref so
+  // every subsequent prop change restarts the timer — otherwise completing a
+  // new set after the previous timer reached "Done" would silently no-op.
+  const lastSeenLocal = useRef<number | null>(lastAutoStartKeySeen);
   useEffect(() => {
     if (autoStartKey == null) return;
-    if (lastAutoStartKeySeen === autoStartKey) return;
+    if (lastSeenLocal.current === autoStartKey) return;
+    lastSeenLocal.current = autoStartKey;
     lastAutoStartKeySeen = autoStartKey;
     fired.current = false;
     const end = Date.now() + preset * 1000;

@@ -129,25 +129,64 @@ export async function fetchRecentWorkoutMetrics(): Promise<HealthMetrics> {
     avgHr = null;
   }
 
+  // Calories: try the workout summary itself first. Apple Watch and the
+  // Fitness app populate `totalEnergyBurned` directly on the workout, and
+  // strength-training workouts often don't emit per-interval ActiveEnergyBurned
+  // samples — querying samples returns nothing while the workout's own total
+  // is correct. Fall back through statistics, then a sample-window query, so
+  // manually-logged workouts still resolve.
   let calories: number | null = null;
   try {
-    const samples = await HK.queryQuantitySamples(
-      'HKQuantityTypeIdentifierActiveEnergyBurned',
-      {
-        from: startDate,
-        to: endDate,
-        ascending: true,
-      },
-    );
-    if (samples?.length) {
-      const sum = samples.reduce(
-        (s: number, x: any) => s + (x.quantity ?? 0),
-        0,
-      );
-      calories = Math.round(sum);
+    const total = workout.totalEnergyBurned;
+    if (total && typeof total.quantity === 'number') {
+      // unit is typically 'kcal'; convert from kJ if HealthKit hands one back.
+      const unit = String(total.unit ?? '').toLowerCase();
+      const kcal =
+        unit === 'kj' || unit === 'kj/min'
+          ? total.quantity / 4.184
+          : total.quantity;
+      if (kcal > 0) calories = Math.round(kcal);
     }
   } catch {
-    calories = null;
+    /* fall through */
+  }
+
+  if (calories == null && typeof workout.getStatistic === 'function') {
+    try {
+      const stat = await workout.getStatistic(
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
+        'kcal',
+      );
+      const sum = stat?.sumQuantity?.quantity;
+      if (typeof sum === 'number' && sum > 0) {
+        calories = Math.round(sum);
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (calories == null) {
+    try {
+      const samples = await HK.queryQuantitySamples(
+        'HKQuantityTypeIdentifierActiveEnergyBurned',
+        {
+          from: startDate,
+          to: endDate,
+          ascending: true,
+          unit: 'kcal',
+        },
+      );
+      if (samples?.length) {
+        const sum = samples.reduce(
+          (s: number, x: any) => s + (x.quantity ?? 0),
+          0,
+        );
+        if (sum > 0) calories = Math.round(sum);
+      }
+    } catch {
+      calories = null;
+    }
   }
 
   return { durationMinutes, avgHr, calories };

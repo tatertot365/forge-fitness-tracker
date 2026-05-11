@@ -56,6 +56,7 @@ import {
   getWeekTotalSetCounts,
   isHealthKitAsked,
   latestMeasurement,
+  startingMeasurement,
   markHealthKitAsked,
   measurementOneWeekAgo,
   setCardioInfo as saveCardioInfo,
@@ -65,7 +66,6 @@ import {
   type CardioInfo,
 } from "../../src/db/queries";
 import {
-  initHealthKit,
   isHealthKitAvailable,
   requestHealthKitAccess,
   verifyHealthKitAccess,
@@ -143,7 +143,8 @@ export default function TodayScreen() {
   const [bodyStats, setBodyStats] = useState<{
     latest: Measurement | null;
     prev: Measurement | null;
-  }>({ latest: null, prev: null });
+    start: { weight_lb: number | null; body_fat_pct: number | null };
+  }>({ latest: null, prev: null, start: { weight_lb: null, body_fat_pct: null } });
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
     goal_body_fat_pct: null,
@@ -178,6 +179,7 @@ export default function TodayScreen() {
       nutritionGoal,
       latestM,
       prevM,
+      startM,
       goals,
     ] = await Promise.all([
       getPhase(),
@@ -196,6 +198,7 @@ export default function TodayScreen() {
       getNutritionGoalForDate(currentDate),
       latestMeasurement(),
       measurementOneWeekAgo(),
+      startingMeasurement(),
       getBodyGoals(),
     ]);
     const hasGoal = await hasNutritionGoal(currentDate);
@@ -213,9 +216,6 @@ export default function TodayScreen() {
     setTodayCompletedSets(completedSets);
     setDayPlans(plans);
     setShowHealthConnect(!hkAsked && isHealthKitAvailable());
-    // Always trigger the native permission sheet on load so a fresh install
-    // gets prompted even if healthkit_asked was set from a prior build.
-    if (isHealthKitAvailable()) initHealthKit();
     setSkippedDays(skips);
     setWeekLogCounts(logCounts);
     setWeekTotalSetCounts(totalCounts);
@@ -232,7 +232,7 @@ export default function TodayScreen() {
       fat_goal: nutritionGoal.fat_goal,
       carbs_goal: nutritionGoal.carbs_goal,
     });
-    setBodyStats({ latest: latestM, prev: prevM });
+    setBodyStats({ latest: latestM, prev: prevM, start: startM });
     setBodyGoalsState(goals);
   }, []);
 
@@ -1116,34 +1116,71 @@ function BodyStatsCard({
   goals,
   onPress,
 }: {
-  data: { latest: Measurement | null; prev: Measurement | null };
+  data: {
+    latest: Measurement | null;
+    prev: Measurement | null;
+    start: { weight_lb: number | null; body_fat_pct: number | null };
+  };
   goals: BodyGoals;
   onPress: () => void;
 }) {
-  const { latest } = data;
+  const { latest, start } = data;
   const hasGoals =
     goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
 
-  const weightPct =
-    latest?.weight_lb != null &&
-    goals.goal_weight_lb != null &&
-    goals.goal_weight_lb > 0
-      ? Math.min(1, goals.goal_weight_lb / latest.weight_lb)
-      : null;
+  // Progress is fraction of distance moved from start toward goal. Works in
+  // either direction (cut or bulk) and clamps to [0, 1] so an overshoot still
+  // shows as "Goal reached".
+  const progressFrom = (
+    startVal: number | null,
+    current: number | null,
+    goal: number | null,
+  ): number | null => {
+    if (startVal == null || current == null || goal == null) return null;
+    if (startVal === goal) return current === goal ? 1 : 0;
+    const pct = (startVal - current) / (startVal - goal);
+    return Math.max(0, Math.min(1, pct));
+  };
+  const goalReached = (
+    current: number | null,
+    goal: number | null,
+    startVal: number | null,
+  ): boolean => {
+    if (current == null || goal == null) return false;
+    // Direction inferred from start vs goal; without a start, fall back to
+    // treating equal-or-better as reached only when current matches exactly.
+    if (startVal == null) return current === goal;
+    return startVal > goal ? current <= goal : current >= goal;
+  };
+
+  const weightPct = progressFrom(
+    start.weight_lb,
+    latest?.weight_lb ?? null,
+    goals.goal_weight_lb,
+  );
+  const weightReached = goalReached(
+    latest?.weight_lb ?? null,
+    goals.goal_weight_lb,
+    start.weight_lb,
+  );
   const weightRemain =
     latest?.weight_lb != null && goals.goal_weight_lb != null
-      ? +(latest.weight_lb - goals.goal_weight_lb).toFixed(1)
+      ? +Math.abs(latest.weight_lb - goals.goal_weight_lb).toFixed(1)
       : null;
 
-  const bfPct =
-    latest?.body_fat_pct != null &&
-    goals.goal_body_fat_pct != null &&
-    goals.goal_body_fat_pct > 0
-      ? Math.min(1, goals.goal_body_fat_pct / latest.body_fat_pct)
-      : null;
+  const bfPct = progressFrom(
+    start.body_fat_pct,
+    latest?.body_fat_pct ?? null,
+    goals.goal_body_fat_pct,
+  );
+  const bfReached = goalReached(
+    latest?.body_fat_pct ?? null,
+    goals.goal_body_fat_pct,
+    start.body_fat_pct,
+  );
   const bfRemain =
     latest?.body_fat_pct != null && goals.goal_body_fat_pct != null
-      ? +(latest.body_fat_pct - goals.goal_body_fat_pct).toFixed(1)
+      ? +Math.abs(latest.body_fat_pct - goals.goal_body_fat_pct).toFixed(1)
       : null;
 
   return (
@@ -1172,13 +1209,13 @@ function BodyStatsCard({
                 goal={`${goals.goal_weight_lb} lb`}
                 progress={weightPct}
                 remain={
-                  weightRemain != null && weightRemain > 0
-                    ? `${weightRemain} lb to go`
-                    : weightRemain != null && weightRemain <= 0
-                      ? "Goal reached"
+                  weightReached
+                    ? "Goal reached"
+                    : weightRemain != null
+                      ? `${weightRemain} lb to go`
                       : null
                 }
-                reached={weightRemain != null && weightRemain <= 0}
+                reached={weightReached}
               />
             )}
             {goals.goal_body_fat_pct != null && (
@@ -1190,13 +1227,13 @@ function BodyStatsCard({
                 goal={`${goals.goal_body_fat_pct}%`}
                 progress={bfPct}
                 remain={
-                  bfRemain != null && bfRemain > 0
-                    ? `${bfRemain}% to go`
-                    : bfRemain != null && bfRemain <= 0
-                      ? "Goal reached"
+                  bfReached
+                    ? "Goal reached"
+                    : bfRemain != null
+                      ? `${bfRemain}% to go`
                       : null
                 }
-                reached={bfRemain != null && bfRemain <= 0}
+                reached={bfReached}
               />
             )}
           </View>

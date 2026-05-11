@@ -13,11 +13,12 @@ import {
   X,
   Zap,
 } from "lucide-react-native";
-import React, { useCallback, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActionSheetIOS,
   ActivityIndicator,
   Alert,
+  AppState,
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
@@ -108,15 +109,20 @@ export default function FoodScreen() {
   const showToast = (msg: string) => {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(msg);
-    toastTimer.current = setTimeout(() => setToast(null), 3200);
+    toastTimer.current = setTimeout(() => setToast(null), 5000);
   };
 
-  const today = todayISO();
+  const [today, setToday] = useState<string>(() => todayISO());
 
   const load = useCallback(async () => {
+    // Recompute the current date up-front so an open-tab-across-midnight
+    // doesn't keep writing entries against yesterday.
+    const currentDate = todayISO();
+    setToday(currentDate);
+
     const [g, e, r, t, p] = await Promise.all([
-      getNutritionGoalForDate(today),
-      getFoodEntriesForDate(today),
+      getNutritionGoalForDate(currentDate),
+      getFoodEntriesForDate(currentDate),
       getFoodRecents(12),
       getDailyNutritionTotals(14),
       getPhase(),
@@ -126,13 +132,20 @@ export default function FoodScreen() {
     setRecents(r);
     setTotals(t);
     setPhaseState(p);
-  }, [today]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
       load();
     }, [load]),
   );
+
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const totalCals = entries.reduce((s, e) => s + e.calories, 0);
   const totalProtein = entries.reduce((s, e) => s + e.protein_g, 0);
@@ -274,9 +287,10 @@ export default function FoodScreen() {
           carbs_goal: result.goals.carbs_g,
         });
         const phaseLabel = p === "cut" ? "cut" : p === "bulk" ? "bulk" : "maintain";
-        showToast(
-          `Goals updated for ${phaseLabel}: ${result.goals.calories} cal · ${result.goals.protein_g}P · ${result.goals.fat_g}F · ${result.goals.carbs_g}C`,
-        );
+        const base = `Goals updated for ${phaseLabel}: ${result.goals.calories} cal · ${result.goals.protein_g}P · ${result.goals.fat_g}F · ${result.goals.carbs_g}C`;
+        // Surface floor / protein-trim notes from the calculator so the user
+        // sees when their target was adjusted away from the raw formula.
+        showToast(result.note ? `${base}\n${result.note}` : base);
       }
     }
 
@@ -586,7 +600,7 @@ export default function FoodScreen() {
     {toast ? (
       <View pointerEvents="none" style={styles.toastWrap}>
         <View style={styles.toast}>
-          <Text style={styles.toastText} numberOfLines={2}>
+          <Text style={styles.toastText} numberOfLines={4}>
             {toast}
           </Text>
         </View>

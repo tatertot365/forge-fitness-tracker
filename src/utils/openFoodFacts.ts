@@ -35,11 +35,11 @@ export async function lookupBarcode(barcode: string): Promise<FoodFactsResult> {
   const productName: string = (product.product_name ?? '').trim();
 
   // Prefer per-serving values; fall back to per-100g
-  const hasServing = n['energy-kcal_serving'] != null;
+  const hasServing = n['energy-kcal_serving'] != null || n['energy-kj_serving'] != null;
   const suffix = hasServing ? '_serving' : '_100g';
-  const calories = n[`energy-kcal${suffix}`] ?? n[`energy-kj${suffix}`] != null
-    ? n[`energy-kcal${suffix}`]
-    : null;
+  const kcal = n[`energy-kcal${suffix}`];
+  const kj = n[`energy-kj${suffix}`];
+  const calories = kcal != null ? kcal : kj != null ? kj / 4.184 : null;
 
   if (calories == null && n[`proteins${suffix}`] == null) {
     // Product found but no usable nutrition data
@@ -54,7 +54,7 @@ export async function lookupBarcode(barcode: string): Promise<FoodFactsResult> {
     found: true,
     productName: productName || 'Unknown product',
     servingDescription,
-    caloriesPerServing: Math.round(n[`energy-kcal${suffix}`] ?? 0),
+    caloriesPerServing: Math.round(calories ?? 0),
     proteinPerServing: round1(n[`proteins${suffix}`] ?? 0),
     fatPerServing: round1(n[`fat${suffix}`] ?? 0),
     carbsPerServing: round1(n[`carbohydrates${suffix}`] ?? 0),

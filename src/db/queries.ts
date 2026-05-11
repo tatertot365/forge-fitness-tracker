@@ -453,31 +453,6 @@ export async function deleteExercisesByName(name: string): Promise<void> {
   await db.runAsync('DELETE FROM exercises WHERE LOWER(name) = LOWER(?)', [name.trim()]);
 }
 
-export async function duplicateExercise(id: number): Promise<number | null> {
-  const db = await getDb();
-  const ex = await getExercise(id);
-  if (!ex) return null;
-  await db.runAsync(
-    'UPDATE day_exercises SET sort_order = sort_order + 1 WHERE day = ? AND sort_order > ?',
-    [ex.day, ex.sort_order],
-  );
-  const result = await db.runAsync(
-    `INSERT INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [
-      ex.day,
-      ex.exercise_id,
-      ex.sets,
-      ex.warmup_sets,
-      ex.rep_range,
-      ex.sort_order + 1,
-      ex.type ?? 'normal',
-    ],
-  );
-  return result.lastInsertRowId as number;
-}
-
-
 // Keep old names as aliases for components that haven't been updated yet
 export async function getAllUniqueExercises(): Promise<LibraryExercise[]> {
   return getLibraryExercises();
@@ -1237,6 +1212,23 @@ export async function latestMeasurement(): Promise<Measurement | null> {
   return (await db.getFirstAsync<Measurement>(
     'SELECT * FROM measurements ORDER BY date DESC LIMIT 1',
   )) ?? null;
+}
+
+export async function startingMeasurement(): Promise<{
+  weight_lb: number | null;
+  body_fat_pct: number | null;
+}> {
+  const db = await getDb();
+  const w = await db.getFirstAsync<{ weight_lb: number | null }>(
+    'SELECT weight_lb FROM measurements WHERE weight_lb IS NOT NULL ORDER BY date ASC LIMIT 1',
+  );
+  const b = await db.getFirstAsync<{ body_fat_pct: number | null }>(
+    'SELECT body_fat_pct FROM measurements WHERE body_fat_pct IS NOT NULL ORDER BY date ASC LIMIT 1',
+  );
+  return {
+    weight_lb: w?.weight_lb ?? null,
+    body_fat_pct: b?.body_fat_pct ?? null,
+  };
 }
 
 export async function measurementOneWeekAgo(): Promise<Measurement | null> {

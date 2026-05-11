@@ -72,6 +72,20 @@ const CIRC_FIELDS: CircField[] = [
   { key: "quads_in", label: "Quads", goodOnIncrease: true },
 ];
 
+// Sanity ranges — block save outside these to prevent typos flowing into macros.
+const RANGES: Record<keyof Inputs, { min: number; max: number; label: string }> = {
+  weight_lb:      { min: 50, max: 700, label: "Weight should be 50–700 lb" },
+  body_fat_pct:   { min: 3,  max: 60,  label: "Body fat should be 3–60%" },
+  shoulders_in:   { min: 5,  max: 80,  label: "Shoulders should be 5–80 in" },
+  waist_in:       { min: 5,  max: 80,  label: "Waist should be 5–80 in" },
+  arms_flexed_in: { min: 5,  max: 80,  label: "Arms should be 5–80 in" },
+  chest_in:       { min: 5,  max: 80,  label: "Chest should be 5–80 in" },
+  quads_in:       { min: 5,  max: 80,  label: "Quads should be 5–80 in" },
+};
+
+const HEIGHT_RANGE = { min: 36, max: 96, label: "Height should be 36–96 in" };
+const AGE_RANGE = { min: 13, max: 100, label: "Age must be 13–100" };
+
 type Inputs = {
   weight_lb: string;
   body_fat_pct: string;
@@ -105,7 +119,7 @@ export default function MeasureScreen() {
   const [prior, setPrior] = useState<Measurement | null>(null);
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
-  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Inputs, true>>>({});
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Inputs, string>>>({});
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
@@ -191,13 +205,20 @@ export default function MeasureScreen() {
       chest_in: parseField(inputs.chest_in),
       quads_in: parseField(inputs.quads_in),
     };
-    const errs: Partial<Record<keyof Inputs, true>> = {};
+    const errs: Partial<Record<keyof Inputs, string>> = {};
     for (const [k, v] of Object.entries(parsed) as [
       keyof typeof parsed,
       number | null,
     ][]) {
       if (inputs[k].trim() !== "" && v == null) {
-        errs[k] = true;
+        errs[k] = "Enter a valid number";
+        continue;
+      }
+      if (v != null) {
+        const r = RANGES[k];
+        if (v < r.min || v > r.max) {
+          errs[k] = r.label;
+        }
       }
     }
     if (Object.keys(errs).length > 0) {
@@ -367,7 +388,15 @@ export default function MeasureScreen() {
                 onChangeText={setHeightInput}
                 onBlur={async () => {
                   const v = parseField(heightInput);
-                  if (v != null) await saveProfile({ height_in: v });
+                  if (v == null) return;
+                  if (v < HEIGHT_RANGE.min || v > HEIGHT_RANGE.max) {
+                    Alert.alert(HEIGHT_RANGE.label);
+                    setHeightInput(
+                      profile.height_in != null ? String(profile.height_in) : "",
+                    );
+                    return;
+                  }
+                  await saveProfile({ height_in: v });
                 }}
                 keyboardType="decimal-pad"
                 style={styles.input}
@@ -400,11 +429,18 @@ export default function MeasureScreen() {
                   maximumDate={new Date()}
                   textColor="#FFFFFF"
                   onChange={async (_, date) => {
-                    if (date) {
-                      setDobDate(date);
-                      const iso = toISODate(date);
-                      await saveProfile({ dob: iso });
+                    if (!date) return;
+                    const age = Math.floor(
+                      (Date.now() - date.getTime()) /
+                        (365.25 * 24 * 3600 * 1000),
+                    );
+                    if (age < AGE_RANGE.min || age > AGE_RANGE.max) {
+                      Alert.alert(AGE_RANGE.label);
+                      return;
                     }
+                    setDobDate(date);
+                    const iso = toISODate(date);
+                    await saveProfile({ dob: iso });
                   }}
                   style={{ marginTop: 4 }}
                 />
@@ -620,7 +656,7 @@ export default function MeasureScreen() {
                     placeholderTextColor={colors.textMuted}
                   />
                   {fieldErrors.weight_lb ? (
-                    <Text style={styles.errorText}>Enter a valid number</Text>
+                    <Text style={styles.errorText}>{fieldErrors.weight_lb}</Text>
                   ) : null}
                 </View>
                 <View style={{ flex: 1 }}>
@@ -645,7 +681,7 @@ export default function MeasureScreen() {
                     placeholderTextColor={colors.textMuted}
                   />
                   {fieldErrors.body_fat_pct ? (
-                    <Text style={styles.errorText}>Enter a valid number</Text>
+                    <Text style={styles.errorText}>{fieldErrors.body_fat_pct}</Text>
                   ) : null}
                 </View>
               </View>
@@ -670,7 +706,7 @@ export default function MeasureScreen() {
                       placeholderTextColor={colors.textMuted}
                     />
                     {fieldErrors[f.key] ? (
-                      <Text style={styles.errorText}>Enter a valid number</Text>
+                      <Text style={styles.errorText}>{fieldErrors[f.key]}</Text>
                     ) : null}
                   </View>
                 </View>

@@ -1,7 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ChevronLeft,
-  Copy,
   Minus,
   Pencil,
   Plus,
@@ -33,7 +32,6 @@ import {
   bestSet,
   deleteExercise,
   deleteSetLog,
-  duplicateExercise,
   getExercise,
   getExerciseSessionHistory,
   getExercisesByDay,
@@ -243,72 +241,85 @@ export default function ExerciseDetailScreen() {
   const ctxRef = useRef({ sessionId, exercise });
   ctxRef.current = { sessionId, exercise };
 
-  const persistTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(
-    new Map(),
-  );
+  // Each pending edit captures its sessionId+exercise+row at schedule time, so
+  // a navigation to a superset partner (which swaps the screen's state without
+  // unmounting) can't re-target a write to the wrong exercise or lose it.
+  type Pending = { write: () => void; timer: ReturnType<typeof setTimeout> };
+  const pendingWrites = useRef<Map<string, Pending>>(new Map());
 
-  const flushRowNow = (idx: number) => {
-    const { sessionId: sid, exercise: ex } = ctxRef.current;
-    if (!sid || !ex) return;
-    const r = rowsRef.current[idx];
-    if (!r) return;
-    upsertSetLog(sid, ex.id, r.setNumber, rowToPatch(r, ex.type === "drop"));
-  };
-
-  const flushWarmupNow = (idx: number) => {
-    const { sessionId: sid, exercise: ex } = ctxRef.current;
-    if (!sid || !ex) return;
-    const r = warmupRowsRef.current[idx];
-    if (!r) return;
-    const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
-    upsertSetLog(sid, ex.id, r.setNumber, {
-      weight_lb: toNum(r.weight),
-      reps: toNum(r.reps),
-      completed: 0,
+  const flushAllPending = () => {
+    const map = pendingWrites.current;
+    map.forEach(({ write, timer }) => {
+      clearTimeout(timer);
+      write();
     });
+    map.clear();
   };
 
   const schedulePersistRow = (idx: number) => {
-    const key = `r:${idx}`;
-    const timers = persistTimers.current;
-    const existing = timers.get(key);
-    if (existing) clearTimeout(existing);
-    timers.set(
-      key,
-      setTimeout(() => {
-        timers.delete(key);
-        flushRowNow(idx);
-      }, 400),
-    );
+    const sid = ctxRef.current.sessionId;
+    const ex = ctxRef.current.exercise;
+    const r = rowsRef.current[idx];
+    if (!sid || !ex || !r) return;
+    const rowSnap = { ...r };
+    const isDrop = ex.type === "drop";
+    const exId = ex.id;
+    const write = () => {
+      upsertSetLog(sid, exId, rowSnap.setNumber, rowToPatch(rowSnap, isDrop));
+    };
+    const key = `r:${exId}:${idx}`;
+    const map = pendingWrites.current;
+    const existing = map.get(key);
+    if (existing) clearTimeout(existing.timer);
+    const timer = setTimeout(() => {
+      map.delete(key);
+      write();
+    }, 400);
+    map.set(key, { write, timer });
   };
 
   const schedulePersistWarmup = (idx: number) => {
-    const key = `w:${idx}`;
-    const timers = persistTimers.current;
-    const existing = timers.get(key);
-    if (existing) clearTimeout(existing);
-    timers.set(
-      key,
-      setTimeout(() => {
-        timers.delete(key);
-        flushWarmupNow(idx);
-      }, 400),
-    );
+    const sid = ctxRef.current.sessionId;
+    const ex = ctxRef.current.exercise;
+    const r = warmupRowsRef.current[idx];
+    if (!sid || !ex || !r) return;
+    const rowSnap = { ...r };
+    const exId = ex.id;
+    const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
+    const write = () => {
+      upsertSetLog(sid, exId, rowSnap.setNumber, {
+        weight_lb: toNum(rowSnap.weight),
+        reps: toNum(rowSnap.reps),
+        completed: 0,
+      });
+    };
+    const key = `w:${exId}:${idx}`;
+    const map = pendingWrites.current;
+    const existing = map.get(key);
+    if (existing) clearTimeout(existing.timer);
+    const timer = setTimeout(() => {
+      map.delete(key);
+      write();
+    }, 400);
+    map.set(key, { write, timer });
   };
+
+  // When the route's exerciseId changes (e.g. tapping a superset partner),
+  // expo-router keeps this component mounted but reloads it for the new id.
+  // Flush pending writes for the OLD exercise before load() overwrites state.
+  const prevExerciseIdRef = useRef(exerciseId);
+  useEffect(() => {
+    if (prevExerciseIdRef.current !== exerciseId) {
+      flushAllPending();
+      prevExerciseIdRef.current = exerciseId;
+    }
+  }, [exerciseId]);
 
   // On unmount, immediately flush every pending row so navigating away mid-edit
   // never loses the in-flight value.
   useEffect(() => {
-    const timers = persistTimers.current;
     return () => {
-      timers.forEach((t, key) => {
-        clearTimeout(t);
-        const [kind, idxStr] = key.split(":");
-        const idx = Number(idxStr);
-        if (kind === "r") flushRowNow(idx);
-        else if (kind === "w") flushWarmupNow(idx);
-      });
-      timers.clear();
+      flushAllPending();
     };
   }, []);
 
@@ -672,15 +683,7 @@ export default function ExerciseDetailScreen() {
               // Flush any pending in-flight edits (debounced or unblurred)
               // before navigating back. The unmount cleanup also flushes, but
               // doing it here keeps the action explicit.
-              const timers = persistTimers.current;
-              timers.forEach((t, key) => {
-                clearTimeout(t);
-                const [kind, idxStr] = key.split(":");
-                const idx = Number(idxStr);
-                if (kind === "r") flushRowNow(idx);
-                else if (kind === "w") flushWarmupNow(idx);
-              });
-              timers.clear();
+              flushAllPending();
               router.back();
             }}
             style={({ pressed }) => [
@@ -714,10 +717,6 @@ export default function ExerciseDetailScreen() {
             setEditOpen(false);
             await load();
           }}
-          onDuplicated={async (newId) => {
-            setEditOpen(false);
-            if (newId) router.replace(`/exercise/${newId}`);
-          }}
           onDeleted={() => {
             setEditOpen(false);
             router.back();
@@ -734,7 +733,6 @@ function EditExerciseSheet({
   dayExercises,
   onClose,
   onSaved,
-  onDuplicated,
   onDeleted,
 }: {
   visible: boolean;
@@ -742,7 +740,6 @@ function EditExerciseSheet({
   dayExercises: Exercise[];
   onClose: () => void;
   onSaved: () => void | Promise<void>;
-  onDuplicated: (newId: number | null) => void | Promise<void>;
   onDeleted: () => void;
 }) {
   const [name, setName] = useState(exercise.name);
@@ -789,16 +786,6 @@ function EditExerciseSheet({
       }
       hapticSuccess();
       await onSaved();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDuplicate = async () => {
-    setBusy(true);
-    try {
-      const newId = await duplicateExercise(exercise.id);
-      await onDuplicated(newId);
     } finally {
       setBusy(false);
     }
@@ -1020,20 +1007,6 @@ function EditExerciseSheet({
                 ]}
               >
                 <Text style={styles.saveBtnText}>Save changes</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={onDuplicate}
-                disabled={busy}
-                style={({ pressed }) => [
-                  styles.duplicateBtn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Copy size={14} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.duplicateBtnText}>
-                  Duplicate as new entry
-                </Text>
               </Pressable>
 
               <Pressable
@@ -1264,15 +1237,6 @@ const styles = StyleSheet.create({
     marginTop: 14,
     marginBottom: 4,
   },
-  duplicateBtn: {
-    marginTop: 10,
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-  },
-  duplicateBtnText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
   deleteBtn: {
     marginTop: 2,
     flexDirection: "row",

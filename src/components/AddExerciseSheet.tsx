@@ -86,14 +86,6 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
     setMode(m);
     setSelected(null);
     setSearch('');
-    if (m === 'new') {
-      setName('');
-      setSets(3);
-      setWarmupSets(0);
-      setRepRange('8–12');
-      setNotes('');
-      setType('normal');
-    }
   };
 
   const filtered = search.trim()

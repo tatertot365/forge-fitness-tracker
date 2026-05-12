@@ -32,6 +32,7 @@ export const muscleAccent: Record<string, string> = {
   'back-thickness': '#818CF8',// indigo-400
   biceps: '#F472B6',          // rose-400
   grip: '#A09890',            // ash
+  traps: '#E879F9',           // fuchsia-400
   quads: '#FBBF24',           // amber-400
   hamstrings: '#34D399',          // emerald-400
   glutes: '#6EE7B7',             // emerald-300 (lighter variant)

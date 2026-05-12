@@ -17,6 +17,7 @@ export type MuscleGroup =
   | 'back-thickness'
   | 'biceps'
   | 'grip'
+  | 'traps'
   | 'quads'
   | 'hamstrings'
   | 'glutes'
@@ -177,6 +178,7 @@ export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   'back-thickness': 'Back — thickness',
   biceps: 'Biceps',
   grip: 'Grip',
+  traps: 'Traps',
   quads: 'Quads',
   hamstrings: 'Hamstrings',
   glutes: 'Glutes',

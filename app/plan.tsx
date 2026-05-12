@@ -77,6 +77,7 @@ const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
   "back-thickness",
   "biceps",
   "grip",
+  "traps",
   "quads",
   "hamstrings",
   "glutes",

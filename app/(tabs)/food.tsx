@@ -1,4 +1,3 @@
-// @ts-nocheck — expo-camera's CameraView type is compiled against React 18, incompatible with @types/react 19
 import { CameraView, useCameraPermissions } from "expo-camera";
 import { useFocusEffect } from "expo-router";
 import {

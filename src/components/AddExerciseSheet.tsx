@@ -149,7 +149,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
           <View style={styles.sheet}>
             <View style={styles.header}>
               <Text style={styles.title}>Add to {MUSCLE_LABEL[muscleGroup]}</Text>
-              <Pressable onPress={close} hitSlop={10}>
+              <Pressable onPress={close} hitSlop={10} accessibilityLabel="Close">
                 <X size={20} color={colors.textSecondary} />
               </Pressable>
             </View>

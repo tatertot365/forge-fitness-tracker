@@ -259,6 +259,7 @@ export default function SessionScreen() {
                   <Pressable
                     onPress={() => onDeleteGroup(group)}
                     hitSlop={8}
+                    accessibilityLabel={`Delete ${MUSCLE_LABEL[group]} group`}
                     style={({ pressed }) => pressed && { opacity: 0.6 }}
                   >
                     <Trash2

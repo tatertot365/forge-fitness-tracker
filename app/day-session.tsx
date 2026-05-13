@@ -239,6 +239,7 @@ export default function DaySessionScreen() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={10}
+          accessibilityLabel="Back"
           style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
         >
           <ChevronLeft size={22} color={colors.text} />
@@ -270,6 +271,7 @@ export default function DaySessionScreen() {
                   <Pressable
                     onPress={() => onDeleteGroup(group)}
                     hitSlop={8}
+                    accessibilityLabel={`Delete ${MUSCLE_LABEL[group]} group`}
                     style={({ pressed }) => pressed && { opacity: 0.6 }}
                   >
                     <Trash2

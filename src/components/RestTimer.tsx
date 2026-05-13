@@ -211,6 +211,7 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
               <Pressable
                 onPress={togglePause}
                 hitSlop={8}
+                accessibilityLabel={isPaused ? "Resume timer" : "Pause timer"}
                 style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
               >
                 {isPaused ? (
@@ -223,6 +224,7 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
             <Pressable
               onPress={stop}
               hitSlop={8}
+              accessibilityLabel={done ? "Dismiss timer" : "Skip rest"}
               style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
             >
               {done ? (

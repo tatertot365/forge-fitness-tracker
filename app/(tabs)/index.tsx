@@ -605,7 +605,7 @@ function EditCardioSheet({
           <View style={styles.sheet}>
             <View style={styles.sheetHeader}>
               <Text style={styles.sheetTitle}>Edit Cardio</Text>
-              <Pressable onPress={onClose} hitSlop={10}>
+              <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
                 <X size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -720,7 +720,7 @@ function ExportSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Export data</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>

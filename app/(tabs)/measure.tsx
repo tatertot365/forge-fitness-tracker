@@ -482,6 +482,7 @@ export default function MeasureScreen() {
               <Pressable
                 onPress={() => setGoalsModalVisible(true)}
                 hitSlop={10}
+                accessibilityLabel="Edit goals"
                 style={({ pressed }) => [pressed && { opacity: 0.6 }]}
               >
                 <Pencil
@@ -628,6 +629,7 @@ export default function MeasureScreen() {
               <Pressable
                 onPress={() => setEditModalVisible(false)}
                 hitSlop={10}
+                accessibilityLabel="Close"
               >
                 <Text style={styles.sheetClose}>✕</Text>
               </Pressable>
@@ -899,7 +901,7 @@ function BodyGoalsSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Body goals</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <Text style={styles.sheetClose}>✕</Text>
             </Pressable>
           </View>

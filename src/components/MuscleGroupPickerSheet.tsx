@@ -21,7 +21,7 @@ export function MuscleGroupPickerSheet({ visible, onClose, onSelect }: Props) {
         <View style={styles.sheet}>
           <View style={styles.header}>
             <Text style={styles.title}>Add muscle group</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>

@@ -38,7 +38,7 @@ export function HistorySheet({ visible, exerciseName, history, isBodyweight = fa
                 {exerciseName}
               </Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>

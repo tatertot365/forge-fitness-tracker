@@ -15,6 +15,7 @@ export function SetCheckButton({ completed, onToggle, disabled }: Props) {
       onPress={onToggle}
       disabled={disabled}
       hitSlop={10}
+      accessibilityLabel={completed ? "Mark set incomplete" : "Mark set complete"}
       style={({ pressed }) => [styles.btn, pressed && { opacity: 0.6 }]}
     >
       <View

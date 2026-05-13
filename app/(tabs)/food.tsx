@@ -785,7 +785,7 @@ function BarcodeResultSheet({
                 1 serving = {result.servingDescription}
               </Text>
             </View>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -1028,6 +1028,7 @@ function MacroCalculatorSheet({
                 reset();
               }}
               hitSlop={10}
+              accessibilityLabel="Close"
             >
               <X size={20} color={colors.textSecondary} />
             </Pressable>
@@ -1467,7 +1468,7 @@ function GoalSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Daily goals</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -1722,7 +1723,7 @@ function EditFoodSheet({
         <View style={styles.sheet}>
           <View style={styles.sheetHeader}>
             <Text style={styles.sheetTitle}>Edit entry</Text>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
@@ -1851,7 +1852,7 @@ function DayHistorySheet({
                 </Text>
               ) : null}
             </View>
-            <Pressable onPress={onClose} hitSlop={10}>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>

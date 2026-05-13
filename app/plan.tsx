@@ -524,7 +524,7 @@ function EditSheet({
           <View style={ss.sheet}>
             <View style={ss.sheetHeader}>
               <Text style={ss.sheetTitle}>Edit exercise</Text>
-              <Pressable onPress={onClose} hitSlop={10}>
+              <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
                 <X size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -920,7 +920,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
           <View style={ss.sheet}>
             <View style={ss.sheetHeader}>
               <Text style={ss.sheetTitle}>Add to {DAY_LABEL[day]}</Text>
-              <Pressable onPress={close} hitSlop={10}>
+              <Pressable onPress={close} hitSlop={10} accessibilityLabel="Close">
                 <X size={20} color={colors.textSecondary} />
               </Pressable>
             </View>
@@ -1614,6 +1614,7 @@ function DraggableGroupContainer({
         <Pressable
           onPress={() => onDeleteGroup(mg)}
           hitSlop={10}
+          accessibilityLabel={`Delete ${MUSCLE_LABEL[mg]} group`}
           style={({ pressed }) => [
             ds.groupDeleteBtn,
             pressed && { opacity: 0.5 },
@@ -1906,6 +1907,7 @@ export default function PlanScreen() {
         <Pressable
           onPress={() => router.back()}
           hitSlop={10}
+          accessibilityLabel="Back"
           style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.6 }]}
         >
           <ChevronLeft size={22} color={colors.text} />

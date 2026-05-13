@@ -1127,6 +1127,7 @@ function BodyStatsCard({
   const { latest, start } = data;
   const hasGoals =
     goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
+  const noMeasurements = latest === null;
 
   // Progress is fraction of distance moved from start toward goal. Works in
   // either direction (cut or bulk) and clamps to [0, 1] so an overshoot still
@@ -1194,9 +1195,11 @@ function BodyStatsCard({
           <Text style={styles.glanceNav}>Measure →</Text>
         </View>
 
-        {!hasGoals ? (
+        {!hasGoals || noMeasurements ? (
           <Text style={styles.goalsEmptyText}>
-            Set weight & body fat goals in Measure →
+            {noMeasurements
+              ? "Log a check-in in Measure to start tracking progress →"
+              : "Set weight & body fat goals in Measure →"}
           </Text>
         ) : (
           <View style={{ gap: 12 }}>

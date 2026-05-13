@@ -323,6 +323,23 @@ export default function MeasureScreen() {
           </View>
         </View>
 
+        {/* First-launch onboarding prompt */}
+        {latest === null && (
+          <Pressable
+            onPress={openEdit}
+            style={({ pressed }) => [
+              styles.firstCheckInCard,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Text style={styles.firstCheckInTitle}>Log your first check-in</Text>
+            <Text style={styles.firstCheckInSub}>
+              Track weight, body fat and measurements to see your trends over time.
+            </Text>
+            <Text style={styles.firstCheckInCta}>Tap Log above to get started →</Text>
+          </Pressable>
+        )}
+
         {/* Stats grid: weight, body fat, lean mass */}
         <View style={styles.statsGrid}>
           <StatCard
@@ -1231,6 +1248,33 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
   },
   goalRowHint: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
+
+  // First-launch card
+  firstCheckInCard: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.primary,
+    padding: 16,
+    marginBottom: 12,
+    gap: 6,
+  },
+  firstCheckInTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: colors.text,
+  },
+  firstCheckInSub: {
+    fontSize: 13,
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+  firstCheckInCta: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: colors.primary,
+    marginTop: 4,
+  },
 
   // Stats grid
   statsGrid: { flexDirection: "row", gap: 8, marginBottom: 2 },

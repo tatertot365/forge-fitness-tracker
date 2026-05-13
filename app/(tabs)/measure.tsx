@@ -318,7 +318,7 @@ export default function MeasureScreen() {
               ]}
             >
               <Pencil size={12} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.editBtnText}>Update</Text>
+              <Text style={styles.editBtnText}>Log</Text>
             </Pressable>
           </View>
         </View>
@@ -659,7 +659,7 @@ export default function MeasureScreen() {
                     <Text style={styles.errorText}>{fieldErrors.weight_lb}</Text>
                   ) : null}
                 </View>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginTop: 10 }}>
                   <Text style={styles.formLabel}>Body fat (%)</Text>
                   <TextInput
                     value={inputs.body_fat_pct}

@@ -6,7 +6,6 @@ import {
   Droplets,
   Flame,
   Layers,
-  Pencil,
   Plus,
   ScanLine,
   Trash2,
@@ -317,7 +316,6 @@ export default function FoodScreen() {
             pressed && { opacity: 0.6 },
           ]}
         >
-          <Pencil size={12} color={colors.primary} strokeWidth={2} />
           <Text style={styles.editGoalText}>Goals</Text>
         </Pressable>
       </View>

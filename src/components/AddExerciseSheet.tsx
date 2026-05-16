@@ -1,5 +1,5 @@
 import { Minus, Plus, X } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -12,8 +12,8 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { createExercise, findExercisesByName, getLibraryExercisesByMuscle } from '../db/queries';
-import { colors } from '../theme/colors';
+import { createExercise, findExercisesByName, getLibraryExercises } from '../db/queries';
+import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import {
   MUSCLE_LABEL,
@@ -27,19 +27,38 @@ import { hapticSuccess } from '../utils/haptics';
 type Props = {
   visible: boolean;
   day: Day;
-  muscleGroup: MuscleGroup;
+  /**
+   * Pre-selects the muscle filter chip so the list narrows to a section the
+   * user was browsing — they can still tap "All" to broaden. Optional.
+   */
+  initialMuscleGroup?: MuscleGroup | null;
   onClose: () => void;
   onCreated: (newId: number) => void | Promise<void>;
 };
 
 type Mode = 'library' | 'new';
 
-export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated }: Props) {
+const ALL_MUSCLE_GROUPS: MuscleGroup[] = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
+
+export function AddExerciseSheet({
+  visible,
+  day,
+  initialMuscleGroup,
+  onClose,
+  onCreated,
+}: Props) {
   const [mode, setMode] = useState<Mode>('library');
   const [search, setSearch] = useState('');
-  const [allExercises, setAllExercises] = useState<LibraryExercise[]>([]);
+  const [filterGroup, setFilterGroup] = useState<MuscleGroup | null>(
+    initialMuscleGroup ?? null,
+  );
+  const [library, setLibrary] = useState<LibraryExercise[]>([]);
   const [selected, setSelected] = useState<LibraryExercise | null>(null);
 
+  // For "new" mode the user picks muscle group explicitly. For "library" mode
+  // we read it off the selection. Tracking both as `pickedGroup` keeps the
+  // save path uniform.
+  const [pickedGroup, setPickedGroup] = useState<MuscleGroup | null>(null);
   const [name, setName] = useState('');
   const [sets, setSets] = useState(3);
   const [warmupSets, setWarmupSets] = useState(0);
@@ -50,14 +69,17 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
 
   useEffect(() => {
     if (visible) {
-      getLibraryExercisesByMuscle(muscleGroup).then(setAllExercises);
+      getLibraryExercises().then(setLibrary);
+      setFilterGroup(initialMuscleGroup ?? null);
     }
-  }, [visible, muscleGroup]);
+  }, [visible, initialMuscleGroup]);
 
   const reset = () => {
     setMode('library');
     setSearch('');
+    setFilterGroup(initialMuscleGroup ?? null);
     setSelected(null);
+    setPickedGroup(null);
     setName('');
     setSets(3);
     setWarmupSets(0);
@@ -74,7 +96,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
 
   const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
-    setName(ex.name);
+    setPickedGroup(ex.muscle_group);
     setType('normal');
     setSets(3);
     setWarmupSets(0);
@@ -85,21 +107,30 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
   const switchMode = (m: Mode) => {
     setMode(m);
     setSelected(null);
+    setPickedGroup(m === 'new' ? (initialMuscleGroup ?? null) : null);
     setSearch('');
   };
 
-  const filtered = search.trim()
-    ? allExercises.filter((e) => e.name.toLowerCase().includes(search.trim().toLowerCase()))
-    : allExercises;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return library.filter((e) => {
+      if (filterGroup && e.muscle_group !== filterGroup) return false;
+      if (q && !e.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [library, filterGroup, search]);
 
-  const canSave = mode === 'library' ? selected !== null : name.trim().length > 0;
+  const canSave =
+    pickedGroup !== null &&
+    (mode === 'library' ? selected !== null : name.trim().length > 0);
 
   const doCreate = async (trimmed: string) => {
+    if (!pickedGroup) return;
     setBusy(true);
     try {
       const newId = await createExercise({
         day,
-        muscle_group: muscleGroup,
+        muscle_group: pickedGroup,
         name: trimmed,
         sets,
         warmup_sets: warmupSets,
@@ -117,7 +148,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
 
   const onSave = async () => {
     const trimmed = (mode === 'library' ? selected?.name ?? '' : name).trim();
-    if (!trimmed || busy) return;
+    if (!trimmed || busy || !pickedGroup) return;
 
     if (mode === 'new') {
       setBusy(true);
@@ -148,7 +179,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.sheet}>
             <View style={styles.header}>
-              <Text style={styles.title}>Add to {MUSCLE_LABEL[muscleGroup]}</Text>
+              <Text style={styles.title}>Add exercise</Text>
               <Pressable onPress={close} hitSlop={10} accessibilityLabel="Close">
                 <X size={20} color={colors.textSecondary} />
               </Pressable>
@@ -180,12 +211,36 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                   <TextInput
                     value={search}
                     onChangeText={setSearch}
-                    style={[styles.input, { marginBottom: 8 }]}
+                    style={[styles.input, { marginBottom: 10 }]}
                     placeholder="Search exercises…"
                     placeholderTextColor={colors.textMuted}
                     autoCapitalize="none"
                     clearButtonMode="while-editing"
                   />
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <Chip
+                      label="All"
+                      active={filterGroup === null}
+                      onPress={() => setFilterGroup(null)}
+                    />
+                    {ALL_MUSCLE_GROUPS.map((mg) => (
+                      <Chip
+                        key={mg}
+                        label={MUSCLE_LABEL[mg]}
+                        accent={muscleAccent[mg] ?? colors.primary}
+                        active={filterGroup === mg}
+                        onPress={() =>
+                          setFilterGroup((cur) => (cur === mg ? null : mg))
+                        }
+                      />
+                    ))}
+                  </ScrollView>
 
                   {filtered.length === 0 ? (
                     <Text style={styles.emptyText}>No exercises found</Text>
@@ -193,6 +248,7 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                     <View style={styles.listContainer}>
                       {filtered.map((ex) => {
                         const isSelected = selected?.id === ex.id;
+                        const accent = muscleAccent[ex.muscle_group] ?? colors.primary;
                         return (
                           <Pressable
                             key={ex.id}
@@ -203,9 +259,18 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                               pressed && { opacity: 0.7 },
                             ]}
                           >
+                            <View style={[styles.accentBar, { backgroundColor: accent }]} />
                             <View style={{ flex: 1 }}>
-                              <Text style={[styles.libraryRowName, isSelected && styles.libraryRowNameSelected]}>
+                              <Text
+                                style={[
+                                  styles.libraryRowName,
+                                  isSelected && styles.libraryRowNameSelected,
+                                ]}
+                              >
                                 {ex.name}
+                              </Text>
+                              <Text style={styles.libraryRowMeta}>
+                                {MUSCLE_LABEL[ex.muscle_group]}
                               </Text>
                             </View>
                             {isSelected && (
@@ -221,28 +286,61 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
                 </>
               )}
 
-              {/* Shared config fields (new mode, or after library selection) */}
+              {/* New mode — explicit muscle group picker */}
+              {mode === 'new' && (
+                <>
+                  <Text style={styles.fieldLabel}>Name</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    style={styles.input}
+                    placeholder="e.g. Lateral raise"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="words"
+                    autoFocus
+                  />
+                  <Text style={styles.fieldLabel}>Muscle group</Text>
+                  <View style={styles.pillRow}>
+                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                      const active = pickedGroup === mg;
+                      const accent = muscleAccent[mg] ?? colors.primary;
+                      return (
+                        <Pressable
+                          key={mg}
+                          onPress={() => setPickedGroup(active ? null : mg)}
+                          style={({ pressed }) => [
+                            styles.pill,
+                            active && {
+                              backgroundColor: accent + '28',
+                              borderColor: accent,
+                            },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.pillText,
+                              active && { color: accent, fontWeight: '600' },
+                            ]}
+                          >
+                            {MUSCLE_LABEL[mg]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              {/* Shared config fields */}
               {showConfig && (
                 <>
-                  {mode === 'new' && (
-                    <>
-                      <Text style={styles.fieldLabel}>Name</Text>
-                      <TextInput
-                        value={name}
-                        onChangeText={setName}
-                        style={styles.input}
-                        placeholder="e.g. Lateral raise"
-                        placeholderTextColor={colors.textMuted}
-                        autoCapitalize="words"
-                        autoFocus={mode === 'new'}
-                      />
-                    </>
-                  )}
-
-                  {mode === 'library' && selected && (
+                  {mode === 'library' && selected && pickedGroup && (
                     <View style={styles.selectedBanner}>
                       <Text style={styles.selectedBannerText}>{selected.name}</Text>
-                      <Text style={styles.selectedBannerSub}>Configure for {MUSCLE_LABEL[muscleGroup]}</Text>
+                      <Text style={styles.selectedBannerSub}>
+                        Adding to {MUSCLE_LABEL[pickedGroup]}
+                      </Text>
                     </View>
                   )}
 
@@ -341,6 +439,34 @@ export function AddExerciseSheet({ visible, day, muscleGroup, onClose, onCreated
   );
 }
 
+function Chip({
+  label,
+  active,
+  onPress,
+  accent,
+}: {
+  label: string;
+  active: boolean;
+  onPress: () => void;
+  accent?: string;
+}) {
+  const tint = accent ?? colors.primary;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.chip,
+        active && { backgroundColor: tint + '28', borderColor: tint },
+        pressed && { opacity: 0.7 },
+      ]}
+    >
+      <Text style={[styles.chipText, active && { color: tint, fontWeight: '600' }]}>
+        {label}
+      </Text>
+    </Pressable>
+  );
+}
+
 const styles = StyleSheet.create({
   backdrop: {
     flex: 1,
@@ -385,6 +511,23 @@ const styles = StyleSheet.create({
   modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
   modeBtnTextActive: { color: '#FFFFFF', fontWeight: '600' },
 
+  chipRow: {
+    flexDirection: 'row',
+    gap: 6,
+    paddingVertical: 2,
+    paddingRight: 8,
+    marginBottom: 10,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  chipText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+
   listContainer: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,
@@ -400,8 +543,14 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
+    gap: 10,
   },
   libraryRowSelected: { backgroundColor: colors.primary + '18' },
+  accentBar: {
+    width: 3,
+    height: 28,
+    borderRadius: radius.accent,
+  },
   libraryRowName: { fontSize: 15, color: colors.text, fontWeight: '500' },
   libraryRowNameSelected: { color: colors.primary, fontWeight: '600' },
   libraryRowMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
@@ -428,12 +577,29 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingVertical: 10,
     paddingHorizontal: 14,
+    marginTop: 14,
     marginBottom: 4,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary + '40',
   },
   selectedBannerText: { fontSize: 15, fontWeight: '600', color: colors.primary },
   selectedBannerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+
+  pillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 4,
+  },
+  pill: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  pillText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
 
   fieldLabel: {
     fontSize: 11,

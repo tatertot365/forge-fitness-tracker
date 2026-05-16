@@ -9,7 +9,7 @@ import {
   Trash2,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
@@ -39,7 +39,7 @@ import {
   deleteExercisesByGroup,
   deleteExercisesByName,
   findExercisesByName,
-  getLibraryExercisesByMuscle,
+  getLibraryExercises,
   getDayPlans,
   getExercise,
   getExercisesByDay,
@@ -741,11 +741,12 @@ type AddSheetProps = {
 type AddMode = "library" | "new";
 
 function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
-  const [muscleGroup, setMuscleGroup] = useState<MuscleGroup | null>(null);
   const [mode, setMode] = useState<AddMode>("library");
   const [search, setSearch] = useState("");
-  const [allExercises, setAllExercises] = useState<LibraryExercise[]>([]);
+  const [filterGroup, setFilterGroup] = useState<MuscleGroup | null>(null);
+  const [library, setLibrary] = useState<LibraryExercise[]>([]);
   const [selected, setSelected] = useState<LibraryExercise | null>(null);
+  const [pickedGroup, setPickedGroup] = useState<MuscleGroup | null>(null);
 
   const [name, setName] = useState("");
   const [sets, setSets] = useState(3);
@@ -761,12 +762,10 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   );
 
   useEffect(() => {
-    if (visible && muscleGroup) {
-      getLibraryExercisesByMuscle(muscleGroup).then(setAllExercises);
-    } else {
-      setAllExercises([]);
+    if (visible) {
+      getLibraryExercises().then(setLibrary);
     }
-  }, [visible, muscleGroup]);
+  }, [visible]);
 
   // Load same-day exercises when superset type is selected
   useEffect(() => {
@@ -777,10 +776,11 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   }, [type, day]);
 
   const reset = () => {
-    setMuscleGroup(null);
     setMode("library");
     setSearch("");
+    setFilterGroup(null);
     setSelected(null);
+    setPickedGroup(null);
     setName("");
     setSets(3);
     setWarmupSets(0);
@@ -799,6 +799,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
+    setPickedGroup(ex.muscle_group);
     setType("normal");
     setSets(3);
     setWarmupSets(0);
@@ -809,6 +810,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const switchMode = (m: AddMode) => {
     setMode(m);
     setSelected(null);
+    setPickedGroup(null);
     setSearch("");
     if (m === "new") {
       setName("");
@@ -821,24 +823,27 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     setPartnerValue(null);
   };
 
-  const filtered = search.trim()
-    ? allExercises.filter((e) =>
-        e.name.toLowerCase().includes(search.trim().toLowerCase()),
-      )
-    : allExercises;
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return library.filter((e) => {
+      if (filterGroup && e.muscle_group !== filterGroup) return false;
+      if (q && !e.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [library, filterGroup, search]);
 
   const canSave =
-    muscleGroup !== null &&
+    pickedGroup !== null &&
     (mode === "library" ? selected !== null : name.trim().length > 0) &&
     (type !== "superset" || partnerValue !== null);
 
   const doCreate = async (trimmed: string) => {
-    if (!muscleGroup) return;
+    if (!pickedGroup) return;
     setBusy(true);
     try {
       const newId = await createExercise({
         day,
-        muscle_group: muscleGroup,
+        muscle_group: pickedGroup,
         name: trimmed,
         sets,
         warmup_sets: warmupSets,
@@ -901,9 +906,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     await doCreate(trimmed);
   };
 
-  const showConfig =
-    muscleGroup !== null &&
-    (mode === "new" || (mode === "library" && selected !== null));
+  const showConfig = mode === "new" || (mode === "library" && selected !== null);
 
   return (
     <Modal
@@ -930,21 +933,58 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
               showsVerticalScrollIndicator={false}
               contentContainerStyle={{ paddingBottom: 4 }}
             >
-              {/* Muscle group picker */}
-              <Text style={ss.fieldLabel}>Muscle group</Text>
-              <View style={ss.pillRow}>
-                {ALL_MUSCLE_GROUPS.map((mg) => {
-                  const active = muscleGroup === mg;
-                  const accent = muscleAccent[mg] ?? colors.primary;
-                  return (
+              {/* Mode toggle */}
+              <View style={ss.modeToggle}>
+                {(["library", "new"] as AddMode[]).map((m) => (
+                  <Pressable
+                    key={m}
+                    onPress={() => switchMode(m)}
+                    style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
+                  >
+                    <Text
+                      style={[
+                        ss.modeBtnText,
+                        mode === m && ss.modeBtnTextActive,
+                      ]}
+                    >
+                      {m === "library" ? "From library" : "New exercise"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+
+              {/* Library mode: search all + filter chips + list */}
+              {mode === "library" && (
+                <>
+                  <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    style={[ss.input, { marginBottom: 10 }]}
+                    placeholder="Search exercises…"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    clearButtonMode="while-editing"
+                  />
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{
+                      flexDirection: "row",
+                      gap: 6,
+                      paddingRight: 8,
+                      paddingVertical: 2,
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    style={{ marginBottom: 10 }}
+                  >
                     <Pressable
-                      key={mg}
-                      onPress={() => setMuscleGroup(active ? null : mg)}
+                      onPress={() => setFilterGroup(null)}
                       style={({ pressed }) => [
                         ss.pill,
-                        active && {
-                          backgroundColor: accent + "28",
-                          borderColor: accent,
+                        filterGroup === null && {
+                          backgroundColor: colors.primary + "28",
+                          borderColor: colors.primary,
                         },
                         pressed && { opacity: 0.7 },
                       ]}
@@ -952,245 +992,290 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                       <Text
                         style={[
                           ss.pillText,
-                          active && { color: accent, fontWeight: "600" },
+                          filterGroup === null && {
+                            color: colors.primary,
+                            fontWeight: "600",
+                          },
                         ]}
                       >
-                        {MUSCLE_LABEL[mg]}
+                        All
                       </Text>
                     </Pressable>
-                  );
-                })}
-              </View>
+                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                      const active = filterGroup === mg;
+                      const accent = muscleAccent[mg] ?? colors.primary;
+                      return (
+                        <Pressable
+                          key={mg}
+                          onPress={() =>
+                            setFilterGroup(active ? null : mg)
+                          }
+                          style={({ pressed }) => [
+                            ss.pill,
+                            active && {
+                              backgroundColor: accent + "28",
+                              borderColor: accent,
+                            },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ss.pillText,
+                              active && {
+                                color: accent,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {MUSCLE_LABEL[mg]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
 
-              {muscleGroup !== null && (
+                  {filtered.length === 0 ? (
+                    <Text style={ss.emptyText}>No exercises found</Text>
+                  ) : (
+                    <View style={ss.listContainer}>
+                      {filtered.map((ex) => {
+                        const isSel = selected?.id === ex.id;
+                        const accent =
+                          muscleAccent[ex.muscle_group] ?? colors.primary;
+                        return (
+                          <Pressable
+                            key={ex.id}
+                            onPress={() => selectFromLibrary(ex)}
+                            style={({ pressed }) => [
+                              ss.libraryRow,
+                              isSel && ss.libraryRowSelected,
+                              pressed && { opacity: 0.7 },
+                            ]}
+                          >
+                            <View
+                              style={{
+                                width: 3,
+                                height: 28,
+                                borderRadius: radius.accent,
+                                backgroundColor: accent,
+                                marginRight: 10,
+                              }}
+                            />
+                            <View style={{ flex: 1 }}>
+                              <Text
+                                style={[
+                                  ss.libraryRowName,
+                                  isSel && ss.libraryRowNameSelected,
+                                ]}
+                              >
+                                {ex.name}
+                              </Text>
+                              <Text style={ss.libraryRowMeta}>
+                                {MUSCLE_LABEL[ex.muscle_group]}
+                              </Text>
+                            </View>
+                            {isSel && (
+                              <View style={ss.checkBadge}>
+                                <Text style={ss.checkText}>✓</Text>
+                              </View>
+                            )}
+                          </Pressable>
+                        );
+                      })}
+                    </View>
+                  )}
+                </>
+              )}
+
+              {/* New mode: name + explicit muscle group picker */}
+              {mode === "new" && (
                 <>
-                  {/* Mode toggle */}
-                  <View style={[ss.modeToggle, { marginTop: 14 }]}>
-                    {(["library", "new"] as AddMode[]).map((m) => (
+                  <Text style={ss.fieldLabel}>Name</Text>
+                  <TextInput
+                    value={name}
+                    onChangeText={setName}
+                    style={ss.input}
+                    placeholder="e.g. Lateral raise"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="words"
+                    autoFocus
+                  />
+                  <Text style={ss.fieldLabel}>Muscle group</Text>
+                  <View style={ss.pillRow}>
+                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                      const active = pickedGroup === mg;
+                      const accent = muscleAccent[mg] ?? colors.primary;
+                      return (
+                        <Pressable
+                          key={mg}
+                          onPress={() =>
+                            setPickedGroup(active ? null : mg)
+                          }
+                          style={({ pressed }) => [
+                            ss.pill,
+                            active && {
+                              backgroundColor: accent + "28",
+                              borderColor: accent,
+                            },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ss.pillText,
+                              active && {
+                                color: accent,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {MUSCLE_LABEL[mg]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                </>
+              )}
+
+              {/* Config fields (only after a library pick or new-mode setup) */}
+              {showConfig && (
+                <>
+                  {mode === "library" && selected && pickedGroup && (
+                    <View style={[ss.selectedBanner, { marginTop: 14 }]}>
+                      <Text style={ss.selectedBannerText}>
+                        {selected.name}
+                      </Text>
+                      <Text style={ss.selectedBannerSub}>
+                        Adding to {MUSCLE_LABEL[pickedGroup]}
+                      </Text>
+                    </View>
+                  )}
+
+                  <Text style={ss.fieldLabel}>Sets</Text>
+                  <View style={ss.stepperRow}>
+                    <Pressable
+                      onPress={() => setSets((s) => Math.max(1, s - 1))}
+                      style={({ pressed }) => [
+                        ss.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Minus size={16} color={colors.text} />
+                    </Pressable>
+                    <Text style={ss.stepperValue}>{sets}</Text>
+                    <Pressable
+                      onPress={() => setSets((s) => Math.min(10, s + 1))}
+                      style={({ pressed }) => [
+                        ss.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Plus size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <Text style={ss.fieldLabel}>Warmup sets</Text>
+                  <View style={ss.stepperRow}>
+                    <Pressable
+                      onPress={() =>
+                        setWarmupSets((s) => Math.max(0, s - 1))
+                      }
+                      style={({ pressed }) => [
+                        ss.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Minus size={16} color={colors.text} />
+                    </Pressable>
+                    <Text style={ss.stepperValue}>{warmupSets}</Text>
+                    <Pressable
+                      onPress={() =>
+                        setWarmupSets((s) => Math.min(5, s + 1))
+                      }
+                      style={({ pressed }) => [
+                        ss.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Plus size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
+
+                  <Text style={ss.fieldLabel}>Rep range</Text>
+                  <TextInput
+                    value={repRange}
+                    onChangeText={setRepRange}
+                    style={ss.input}
+                    placeholder="e.g. 8–12"
+                    placeholderTextColor={colors.textMuted}
+                  />
+
+                  <Text style={ss.fieldLabel}>Notes</Text>
+                  <TextInput
+                    value={notes}
+                    onChangeText={setNotes}
+                    style={[ss.input, { minHeight: 56 }]}
+                    placeholder="Optional cue or instruction"
+                    placeholderTextColor={colors.textMuted}
+                    multiline
+                  />
+
+                  <Text style={ss.fieldLabel}>Type</Text>
+                  <View style={ss.segmented}>
+                    {(
+                      [
+                        "normal",
+                        "superset",
+                        "drop",
+                        "bodyweight",
+                      ] as ExerciseType[]
+                    ).map((t) => (
                       <Pressable
-                        key={m}
-                        onPress={() => switchMode(m)}
-                        style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
+                        key={t}
+                        onPress={() => setType(t)}
+                        style={({ pressed }) => [
+                          ss.segment,
+                          type === t && ss.segmentActive,
+                          pressed && { opacity: 0.7 },
+                        ]}
                       >
                         <Text
                           style={[
-                            ss.modeBtnText,
-                            mode === m && ss.modeBtnTextActive,
+                            ss.segmentText,
+                            type === t && ss.segmentTextActive,
                           ]}
                         >
-                          {m === "library" ? "From library" : "New exercise"}
+                          {t === "normal"
+                            ? "Normal"
+                            : t === "superset"
+                              ? "Superset"
+                              : t === "drop"
+                                ? "Drop"
+                                : "Bodyweight"}
                         </Text>
                       </Pressable>
                     ))}
                   </View>
 
-                  {/* Library search list */}
-                  {mode === "library" && (
+                  {/* Superset partner picker */}
+                  {type === "superset" && (
                     <>
-                      <TextInput
-                        value={search}
-                        onChangeText={setSearch}
-                        style={[ss.input, { marginBottom: 8 }]}
-                        placeholder="Search exercises…"
-                        placeholderTextColor={colors.textMuted}
-                        autoCapitalize="none"
-                        clearButtonMode="while-editing"
-                      />
-                      {filtered.length === 0 ? (
-                        <Text style={ss.emptyText}>No exercises found</Text>
-                      ) : (
-                        <View style={ss.listContainer}>
-                          {filtered.map((ex) => {
-                            const isSel = selected?.id === ex.id;
-                            return (
-                              <Pressable
-                                key={ex.id}
-                                onPress={() => selectFromLibrary(ex)}
-                                style={({ pressed }) => [
-                                  ss.libraryRow,
-                                  isSel && ss.libraryRowSelected,
-                                  pressed && { opacity: 0.7 },
-                                ]}
-                              >
-                                <View style={{ flex: 1 }}>
-                                  <Text
-                                    style={[
-                                      ss.libraryRowName,
-                                      isSel && ss.libraryRowNameSelected,
-                                    ]}
-                                  >
-                                    {ex.name}
-                                  </Text>
-                                  <Text style={ss.libraryRowMeta}>
-                                    {MUSCLE_LABEL[ex.muscle_group]}
-                                  </Text>
-                                </View>
-                                {isSel && (
-                                  <View style={ss.checkBadge}>
-                                    <Text style={ss.checkText}>✓</Text>
-                                  </View>
-                                )}
-                              </Pressable>
-                            );
-                          })}
-                        </View>
-                      )}
-                    </>
-                  )}
-
-                  {/* Config fields */}
-                  {showConfig && (
-                    <>
-                      {mode === "new" && (
-                        <>
-                          <Text style={ss.fieldLabel}>Name</Text>
-                          <TextInput
-                            value={name}
-                            onChangeText={setName}
-                            style={ss.input}
-                            placeholder="e.g. Lateral raise"
-                            placeholderTextColor={colors.textMuted}
-                            autoCapitalize="words"
-                          />
-                        </>
-                      )}
-
-                      {mode === "library" && selected && (
-                        <View style={ss.selectedBanner}>
-                          <Text style={ss.selectedBannerText}>
-                            {selected.name}
-                          </Text>
-                          <Text style={ss.selectedBannerSub}>
-                            Configure for {MUSCLE_LABEL[muscleGroup]}
-                          </Text>
-                        </View>
-                      )}
-
-                      <Text style={ss.fieldLabel}>Sets</Text>
-                      <View style={ss.stepperRow}>
-                        <Pressable
-                          onPress={() => setSets((s) => Math.max(1, s - 1))}
-                          style={({ pressed }) => [
-                            ss.stepperBtn,
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <Minus size={16} color={colors.text} />
-                        </Pressable>
-                        <Text style={ss.stepperValue}>{sets}</Text>
-                        <Pressable
-                          onPress={() => setSets((s) => Math.min(10, s + 1))}
-                          style={({ pressed }) => [
-                            ss.stepperBtn,
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <Plus size={16} color={colors.text} />
-                        </Pressable>
+                      <View style={ss.partnerHeader}>
+                        <Text style={ss.partnerHeaderText}>
+                          Pick a superset partner
+                        </Text>
                       </View>
-
-                      <Text style={ss.fieldLabel}>Warmup sets</Text>
-                      <View style={ss.stepperRow}>
-                        <Pressable
-                          onPress={() =>
-                            setWarmupSets((s) => Math.max(0, s - 1))
-                          }
-                          style={({ pressed }) => [
-                            ss.stepperBtn,
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <Minus size={16} color={colors.text} />
-                        </Pressable>
-                        <Text style={ss.stepperValue}>{warmupSets}</Text>
-                        <Pressable
-                          onPress={() =>
-                            setWarmupSets((s) => Math.min(5, s + 1))
-                          }
-                          style={({ pressed }) => [
-                            ss.stepperBtn,
-                            pressed && { opacity: 0.6 },
-                          ]}
-                        >
-                          <Plus size={16} color={colors.text} />
-                        </Pressable>
-                      </View>
-
-                      <Text style={ss.fieldLabel}>Rep range</Text>
-                      <TextInput
-                        value={repRange}
-                        onChangeText={setRepRange}
-                        style={ss.input}
-                        placeholder="e.g. 8–12"
-                        placeholderTextColor={colors.textMuted}
+                      <PartnerPicker
+                        dayExercises={dayExercises}
+                        value={partnerValue}
+                        onChange={setPartnerValue}
                       />
-
-                      <Text style={ss.fieldLabel}>Notes</Text>
-                      <TextInput
-                        value={notes}
-                        onChangeText={setNotes}
-                        style={[ss.input, { minHeight: 56 }]}
-                        placeholder="Optional cue or instruction"
-                        placeholderTextColor={colors.textMuted}
-                        multiline
-                      />
-
-                      <Text style={ss.fieldLabel}>Type</Text>
-                      <View style={ss.segmented}>
-                        {(
-                          [
-                            "normal",
-                            "superset",
-                            "drop",
-                            "bodyweight",
-                          ] as ExerciseType[]
-                        ).map((t) => (
-                          <Pressable
-                            key={t}
-                            onPress={() => setType(t)}
-                            style={({ pressed }) => [
-                              ss.segment,
-                              type === t && ss.segmentActive,
-                              pressed && { opacity: 0.7 },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                ss.segmentText,
-                                type === t && ss.segmentTextActive,
-                              ]}
-                            >
-                              {t === "normal"
-                                ? "Normal"
-                                : t === "superset"
-                                  ? "Superset"
-                                  : t === "drop"
-                                    ? "Drop"
-                                    : "Bodyweight"}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
-
-                      {/* Superset partner picker */}
-                      {type === "superset" && (
-                        <>
-                          <View style={ss.partnerHeader}>
-                            <Text style={ss.partnerHeaderText}>
-                              Pick a superset partner
-                            </Text>
-                          </View>
-                          <PartnerPicker
-                            dayExercises={dayExercises}
-                            value={partnerValue}
-                            onChange={setPartnerValue}
-                          />
-                          {!canSave && muscleGroup !== null && (
-                            <Text style={ss.partnerHint}>
-                              Select or create a partner exercise to save.
-                            </Text>
-                          )}
-                        </>
+                      {!canSave && pickedGroup !== null && (
+                        <Text style={ss.partnerHint}>
+                          Select or create a partner exercise to save.
+                        </Text>
                       )}
                     </>
                   )}

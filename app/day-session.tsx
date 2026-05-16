@@ -372,7 +372,7 @@ export default function DaySessionScreen() {
         <AddExerciseSheet
           visible={addingToGroup !== null}
           day={day}
-          muscleGroup={addingToGroup ?? "chest"}
+          initialMuscleGroup={addingToGroup}
           onClose={() => setAddingToGroup(null)}
           onCreated={async () => {
             setAddingToGroup(null);

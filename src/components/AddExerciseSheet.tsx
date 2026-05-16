@@ -245,11 +245,17 @@ export function AddExerciseSheet({
                   {filtered.length === 0 ? (
                     <Text style={styles.emptyText}>No exercises found</Text>
                   ) : (
-                    <View style={styles.listContainer}>
-                      {filtered.map((ex) => {
-                        const isSelected = selected?.id === ex.id;
-                        const accent = muscleAccent[ex.muscle_group] ?? colors.primary;
-                        return (
+                    <View style={[styles.listContainer, { maxHeight: 280 }]}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {filtered.map((ex) => {
+                          const isSelected = selected?.id === ex.id;
+                          const accent =
+                            muscleAccent[ex.muscle_group] ?? colors.primary;
+                          return (
                           <Pressable
                             key={ex.id}
                             onPress={() => selectFromLibrary(ex)}
@@ -280,7 +286,8 @@ export function AddExerciseSheet({
                             )}
                           </Pressable>
                         );
-                      })}
+                        })}
+                      </ScrollView>
                     </View>
                   )}
                 </>

@@ -1038,51 +1038,57 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                   {filtered.length === 0 ? (
                     <Text style={ss.emptyText}>No exercises found</Text>
                   ) : (
-                    <View style={ss.listContainer}>
-                      {filtered.map((ex) => {
-                        const isSel = selected?.id === ex.id;
-                        const accent =
-                          muscleAccent[ex.muscle_group] ?? colors.primary;
-                        return (
-                          <Pressable
-                            key={ex.id}
-                            onPress={() => selectFromLibrary(ex)}
-                            style={({ pressed }) => [
-                              ss.libraryRow,
-                              isSel && ss.libraryRowSelected,
-                              pressed && { opacity: 0.7 },
-                            ]}
-                          >
-                            <View
-                              style={{
-                                width: 3,
-                                height: 28,
-                                borderRadius: radius.accent,
-                                backgroundColor: accent,
-                                marginRight: 10,
-                              }}
-                            />
-                            <View style={{ flex: 1 }}>
-                              <Text
-                                style={[
-                                  ss.libraryRowName,
-                                  isSel && ss.libraryRowNameSelected,
-                                ]}
-                              >
-                                {ex.name}
-                              </Text>
-                              <Text style={ss.libraryRowMeta}>
-                                {MUSCLE_LABEL[ex.muscle_group]}
-                              </Text>
-                            </View>
-                            {isSel && (
-                              <View style={ss.checkBadge}>
-                                <Text style={ss.checkText}>✓</Text>
+                    <View style={[ss.listContainer, { maxHeight: 280 }]}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {filtered.map((ex) => {
+                          const isSel = selected?.id === ex.id;
+                          const accent =
+                            muscleAccent[ex.muscle_group] ?? colors.primary;
+                          return (
+                            <Pressable
+                              key={ex.id}
+                              onPress={() => selectFromLibrary(ex)}
+                              style={({ pressed }) => [
+                                ss.libraryRow,
+                                isSel && ss.libraryRowSelected,
+                                pressed && { opacity: 0.7 },
+                              ]}
+                            >
+                              <View
+                                style={{
+                                  width: 3,
+                                  height: 28,
+                                  borderRadius: radius.accent,
+                                  backgroundColor: accent,
+                                  marginRight: 10,
+                                }}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    ss.libraryRowName,
+                                    isSel && ss.libraryRowNameSelected,
+                                  ]}
+                                >
+                                  {ex.name}
+                                </Text>
+                                <Text style={ss.libraryRowMeta}>
+                                  {MUSCLE_LABEL[ex.muscle_group]}
+                                </Text>
                               </View>
-                            )}
-                          </Pressable>
-                        );
-                      })}
+                              {isSel && (
+                                <View style={ss.checkBadge}>
+                                  <Text style={ss.checkText}>✓</Text>
+                                </View>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
                     </View>
                   )}
                 </>

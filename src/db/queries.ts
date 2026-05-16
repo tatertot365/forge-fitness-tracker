@@ -127,6 +127,17 @@ export async function markHealthKitAsked(): Promise<void> {
   );
 }
 
+export async function getCustomRestSeconds(): Promise<number | null> {
+  const v = await getSetting('rest_custom_secs');
+  if (v == null) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+export async function setCustomRestSeconds(seconds: number): Promise<void> {
+  await setSetting('rest_custom_secs', String(Math.round(seconds)));
+}
+
 // ─── Exercise library ─────────────────────────────────────────────────
 
 export async function getLibraryExercises(): Promise<LibraryExercise[]> {
@@ -575,14 +586,30 @@ export async function getWeekSetLogCounts(reference?: Date): Promise<Record<Day,
   return out;
 }
 
-export async function getWeekTotalSetCounts(): Promise<Record<Day, number>> {
+export async function getWeekTotalSetCounts(reference?: Date): Promise<Record<Day, number>> {
   const db = await getDb();
-  const rows = await db.getAllAsync<{ day: Day; total: number }>(
+  const week = weekDates(reference);
+  const dates = Object.values(week) as string[];
+
+  const planRows = await db.getAllAsync<{ day: Day; total: number }>(
     `SELECT day, SUM(sets) AS total FROM day_exercises GROUP BY day`,
   );
+  // Sets for exercises that were skipped during this week. We attribute the
+  // skip to the exercise's plan day via day_exercises.day so the subtraction
+  // lands on the same day-of-week the home dot represents.
+  const skipRows = await db.getAllAsync<{ day: Day; total: number }>(
+    `SELECT de.day, SUM(de.sets) AS total
+     FROM catchup_skips cs
+     JOIN day_exercises de ON de.exercise_id = cs.exercise_id
+     WHERE cs.date_missed IN (${dates.map(() => '?').join(',')})
+     GROUP BY de.day`,
+    dates,
+  );
+
   const out = {} as Record<Day, number>;
   for (const d of DAYS) out[d] = 0;
-  for (const r of rows) out[r.day] = r.total;
+  for (const r of planRows) out[r.day] = r.total;
+  for (const r of skipRows) out[r.day] = Math.max(0, (out[r.day] ?? 0) - r.total);
   return out;
 }
 

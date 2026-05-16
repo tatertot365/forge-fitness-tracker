@@ -52,6 +52,7 @@ import {
   hasNutritionGoal,
   getSessionsForWeek,
   getSkippedDaysThisWeek,
+  getSkippedExerciseIds,
   getWeekSetLogCounts,
   getWeekTotalSetCounts,
   isHealthKitAsked,
@@ -204,15 +205,20 @@ export default function TodayScreen() {
     const hasGoal = await hasNutritionGoal(currentDate);
     setNutritionGoalSet(hasGoal);
     const todaySessionId = w[currentDay]?.id;
-    const completedSets = todaySessionId
-      ? await getCompletedSetCountForSession(todaySessionId)
-      : 0;
+    const [completedSets, todaySkippedIds] = await Promise.all([
+      todaySessionId ? getCompletedSetCountForSession(todaySessionId) : Promise.resolve(0),
+      getSkippedExerciseIds(currentDate),
+    ]);
+    // Match the workout screens: skipped exercises don't count toward the
+    // denominator, otherwise "complete the rest of the day" can never satisfy
+    // `completedSets >= totalSets` and the CTA stays stuck on "Resume".
+    const effectiveTodayExercises = ex.filter((e) => !todaySkippedIds.has(e.id));
     setPhaseState(p);
     setCatchup(c);
     setWeekSessions(w);
     setCardioCount(cc);
-    setTodayExerciseCount(ex.length);
-    setTodayTotalSets(ex.reduce((s, e) => s + e.sets, 0));
+    setTodayExerciseCount(effectiveTodayExercises.length);
+    setTodayTotalSets(effectiveTodayExercises.reduce((s, e) => s + e.sets, 0));
     setTodayCompletedSets(completedSets);
     setDayPlans(plans);
     setShowHealthConnect(!hkAsked && isHealthKitAvailable());

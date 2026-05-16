@@ -1,35 +1,41 @@
-import { Pause, Play, SkipForward, Timer, X } from 'lucide-react-native';
+import { Minus, Pause, Pencil, Play, Plus, SkipForward, Timer, X } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { getCustomRestSeconds, setCustomRestSeconds } from '../db/queries';
 import { colors } from '../theme/colors';
-import { radius } from '../theme/spacing';
+import { radius, typography } from '../theme/spacing';
 import { hapticSelect, hapticSuccess } from '../utils/haptics';
 import { cancelRestNotification, scheduleRestComplete } from '../utils/notifications';
 
-export const REST_PRESETS = [60, 120, 180, 300] as const;
-export type RestPreset = (typeof REST_PRESETS)[number];
-const DEFAULT_PRESET: RestPreset = 60;
+export const FIXED_PRESETS = [60, 180, 300] as const;
+const DEFAULT_CUSTOM_SECS = 90;
+const MIN_CUSTOM_SECS = 15;
+const MAX_CUSTOM_SECS = 30 * 60;
+const DEFAULT_PRESET = 60;
 
 // Module-level state so the timer survives navigation (component unmount /
 // remount). Cleared on stop or when the timer fires. App-kill recovery is
 // handled by the scheduled local notification, not this state.
 type TimerState = {
-  preset: RestPreset;
+  preset: number;
   endTime: number | null;
   pausedSecs: number | null;
   notifId: string | null;
 };
 let saved: TimerState | null = null;
-let lastAutoStartKeySeen: number | null = null;
+// Cache the persisted custom seconds so re-mounts within the same session
+// don't briefly flash the default value before the async DB load resolves.
+let savedCustomSecs: number | null = null;
 
 type Props = {
-  defaultSeconds?: RestPreset;
-  onPresetChange?: (seconds: RestPreset) => void;
+  defaultSeconds?: number;
   autoStartKey?: number | null;
 };
 
-export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, autoStartKey }: Props) {
-  const [preset, setPreset] = useState<RestPreset>(saved?.preset ?? defaultSeconds);
+export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Props) {
+  const [customSecs, setCustomSecsState] = useState<number>(savedCustomSecs ?? DEFAULT_CUSTOM_SECS);
+  const [preset, setPreset] = useState<number>(saved?.preset ?? defaultSeconds);
+  const [editOpen, setEditOpen] = useState(false);
 
   // endTime: epoch ms when countdown reaches zero (null = idle or paused)
   // pausedSecs: seconds left when paused (null = not paused)
@@ -45,6 +51,21 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
 
   const notifId = useRef<string | null>(saved?.notifId ?? null);
   const fired = useRef(false);
+
+  // Load the persisted custom value once on first mount of the session.
+  useEffect(() => {
+    if (savedCustomSecs != null) return;
+    let cancelled = false;
+    (async () => {
+      const v = await getCustomRestSeconds();
+      if (cancelled || v == null) return;
+      savedCustomSecs = v;
+      setCustomSecsState(v);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Sync module-level snapshot whenever the relevant pieces change.
   useEffect(() => {
@@ -103,17 +124,18 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
     if (saved) saved.notifId = notifId.current;
   };
 
-  // Auto-start when a set is completed. The module-level guard only blocks the
-  // FIRST mount with an already-seen key (e.g. nav away and back while the
-  // timer is running). After mount we compare against a per-instance ref so
-  // every subsequent prop change restarts the timer — otherwise completing a
-  // new set after the previous timer reached "Done" would silently no-op.
-  const lastSeenLocal = useRef<number | null>(lastAutoStartKeySeen);
+  // Auto-start when a set is completed. The per-instance ref blocks duplicate
+  // fires for the same key within a single mount (incl. strict-mode double-
+  // invocation). Each fresh mount starts with a null ref so the first non-null
+  // autoStartKey always fires — the parent only sets restKey in response to a
+  // user tap, and on remount restKey resets to null, so there is no spurious
+  // re-fire to guard against. The in-progress countdown is restored from the
+  // module-level `saved` snapshot, not from the autoStartKey prop.
+  const lastSeenLocal = useRef<number | null>(null);
   useEffect(() => {
     if (autoStartKey == null) return;
     if (lastSeenLocal.current === autoStartKey) return;
     lastSeenLocal.current = autoStartKey;
-    lastAutoStartKeySeen = autoStartKey;
     fired.current = false;
     const end = Date.now() + preset * 1000;
     setEndTime(end);
@@ -122,10 +144,9 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
     scheduleNotif(preset);
   }, [autoStartKey]);
 
-  const choosePreset = (p: RestPreset) => {
+  const choosePreset = (p: number) => {
     hapticSelect();
     setPreset(p);
-    onPresetChange?.(p);
     if (active) {
       fired.current = false;
       const end = Date.now() + p * 1000;
@@ -171,80 +192,233 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, onPresetChange, aut
     cancelNotif();
   };
 
-  return (
-    <View style={styles.bar}>
-      <View style={styles.presetRow}>
-        {REST_PRESETS.map((p) => {
-          const isActive = preset === p;
-          return (
-            <Pressable
-              key={p}
-              onPress={() => choosePreset(p)}
-              style={({ pressed }) => [
-                styles.preset,
-                isActive && styles.presetActive,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Text style={[styles.presetText, isActive && styles.presetTextActive]}>
-                {p / 60}m
-              </Text>
-            </Pressable>
-          );
-        })}
-      </View>
+  // Persist a new custom value. If the user has the custom slot currently
+  // selected, keep `preset` in sync so the displayed selection matches. The
+  // active countdown is intentionally NOT restarted — editing the dial-in
+  // value is a configuration change, not a "start a new rest" action.
+  const saveCustom = async (next: number) => {
+    const clamped = Math.max(MIN_CUSTOM_SECS, Math.min(MAX_CUSTOM_SECS, Math.round(next)));
+    savedCustomSecs = clamped;
+    setCustomSecsState(clamped);
+    if (preset === customSecs) {
+      setPreset(clamped);
+    }
+    await setCustomRestSeconds(clamped);
+  };
 
-      <View style={styles.controls}>
-        {active ? (
-          <>
-            <View style={styles.timeWrap}>
-              <Timer
-                size={15}
-                color={done ? colors.green : colors.primary}
-                strokeWidth={2}
-              />
-              <Text style={[styles.time, { color: done ? colors.green : colors.text }]}>
-                {done ? 'Done' : formatTime(remaining ?? 0)}
-              </Text>
-            </View>
-            {!done ? (
+  const customIsActive = preset === customSecs;
+
+  return (
+    <>
+      <View style={styles.bar}>
+        <View style={styles.presetRow}>
+          {FIXED_PRESETS.map((p) => {
+            const isActive = preset === p;
+            return (
               <Pressable
-                onPress={togglePause}
+                key={p}
+                onPress={() => choosePreset(p)}
+                style={({ pressed }) => [
+                  styles.preset,
+                  isActive && styles.presetActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text style={[styles.presetText, isActive && styles.presetTextActive]}>
+                  {p / 60}m
+                </Text>
+              </Pressable>
+            );
+          })}
+          <Pressable
+            key="custom"
+            onPress={() => choosePreset(customSecs)}
+            style={({ pressed }) => [
+              styles.preset,
+              customIsActive && styles.presetActive,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text style={[styles.presetText, customIsActive && styles.presetTextActive]}>
+              {formatPresetLabel(customSecs)}
+            </Text>
+          </Pressable>
+          <Pressable
+            onPress={() => setEditOpen(true)}
+            hitSlop={8}
+            accessibilityLabel="Edit custom rest time"
+            style={({ pressed }) => [styles.pencilBtn, pressed && { opacity: 0.5 }]}
+          >
+            <Pencil size={11} color={colors.textSecondary} strokeWidth={2} />
+          </Pressable>
+        </View>
+
+        <View style={styles.controls}>
+          {active ? (
+            <>
+              <View style={styles.timeWrap}>
+                <Timer
+                  size={15}
+                  color={done ? colors.green : colors.primary}
+                  strokeWidth={2}
+                />
+                <Text style={[styles.time, { color: done ? colors.green : colors.text }]}>
+                  {done ? 'Done' : formatTime(remaining ?? 0)}
+                </Text>
+              </View>
+              {!done ? (
+                <Pressable
+                  onPress={togglePause}
+                  hitSlop={8}
+                  accessibilityLabel={isPaused ? "Resume timer" : "Pause timer"}
+                  style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+                >
+                  {isPaused ? (
+                    <Play size={16} color={colors.text} strokeWidth={2} />
+                  ) : (
+                    <Pause size={16} color={colors.text} strokeWidth={2} />
+                  )}
+                </Pressable>
+              ) : null}
+              <Pressable
+                onPress={stop}
                 hitSlop={8}
-                accessibilityLabel={isPaused ? "Resume timer" : "Pause timer"}
+                accessibilityLabel={done ? "Dismiss timer" : "Skip rest"}
                 style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
               >
-                {isPaused ? (
-                  <Play size={16} color={colors.text} strokeWidth={2} />
+                {done ? (
+                  <X size={16} color={colors.textSecondary} strokeWidth={2} />
                 ) : (
-                  <Pause size={16} color={colors.text} strokeWidth={2} />
+                  <SkipForward size={16} color={colors.textSecondary} strokeWidth={2} />
                 )}
               </Pressable>
-            ) : null}
+            </>
+          ) : (
             <Pressable
-              onPress={stop}
-              hitSlop={8}
-              accessibilityLabel={done ? "Dismiss timer" : "Skip rest"}
-              style={({ pressed }) => [styles.iconBtn, pressed && { opacity: 0.6 }]}
+              onPress={start}
+              style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.85 }]}
             >
-              {done ? (
-                <X size={16} color={colors.textSecondary} strokeWidth={2} />
-              ) : (
-                <SkipForward size={16} color={colors.textSecondary} strokeWidth={2} />
-              )}
+              <Timer size={14} color="#FFFFFF" strokeWidth={2} />
+              <Text style={styles.startBtnText}>Start rest</Text>
             </Pressable>
-          </>
-        ) : (
-          <Pressable
-            onPress={start}
-            style={({ pressed }) => [styles.startBtn, pressed && { opacity: 0.85 }]}
-          >
-            <Timer size={14} color="#FFFFFF" strokeWidth={2} />
-            <Text style={styles.startBtnText}>Start rest</Text>
-          </Pressable>
-        )}
+          )}
+        </View>
       </View>
-    </View>
+
+      <CustomRestSheet
+        visible={editOpen}
+        initialSeconds={customSecs}
+        onClose={() => setEditOpen(false)}
+        onSave={async (secs) => {
+          await saveCustom(secs);
+          setEditOpen(false);
+        }}
+      />
+    </>
+  );
+}
+
+function CustomRestSheet({
+  visible,
+  initialSeconds,
+  onClose,
+  onSave,
+}: {
+  visible: boolean;
+  initialSeconds: number;
+  onClose: () => void;
+  onSave: (seconds: number) => void | Promise<void>;
+}) {
+  const [secs, setSecs] = useState(initialSeconds);
+
+  useEffect(() => {
+    if (visible) setSecs(initialSeconds);
+  }, [visible, initialSeconds]);
+
+  const adjust = (delta: number) => {
+    hapticSelect();
+    setSecs((s) => Math.max(MIN_CUSTOM_SECS, Math.min(MAX_CUSTOM_SECS, s + delta)));
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={sheetStyles.backdrop}>
+        <Pressable style={sheetStyles.dismiss} onPress={onClose} />
+        <View style={sheetStyles.sheet}>
+          <View style={sheetStyles.header}>
+            <Text style={sheetStyles.title}>Custom rest</Text>
+            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
+              <X size={20} color={colors.textSecondary} />
+            </Pressable>
+          </View>
+
+          <Text style={sheetStyles.display}>{formatTime(secs)}</Text>
+          <Text style={sheetStyles.hint}>Set how long you want to rest between sets.</Text>
+
+          <View style={sheetStyles.stepperRow}>
+            <Pressable
+              onPress={() => adjust(-60)}
+              hitSlop={6}
+              disabled={secs <= MIN_CUSTOM_SECS}
+              style={({ pressed }) => [
+                sheetStyles.stepperBtn,
+                secs <= MIN_CUSTOM_SECS && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Minus size={14} color={colors.text} strokeWidth={2} />
+              <Text style={sheetStyles.stepperLabel}>1m</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => adjust(-15)}
+              hitSlop={6}
+              disabled={secs <= MIN_CUSTOM_SECS}
+              style={({ pressed }) => [
+                sheetStyles.stepperBtn,
+                secs <= MIN_CUSTOM_SECS && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Minus size={14} color={colors.text} strokeWidth={2} />
+              <Text style={sheetStyles.stepperLabel}>15s</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => adjust(15)}
+              hitSlop={6}
+              disabled={secs >= MAX_CUSTOM_SECS}
+              style={({ pressed }) => [
+                sheetStyles.stepperBtn,
+                secs >= MAX_CUSTOM_SECS && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Plus size={14} color={colors.text} strokeWidth={2} />
+              <Text style={sheetStyles.stepperLabel}>15s</Text>
+            </Pressable>
+            <Pressable
+              onPress={() => adjust(60)}
+              hitSlop={6}
+              disabled={secs >= MAX_CUSTOM_SECS}
+              style={({ pressed }) => [
+                sheetStyles.stepperBtn,
+                secs >= MAX_CUSTOM_SECS && { opacity: 0.4 },
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Plus size={14} color={colors.text} strokeWidth={2} />
+              <Text style={sheetStyles.stepperLabel}>1m</Text>
+            </Pressable>
+          </View>
+
+          <Pressable
+            onPress={() => onSave(secs)}
+            style={({ pressed }) => [sheetStyles.saveBtn, pressed && { opacity: 0.85 }]}
+          >
+            <Text style={sheetStyles.saveBtnText}>Save</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -252,6 +426,14 @@ function formatTime(s: number): string {
   const m = Math.floor(s / 60);
   const r = s % 60;
   return `${m}:${r.toString().padStart(2, '0')}`;
+}
+
+// Tighter label for the preset pill — drops the leading zero minute when
+// under one minute (e.g. "45s") and uses mm:ss above that.
+function formatPresetLabel(s: number): string {
+  if (s < 60) return `${s}s`;
+  if (s % 60 === 0) return `${s / 60}m`;
+  return formatTime(s);
 }
 
 const styles = StyleSheet.create({
@@ -269,6 +451,7 @@ const styles = StyleSheet.create({
   },
   presetRow: {
     flexDirection: 'row',
+    alignItems: 'center',
     gap: 4,
     backgroundColor: colors.background,
     borderRadius: 8,
@@ -290,6 +473,12 @@ const styles = StyleSheet.create({
   },
   presetTextActive: {
     color: '#FFFFFF',
+  },
+  pencilBtn: {
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   controls: {
     flexDirection: 'row',
@@ -329,4 +518,74 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+});
+
+const sheetStyles = StyleSheet.create({
+  backdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'flex-end',
+  },
+  dismiss: { flex: 1 },
+  sheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 20,
+    paddingTop: 16,
+    paddingBottom: 32,
+  },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  display: {
+    fontSize: 48,
+    fontWeight: '700',
+    color: colors.text,
+    textAlign: 'center',
+    fontVariant: ['tabular-nums'],
+    marginTop: 4,
+    marginBottom: 6,
+  },
+  hint: {
+    ...typography.caption,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    marginBottom: 20,
+  },
+  stepperRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 8,
+    marginBottom: 20,
+  },
+  stepperBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: colors.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  stepperLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.text,
+    fontVariant: ['tabular-nums'],
+  },
+  saveBtn: {
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    borderRadius: radius.card,
+    alignItems: 'center',
+  },
+  saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
 });

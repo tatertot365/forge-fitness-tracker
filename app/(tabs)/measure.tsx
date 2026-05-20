@@ -40,6 +40,7 @@ import {
   setBodyGoals,
   setNutritionGoal,
   setUserProfile,
+  startingMeasurement,
   upsertMeasurement,
   type BodyGoals,
 } from "../../src/db/queries";
@@ -117,6 +118,10 @@ function leanMass(
 export default function MeasureScreen() {
   const [latest, setLatest] = useState<Measurement | null>(null);
   const [prior, setPrior] = useState<Measurement | null>(null);
+  const [starting, setStarting] = useState<{
+    weight_lb: number | null;
+    body_fat_pct: number | null;
+  }>({ weight_lb: null, body_fat_pct: null });
   const [history, setHistory] = useState<Measurement[]>([]);
   const [inputs, setInputs] = useState<Inputs>(EMPTY_INPUTS);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof Inputs, string>>>({});
@@ -138,18 +143,20 @@ export default function MeasureScreen() {
   const [profileExpanded, setProfileExpanded] = useState(false);
 
   const load = useCallback(async () => {
-    const [l, p, h, prof, bg] = await Promise.all([
+    const [l, p, h, prof, bg, st] = await Promise.all([
       latestMeasurement(),
       measurementOneWeekAgo(),
       getMeasurementHistory(),
       getUserProfile(),
       getBodyGoals(),
+      startingMeasurement(),
     ]);
     setLatest(l);
     setPrior(p);
     setHistory(h);
     setProfile(prof);
     setBodyGoalsState(bg);
+    setStarting(st);
     setHeightInput(prof.height_in != null ? String(prof.height_in) : "");
     setDobDate(prof.dob ? new Date(prof.dob) : null);
   }, []);
@@ -513,18 +520,18 @@ export default function MeasureScreen() {
               <GoalProgressRow
                 label="Weight"
                 current={latest?.weight_lb ?? null}
+                start={starting.weight_lb}
                 goal={bodyGoals.goal_weight_lb}
                 unit=" lbs"
-                lowerIsBetter
               />
             )}
             {bodyGoals.goal_body_fat_pct != null && (
               <GoalProgressRow
                 label="Body fat"
                 current={latest?.body_fat_pct ?? null}
+                start={starting.body_fat_pct}
                 goal={bodyGoals.goal_body_fat_pct}
                 unit="%"
-                lowerIsBetter
               />
             )}
           </View>
@@ -801,25 +808,38 @@ function StatCard({
 function GoalProgressRow({
   label,
   current,
+  start,
   goal,
   unit,
-  lowerIsBetter,
 }: {
   label: string;
   current: number | null;
+  start: number | null;
   goal: number;
   unit: string;
-  lowerIsBetter: boolean;
 }) {
   const hasData = current != null;
+  // Direction is set by the user's starting measurement (when the goal was set)
+  // relative to the goal. Fall back to current if start is unavailable.
+  const reference = start ?? current;
+  const lowerIsBetter = reference != null ? reference > goal : false;
+
   const diff = hasData ? Math.abs(current! - goal) : null;
   const reached =
     hasData && (lowerIsBetter ? current! <= goal : current! >= goal);
-  const progress = hasData
-    ? lowerIsBetter
-      ? Math.min(1, goal / Math.max(current!, 0.01))
-      : Math.min(1, current! / goal)
-    : 0;
+
+  let progress = 0;
+  if (hasData) {
+    if (start != null && start !== goal) {
+      const total = Math.abs(goal - start);
+      const done = lowerIsBetter
+        ? Math.max(0, start - current!)
+        : Math.max(0, current! - start);
+      progress = Math.min(1, done / total);
+    } else {
+      progress = reached ? 1 : 0;
+    }
+  }
 
   return (
     <View style={styles.goalRow}>

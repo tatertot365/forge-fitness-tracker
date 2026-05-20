@@ -224,10 +224,23 @@ export default function SessionScreen() {
     return (
       <Screen>
         <View style={styles.header}>
-          <Text style={styles.title}>Rest day</Text>
-          <Text style={styles.subtitle}>
-            {DAY_LABEL[day]} — no training scheduled
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>Rest day</Text>
+            <Text style={styles.subtitle}>
+              {DAY_LABEL[day]} — no training scheduled
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/plan")}
+            hitSlop={10}
+            accessibilityLabel="View full plan"
+            style={({ pressed }) => [
+              styles.fullPlanBtn,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={styles.fullPlanBtnText}>Full plan</Text>
+          </Pressable>
         </View>
         <Card>
           <Text style={styles.restText}>
@@ -244,11 +257,24 @@ export default function SessionScreen() {
     <>
       <Screen>
         <View style={styles.header}>
-          <Text style={styles.title}>{focusLabel}</Text>
-          <Text style={styles.subtitle}>
-            {DAY_LABEL[day]} · {exercises.length} exercise
-            {exercises.length === 1 ? "" : "s"}
-          </Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>{focusLabel}</Text>
+            <Text style={styles.subtitle}>
+              {DAY_LABEL[day]} · {exercises.length} exercise
+              {exercises.length === 1 ? "" : "s"}
+            </Text>
+          </View>
+          <Pressable
+            onPress={() => router.push("/plan")}
+            hitSlop={10}
+            accessibilityLabel="View full plan"
+            style={({ pressed }) => [
+              styles.fullPlanBtn,
+              pressed && { opacity: 0.6 },
+            ]}
+          >
+            <Text style={styles.fullPlanBtnText}>Full plan</Text>
+          </Pressable>
         </View>
 
         {grouped.map(({ group, items }) => (
@@ -478,13 +504,28 @@ function HkCell({
 }
 
 const styles = StyleSheet.create({
-  header: { paddingTop: 8, paddingBottom: 4 },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 8,
+  },
   title: { ...typography.screenTitle, color: colors.text },
   subtitle: {
     ...typography.caption,
     color: colors.textSecondary,
     marginTop: 2,
   },
+  fullPlanBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  fullPlanBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
   restText: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
 
   groupTrailing: {

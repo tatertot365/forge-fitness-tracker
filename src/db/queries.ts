@@ -71,25 +71,81 @@ export async function setUserProfile(profile: Partial<import('../utils/tdee').Us
   if (profile.sex != null) await setSetting('profile_sex', profile.sex);
 }
 
-export type BodyGoals = { goal_weight_lb: number | null; goal_body_fat_pct: number | null; show_ratio_card: boolean };
+export type BodyGoals = {
+  goal_weight_lb: number | null;
+  goal_body_fat_pct: number | null;
+  goal_weight_start_lb: number | null;
+  goal_body_fat_start_pct: number | null;
+  show_ratio_card: boolean;
+};
 
 export async function getBodyGoals(): Promise<BodyGoals> {
-  const [w, b, r] = await Promise.all([
+  const [w, b, r, sw, sb] = await Promise.all([
     getSetting('goal_weight_lb'),
     getSetting('goal_body_fat_pct'),
     getSetting('show_ratio_card'),
+    getSetting('goal_weight_start_lb'),
+    getSetting('goal_body_fat_start_pct'),
   ]);
   return {
     goal_weight_lb: w ? Number(w) : null,
     goal_body_fat_pct: b ? Number(b) : null,
+    goal_weight_start_lb: sw ? Number(sw) : null,
+    goal_body_fat_start_pct: sb ? Number(sb) : null,
     show_ratio_card: r === '1',
   };
 }
 
 export async function setBodyGoals(goals: Partial<BodyGoals>): Promise<void> {
-  if (goals.goal_weight_lb != null) await setSetting('goal_weight_lb', String(goals.goal_weight_lb));
-  if (goals.goal_body_fat_pct != null) await setSetting('goal_body_fat_pct', String(goals.goal_body_fat_pct));
+  if (goals.goal_weight_lb != null) {
+    const prev = await getSetting('goal_weight_lb');
+    const existingStart = await getSetting('goal_weight_start_lb');
+    const goalChanged = prev == null || Number(prev) !== goals.goal_weight_lb;
+    // Snapshot the user's current weight as their journey start whenever the
+    // goal value changes or no snapshot exists yet — this keeps the progress
+    // bar fixed instead of following same-day upserts to today's measurement.
+    if (goalChanged || existingStart == null) {
+      const latest = await latestMeasurement();
+      if (latest?.weight_lb != null) {
+        await setSetting('goal_weight_start_lb', String(latest.weight_lb));
+      }
+    }
+    await setSetting('goal_weight_lb', String(goals.goal_weight_lb));
+  }
+  if (goals.goal_body_fat_pct != null) {
+    const prev = await getSetting('goal_body_fat_pct');
+    const existingStart = await getSetting('goal_body_fat_start_pct');
+    const goalChanged = prev == null || Number(prev) !== goals.goal_body_fat_pct;
+    if (goalChanged || existingStart == null) {
+      const latest = await latestMeasurement();
+      if (latest?.body_fat_pct != null) {
+        await setSetting('goal_body_fat_start_pct', String(latest.body_fat_pct));
+      }
+    }
+    await setSetting('goal_body_fat_pct', String(goals.goal_body_fat_pct));
+  }
   if (goals.show_ratio_card != null) await setSetting('show_ratio_card', goals.show_ratio_card ? '1' : '0');
+}
+
+// Backfill the journey-start snapshot for users who set a goal before this
+// snapshot existed. Idempotent: only writes when a goal is set and the
+// matching start setting is still missing.
+export async function backfillBodyGoalStarts(): Promise<void> {
+  const [gw, gb, sw, sb] = await Promise.all([
+    getSetting('goal_weight_lb'),
+    getSetting('goal_body_fat_pct'),
+    getSetting('goal_weight_start_lb'),
+    getSetting('goal_body_fat_start_pct'),
+  ]);
+  if ((gw != null && sw == null) || (gb != null && sb == null)) {
+    const latest = await latestMeasurement();
+    if (gw != null && sw == null && latest?.weight_lb != null) {
+      await setSetting('goal_weight_start_lb', String(latest.weight_lb));
+    }
+    if (gb != null && sb == null && latest?.body_fat_pct != null) {
+      await setSetting('goal_body_fat_start_pct', String(latest.body_fat_pct));
+    }
+  }
 }
 
 export async function getPhase(): Promise<Phase> {

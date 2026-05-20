@@ -149,6 +149,8 @@ export default function TodayScreen() {
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
     goal_body_fat_pct: null,
+    goal_weight_start_lb: null,
+    goal_body_fat_start_pct: null,
     show_ratio_card: false,
   });
 

@@ -29,6 +29,7 @@ import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import {
+  backfillBodyGoalStarts,
   getActivityLevel,
   getBodyGoals,
   getGoalsMode,
@@ -129,6 +130,8 @@ export default function MeasureScreen() {
   const [bodyGoals, setBodyGoalsState] = useState<BodyGoals>({
     goal_weight_lb: null,
     goal_body_fat_pct: null,
+    goal_weight_start_lb: null,
+    goal_body_fat_start_pct: null,
     show_ratio_card: false,
   });
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
@@ -143,6 +146,7 @@ export default function MeasureScreen() {
   const [profileExpanded, setProfileExpanded] = useState(false);
 
   const load = useCallback(async () => {
+    await backfillBodyGoalStarts();
     const [l, p, h, prof, bg, st] = await Promise.all([
       latestMeasurement(),
       measurementOneWeekAgo(),
@@ -520,7 +524,7 @@ export default function MeasureScreen() {
               <GoalProgressRow
                 label="Weight"
                 current={latest?.weight_lb ?? null}
-                start={starting.weight_lb}
+                start={bodyGoals.goal_weight_start_lb ?? starting.weight_lb}
                 goal={bodyGoals.goal_weight_lb}
                 unit=" lbs"
               />
@@ -529,7 +533,9 @@ export default function MeasureScreen() {
               <GoalProgressRow
                 label="Body fat"
                 current={latest?.body_fat_pct ?? null}
-                start={starting.body_fat_pct}
+                start={
+                  bodyGoals.goal_body_fat_start_pct ?? starting.body_fat_pct
+                }
                 goal={bodyGoals.goal_body_fat_pct}
                 unit="%"
               />

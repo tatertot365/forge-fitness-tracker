@@ -19,7 +19,7 @@ export async function lookupBarcode(barcode: string): Promise<FoodFactsResult> {
   let data: any;
   try {
     const res = await fetch(url, {
-      headers: { 'User-Agent': 'Forge-Trainer/1.0 (personal fitness app)' },
+      headers: { 'User-Agent': 'Forge/1.0 (https://forge.tatertot365.com)' },
     });
     data = await res.json();
   } catch {

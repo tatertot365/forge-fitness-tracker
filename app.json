@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Forge",
+    "name": "Forge: Strength Training",
     "slug": "forge-trainer",
     "scheme": "forgetrainer",
     "version": "1.0.0",
@@ -18,14 +18,24 @@
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
+        "CFBundleDisplayName": "Forge",
+        "LSApplicationCategoryType": "public.app-category.healthcare-fitness",
         "NSHealthShareUsageDescription": "Forge reads your most recent Apple Watch workout to show duration, heart rate, and active calories on your session summary.",
+        "NSHealthUpdateUsageDescription": "Required by the HealthKit framework. Forge does not write any data to Apple Health.",
         "NSCameraUsageDescription": "Forge uses the camera to scan food barcodes and look up nutrition information."
       }
     },
     "plugins": [
       "expo-router",
       "expo-sqlite",
-      "expo-camera",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Forge uses the camera to scan food barcodes and look up nutrition information.",
+          "microphonePermission": false,
+          "recordAudioAndroid": false
+        }
+      ],
       [
         "@kingstinct/react-native-healthkit",
         {
@@ -33,7 +43,6 @@
           "background": false
         }
       ],
-      "./plugins/withCleanEntitlements",
       "./plugins/withPrivacyManifest"
     ],
     "experiments": {

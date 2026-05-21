@@ -20,6 +20,7 @@ import {
   Dimensions,
   Keyboard,
   KeyboardAvoidingView,
+  Linking,
   Modal,
   Platform,
   Pressable,
@@ -633,12 +634,30 @@ function BarcodeScannerModal({
   if (!visible) return null;
 
   if (!permission?.granted) {
+    const canAskAgain = permission?.canAskAgain ?? true;
     return (
       <Modal visible animationType="slide" onRequestClose={onClose}>
         <View style={scan.container}>
           <Text style={scan.deniedText}>
-            Camera access is required to scan barcodes.
+            Camera access is required to scan barcodes.{"\n"}
+            {canAskAgain
+              ? "Tap below to allow access."
+              : "Enable camera access in Settings to continue."}
           </Text>
+          <Pressable
+            onPress={() => {
+              if (canAskAgain) {
+                requestPermission();
+              } else {
+                Linking.openSettings();
+              }
+            }}
+            style={scan.primaryBtn}
+          >
+            <Text style={scan.primaryBtnText}>
+              {canAskAgain ? "Allow camera" : "Open Settings"}
+            </Text>
+          </Pressable>
           <Pressable onPress={onClose} style={scan.closeBtn}>
             <Text style={scan.closeBtnText}>Close</Text>
           </Pressable>
@@ -2688,6 +2707,14 @@ const scan = StyleSheet.create({
     textAlign: "center",
     margin: 32,
   },
+  primaryBtn: {
+    paddingHorizontal: 32,
+    paddingVertical: 12,
+    borderRadius: 24,
+    backgroundColor: "#FFFFFF",
+    marginBottom: 12,
+  },
+  primaryBtnText: { color: "#000000", fontSize: 15, fontWeight: "600" },
   closeBtn: {
     paddingHorizontal: 32,
     paddingVertical: 12,

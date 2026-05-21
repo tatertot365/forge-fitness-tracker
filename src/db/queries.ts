@@ -129,7 +129,9 @@ export async function setBodyGoals(goals: Partial<BodyGoals>): Promise<void> {
 
 // Backfill the journey-start snapshot for users who set a goal before this
 // snapshot existed. Idempotent: only writes when a goal is set and the
-// matching start setting is still missing.
+// matching start setting is still missing. Uses the earliest logged
+// measurement (best estimate of journey start), not the latest, so existing
+// users keep their visible progress.
 export async function backfillBodyGoalStarts(): Promise<void> {
   const [gw, gb, sw, sb] = await Promise.all([
     getSetting('goal_weight_lb'),
@@ -138,12 +140,12 @@ export async function backfillBodyGoalStarts(): Promise<void> {
     getSetting('goal_body_fat_start_pct'),
   ]);
   if ((gw != null && sw == null) || (gb != null && sb == null)) {
-    const latest = await latestMeasurement();
-    if (gw != null && sw == null && latest?.weight_lb != null) {
-      await setSetting('goal_weight_start_lb', String(latest.weight_lb));
+    const starting = await startingMeasurement();
+    if (gw != null && sw == null && starting.weight_lb != null) {
+      await setSetting('goal_weight_start_lb', String(starting.weight_lb));
     }
-    if (gb != null && sb == null && latest?.body_fat_pct != null) {
-      await setSetting('goal_body_fat_start_pct', String(latest.body_fat_pct));
+    if (gb != null && sb == null && starting.body_fat_pct != null) {
+      await setSetting('goal_body_fat_start_pct', String(starting.body_fat_pct));
     }
   }
 }

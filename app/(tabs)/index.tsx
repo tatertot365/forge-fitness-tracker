@@ -1162,15 +1162,21 @@ function BodyStatsCard({
     return startVal > goal ? current <= goal : current >= goal;
   };
 
+  // Prefer the per-goal snapshot stored when the goal was set so the bar
+  // doesn't drift when today's measurement is re-upserted. Fall back to the
+  // earliest measurement only when no snapshot exists yet.
+  const weightStart = goals.goal_weight_start_lb ?? start.weight_lb;
+  const bfStart = goals.goal_body_fat_start_pct ?? start.body_fat_pct;
+
   const weightPct = progressFrom(
-    start.weight_lb,
+    weightStart,
     latest?.weight_lb ?? null,
     goals.goal_weight_lb,
   );
   const weightReached = goalReached(
     latest?.weight_lb ?? null,
     goals.goal_weight_lb,
-    start.weight_lb,
+    weightStart,
   );
   const weightRemain =
     latest?.weight_lb != null && goals.goal_weight_lb != null
@@ -1178,14 +1184,14 @@ function BodyStatsCard({
       : null;
 
   const bfPct = progressFrom(
-    start.body_fat_pct,
+    bfStart,
     latest?.body_fat_pct ?? null,
     goals.goal_body_fat_pct,
   );
   const bfReached = goalReached(
     latest?.body_fat_pct ?? null,
     goals.goal_body_fat_pct,
-    start.body_fat_pct,
+    bfStart,
   );
   const bfRemain =
     latest?.body_fat_pct != null && goals.goal_body_fat_pct != null

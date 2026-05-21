@@ -8,6 +8,7 @@ import {
   Heart,
   Pencil,
   Plus,
+  Settings as SettingsIcon,
   SkipForward,
   X,
 } from "lucide-react-native";
@@ -356,6 +357,14 @@ export default function TodayScreen() {
         >
           <Download size={12} color={colors.primary} strokeWidth={2} />
           <Text style={styles.exportBtnText}>Export</Text>
+        </Pressable>
+        <Pressable
+          onPress={() => router.push("/settings")}
+          hitSlop={10}
+          accessibilityLabel="Settings"
+          style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}
+        >
+          <SettingsIcon size={16} color={colors.text} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -1614,6 +1623,16 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   exportBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+  settingsBtn: {
+    width: 32,
+    height: 32,
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
 
   exportCheckRow: {
     flexDirection: "row",

@@ -33,7 +33,8 @@
           "background": false
         }
       ],
-      "./plugins/withCleanEntitlements"
+      "./plugins/withCleanEntitlements",
+      "./plugins/withPrivacyManifest"
     ],
     "experiments": {
       "typedRoutes": true

@@ -4,6 +4,7 @@ import { Minus, TrendingDown, TrendingUp } from 'lucide-react-native';
 import type { Phase } from '../types';
 import { colors, phaseColor } from '../theme/colors';
 import { radius } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   value: Phase;
@@ -18,6 +19,7 @@ const LABEL: Record<Phase, string> = {
 };
 
 export function PhasePills({ value, onChange }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <View style={styles.row}>
       {ORDER.map((p) => {
@@ -51,7 +53,7 @@ function PhaseIcon({ phase, color }: { phase: Phase; color: string }) {
   return <TrendingUp size={size} color={color} strokeWidth={2} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     gap: 8,
@@ -69,7 +71,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   label: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '500',
   },
 });

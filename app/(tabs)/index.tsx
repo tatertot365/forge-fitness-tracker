@@ -17,7 +17,6 @@ import Svg, { Circle as SvgCircle } from "react-native-svg";
 import {
   Alert,
   AppState,
-  Dimensions,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -26,6 +25,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -74,6 +74,7 @@ import {
 } from "../../src/health";
 import { colors, muscleAccent } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
+import { useStyles } from "../../src/theme/useStyles";
 import {
   DAY_LABEL,
   DAYS,
@@ -95,9 +96,9 @@ import {
 } from "../../src/utils/haptics";
 
 const CARDIO_TARGET: Record<Phase, number> = { cut: 4, maintain: 3, bulk: 2 };
-const SCREEN_WIDTH = Dimensions.get("window").width;
 
 export default function TodayScreen() {
+  const styles = useStyles(makeStyles);
   const router = useRouter();
   // today/todayDate/thisWeek are state, not module-time constants, so they
   // refresh when the app returns to foreground or focus changes — otherwise a
@@ -585,6 +586,7 @@ function EditCardioSheet({
   onClose: () => void;
   onSave: (info: CardioInfo) => Promise<void>;
 }) {
+  const styles = useStyles(makeStyles);
   const [name, setName] = useState(current.name);
   const [description, setDescription] = useState(current.description);
   const [busy, setBusy] = useState(false);
@@ -674,6 +676,7 @@ function ExportSheet({
   visible: boolean;
   onClose: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [sessions, setSessions] = useState(true);
   const [nutrition, setNutrition] = useState(true);
   const [measurements, setMeasurements] = useState(true);
@@ -787,7 +790,9 @@ function WeekStrip({
   onPressDay: (d: Day) => void;
   onLongPressDay: (d: Day) => void;
 }) {
-  const slotWidth = (SCREEN_WIDTH - 32) / 7;
+  const styles = useStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  const slotWidth = (width - 32) / 7;
 
   return (
     <View style={styles.strip}>
@@ -886,6 +891,7 @@ function SwipeableCatchupRow({
   onPress: () => void;
   onSkip: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const ref = useRef<SwipeableMethods>(null);
 
   const handleSkip = () => {
@@ -924,6 +930,7 @@ function CatchupRow({
   item: CatchupItem;
   onPress: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const atRisk = item.days_ago >= 3;
   const Icon = atRisk ? AlertTriangle : Clock;
   const iconColor = atRisk ? colors.warning : colors.gray;
@@ -960,18 +967,20 @@ function CatchupRow({
 
 // ── Muscle group grid ─────────────────────────────────────────────────────────
 
-const CELL_WIDTH = (SCREEN_WIDTH - 40) / 2; // 16px padding × 2 sides + 8px gap
-
 function MuscleGroupGrid({
   sets,
 }: {
   sets: Partial<Record<MuscleGroup, number>>;
 }) {
+  const styles = useStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  // 16px screen padding × 2 sides + 8px gap between the two columns.
+  const cellWidth = (width - 40) / 2;
   const entries = Object.entries(sets) as [MuscleGroup, number][];
   return (
     <View style={styles.mgGrid}>
       {entries.map(([group, count]) => (
-        <View key={group} style={styles.mgCell}>
+        <View key={group} style={[styles.mgCell, { width: cellWidth }]}>
           <View
             style={[
               styles.mgAccent,
@@ -1008,6 +1017,7 @@ function MacroRingCard({
   goalSet: boolean;
   onPress: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   // No real goal set yet → show a CTA instead of fake-default rings, otherwise
   // first-launch users log against placeholder targets that look real.
   if (!goalSet) {
@@ -1141,6 +1151,7 @@ function BodyStatsCard({
   goals: BodyGoals;
   onPress: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const { latest, start } = data;
   const hasGoals =
     goals.goal_weight_lb != null || goals.goal_body_fat_pct != null;
@@ -1284,6 +1295,7 @@ function GoalProgressRow({
   remain: string | null;
   reached: boolean;
 }) {
+  const styles = useStyles(makeStyles);
   const barColor = reached ? colors.green : colors.primary;
   return (
     <View style={{ gap: 6 }}>
@@ -1319,7 +1331,7 @@ function GoalProgressRow({
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -1328,9 +1340,10 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
     gap: 12,
   },
-  title: { ...typography.screenTitle, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
   subtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -1351,13 +1364,13 @@ const styles = StyleSheet.create({
   },
   sessionLeft: { flex: 1, gap: 3 },
   sessionDayLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     fontWeight: "700",
     letterSpacing: 1.2,
     color: "rgba(255,255,255,0.55)",
   },
-  sessionFocus: { fontSize: 22, fontWeight: "700", color: "#FFFFFF" },
-  sessionMeta: { fontSize: 12, color: "rgba(255,255,255,0.6)", marginTop: 1 },
+  sessionFocus: { fontSize: s(22), fontWeight: "700", color: "#FFFFFF" },
+  sessionMeta: { fontSize: s(12), color: "rgba(255,255,255,0.6)", marginTop: 1 },
   sessionCtaBox: {
     flexDirection: "row",
     alignItems: "center",
@@ -1367,8 +1380,8 @@ const styles = StyleSheet.create({
     paddingVertical: 9,
     borderRadius: radius.pill,
   },
-  sessionCtaText: { color: "#FFFFFF", fontSize: 13, fontWeight: "700" },
-  sessionCtaArrow: { color: "#FFFFFF", fontSize: 15, fontWeight: "700" },
+  sessionCtaText: { color: "#FFFFFF", fontSize: s(13), fontWeight: "700" },
+  sessionCtaArrow: { color: "#FFFFFF", fontSize: s(15), fontWeight: "700" },
 
   // Week strip
   strip: {
@@ -1395,7 +1408,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   stripDayLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "500",
     color: colors.textSecondary,
   },
@@ -1417,20 +1430,21 @@ const styles = StyleSheet.create({
     borderRadius: radius.accent,
     marginRight: 12,
   },
-  catchName: { ...typography.exerciseName, color: colors.text },
-  catchMeta: { ...typography.caption, color: colors.textSecondary },
+  catchName: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
+  catchMeta: { ...typography.caption, fontSize: s(12), color: colors.textSecondary },
   catchTrailing: {
     alignItems: "flex-end",
     justifyContent: "center",
     paddingRight: 14,
     gap: 2,
   },
-  catchTrailingText: { fontSize: 11, fontWeight: "600" },
+  catchTrailingText: { fontSize: s(11), fontWeight: "600" },
 
   // Cardio
-  cardioTitle: { ...typography.exerciseName, color: colors.text },
+  cardioTitle: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
   cardioMeta: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -1442,6 +1456,7 @@ const styles = StyleSheet.create({
   },
   cardioCount: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontVariant: ["tabular-nums"],
   },
@@ -1454,7 +1469,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     backgroundColor: colors.primary,
   },
-  addBtnText: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  addBtnText: { color: "#FFFFFF", fontSize: s(12), fontWeight: "600" },
 
   mgGrid: {
     flexDirection: "row",
@@ -1462,7 +1477,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   mgCell: {
-    width: CELL_WIDTH,
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
@@ -1481,12 +1495,12 @@ const styles = StyleSheet.create({
   },
   mgContent: { flex: 1 },
   mgName: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.text,
   },
   mgCount: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     marginTop: 2,
     fontVariant: ["tabular-nums"],
@@ -1500,17 +1514,17 @@ const styles = StyleSheet.create({
     marginBottom: 14,
   },
   glanceTitle: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.text,
   },
   glanceNav: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "600",
     color: colors.primary,
   },
   macroEmptyText: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textSecondary,
     lineHeight: 18,
     marginTop: 6,
@@ -1531,24 +1545,24 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   ringValue: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "700",
     fontVariant: ["tabular-nums"],
   },
   ringLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     color: colors.textSecondary,
   },
   ringGoal: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textMuted,
     fontVariant: ["tabular-nums"],
   },
 
   // Goal progress card
   goalsEmptyText: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textMuted,
     textAlign: "center",
     paddingVertical: 8,
@@ -1559,7 +1573,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   goalLabel: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "600",
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -1571,17 +1585,17 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   goalCurrent: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   goalSep: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
   },
   goalTarget: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.primary,
     fontVariant: ["tabular-nums"],
@@ -1597,7 +1611,7 @@ const styles = StyleSheet.create({
     borderRadius: 3,
   },
   goalRemain: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
     fontVariant: ["tabular-nums"],
   },
@@ -1609,7 +1623,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 6,
     paddingVertical: 2,
   },
-  editPlanText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+  editPlanText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
 
   exportBtn: {
     flexDirection: "row",
@@ -1622,7 +1636,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  exportBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+  exportBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
   settingsBtn: {
     width: 32,
     height: 32,
@@ -1642,7 +1656,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  exportCheckLabel: { fontSize: 15, fontWeight: "500", color: colors.text },
+  exportCheckLabel: { fontSize: s(15), fontWeight: "500", color: colors.text },
   exportCheckbox: {
     width: 22,
     height: 22,
@@ -1656,7 +1670,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
     borderColor: colors.primary,
   },
-  exportCheckmark: { color: "#FFFFFF", fontSize: 13, fontWeight: "700", lineHeight: 16 },
+  exportCheckmark: { color: "#FFFFFF", fontSize: s(13), fontWeight: "700", lineHeight: 16 },
 
   skipAction: {
     width: 76,
@@ -1669,7 +1683,7 @@ const styles = StyleSheet.create({
   },
   skipLabel: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     letterSpacing: 0.3,
   },
@@ -1692,7 +1706,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   skipDayBtnText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontWeight: "500",
   },
@@ -1717,9 +1731,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 4,
   },
-  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1728,7 +1742,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   fieldInput: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1744,7 +1758,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  sheetSaveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  sheetSaveBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
   healthBtn: {
     flexDirection: "row",
@@ -1756,7 +1770,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     backgroundColor: "#FF2D55",
   },
-  healthTitle: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
-  healthMeta: { color: "rgba(255,255,255,0.85)", fontSize: 11, marginTop: 1 },
-  healthCta: { color: "#FFFFFF", fontSize: 12, fontWeight: "600" },
+  healthTitle: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
+  healthMeta: { color: "rgba(255,255,255,0.85)", fontSize: s(11), marginTop: 1 },
+  healthCta: { color: "#FFFFFF", fontSize: s(12), fontWeight: "600" },
 });

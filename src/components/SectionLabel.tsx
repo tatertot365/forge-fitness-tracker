@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   children: string;
@@ -9,6 +10,7 @@ type Props = {
 };
 
 export function SectionLabel({ children, trailing }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <View style={styles.wrap}>
       <Text style={styles.text}>{children}</Text>
@@ -17,7 +19,7 @@ export function SectionLabel({ children, trailing }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   wrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -28,6 +30,7 @@ const styles = StyleSheet.create({
   },
   text: {
     ...typography.sectionLabel,
+    fontSize: s(11),
     color: colors.textSecondary,
   },
 });

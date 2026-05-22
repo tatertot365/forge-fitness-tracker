@@ -46,6 +46,7 @@ import {
 } from "../../src/db/queries";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
+import { useStyles } from "../../src/theme/useStyles";
 import {
   MUSCLE_LABEL,
   type Exercise,
@@ -71,6 +72,7 @@ type WarmupRow = {
 };
 
 export default function ExerciseDetailScreen() {
+  const styles = useStyles(makeStyles);
   const router = useRouter();
   const params = useLocalSearchParams<{
     id?: string;
@@ -745,6 +747,7 @@ function EditExerciseSheet({
   onSaved: () => void | Promise<void>;
   onDeleted: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [name, setName] = useState(exercise.name);
   const [sets, setSets] = useState(exercise.sets);
   const [warmupSets, setWarmupSets] = useState(exercise.warmup_sets);
@@ -1031,7 +1034,7 @@ function EditExerciseSheet({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
     flexDirection: "row",
@@ -1046,9 +1049,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   subtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 1,
   },
@@ -1076,15 +1080,15 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   beatLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     fontWeight: "600",
   },
-  beatValue: { ...typography.metricValue, color: colors.text, marginTop: 2 },
+  beatValue: { ...typography.metricValue, fontSize: s(22), color: colors.text, marginTop: 2 },
   beatCta: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.primary,
     fontWeight: "600",
     marginTop: 4,
@@ -1092,6 +1096,7 @@ const styles = StyleSheet.create({
 
   notes: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontStyle: "italic",
     marginTop: 12,
@@ -1106,7 +1111,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   headCell: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1124,13 +1129,13 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   setNum: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: "600",
     color: colors.textSecondary,
     textAlign: "center",
   },
   input: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -1150,7 +1155,7 @@ const styles = StyleSheet.create({
     borderTopColor: colors.border,
   },
   addWarmupText: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.primary,
     fontWeight: "600",
   },
@@ -1165,7 +1170,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  saveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  saveBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
   sheetBackdrop: {
     flex: 1,
@@ -1191,9 +1196,9 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 4,
   },
-  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   fieldLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1202,7 +1207,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   fieldInput: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1227,7 +1232,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   stepperValue: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: "600",
     color: colors.text,
     minWidth: 24,
@@ -1236,6 +1241,7 @@ const styles = StyleSheet.create({
   },
   sheetHint: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 14,
     marginBottom: 4,
@@ -1248,7 +1254,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
   },
-  deleteBtnText: { color: colors.red, fontSize: 14, fontWeight: "600" },
+  deleteBtnText: { color: colors.red, fontSize: s(14), fontWeight: "600" },
 
   bwBadge: {
     alignItems: "center",
@@ -1256,7 +1262,7 @@ const styles = StyleSheet.create({
     paddingVertical: 6,
   },
   bwBadgeText: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "700",
     color: colors.textSecondary,
     letterSpacing: 0.5,
@@ -1267,7 +1273,7 @@ const styles = StyleSheet.create({
     paddingBottom: 12,
   },
   dropLabel: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.primary,
     textAlign: "center",
@@ -1285,13 +1291,13 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   partnerPillLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.primary,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
-  partnerPillName: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  partnerPillName: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
 
   segmented: {
     flexDirection: "row",
@@ -1309,7 +1315,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  segmentText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
   segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   partnerOption: {
@@ -1324,10 +1330,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary + "15",
     borderColor: colors.primary,
   },
-  partnerOptionText: { fontSize: 14, color: colors.text, flex: 1 },
+  partnerOptionText: { fontSize: s(14), color: colors.text, flex: 1 },
   partnerOptionTextActive: { color: colors.primary, fontWeight: "600" },
   partnerOptionDay: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
     fontWeight: "500",
   },

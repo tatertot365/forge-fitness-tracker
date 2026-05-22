@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, type ViewProps } from 'react-native';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   children: React.ReactNode;
@@ -10,12 +11,13 @@ type Props = {
 };
 
 export function Card({ children, padded = true, style }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <View style={[styles.card, padded && styles.padding, style]}>{children}</View>
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,

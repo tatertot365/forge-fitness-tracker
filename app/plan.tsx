@@ -52,6 +52,7 @@ import {
 } from "../src/db/queries";
 import { colors, muscleAccent } from "../src/theme/colors";
 import { radius, typography } from "../src/theme/spacing";
+import { useStyles } from "../src/theme/useStyles";
 import {
   DAY_LABEL,
   DAYS,
@@ -104,6 +105,7 @@ type PartnerPickerProps = {
 };
 
 function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
+  const ss = useStyles(makeSs);
   const [mode, setMode] = useState<"library" | "new">(
     value?.kind === "new" ? "new" : "library",
   );
@@ -332,6 +334,7 @@ function EditSheet({
   onSaved,
   onDeleted,
 }: EditSheetProps) {
+  const ss = useStyles(makeSs);
   const [name, setName] = useState("");
   const [sets, setSets] = useState(3);
   const [warmupSets, setWarmupSets] = useState(0);
@@ -741,6 +744,7 @@ type AddSheetProps = {
 type AddMode = "library" | "new";
 
 function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
+  const ss = useStyles(makeSs);
   const [mode, setMode] = useState<AddMode>("library");
   const [search, setSearch] = useState("");
   const [filterGroup, setFilterGroup] = useState<MuscleGroup | null>(null);
@@ -1338,6 +1342,7 @@ function DraggableRow({
   onDrop: (from: number, to: number) => void;
   onMeasureHeight?: (h: number) => void;
 }) {
+  const ds = useStyles(makeDs);
   const animStyle = useAnimatedStyle(() => {
     const n = totalCount;
     const H = ITEM_HEIGHT;
@@ -1573,6 +1578,7 @@ function DraggableGroupContainer({
   onGroupDrop: (from: number, to: number) => void;
   onDeleteGroup: (mg: MuscleGroup) => void;
 }) {
+  const ds = useStyles(makeDs);
   const totalGroups = groupHeights.length;
 
   const animStyle = useAnimatedStyle(() => {
@@ -1744,6 +1750,7 @@ function DaySection({
   onDeleteGroup,
   onEditExercise,
 }: DaySectionProps) {
+  const ds = useStyles(makeDs);
   const [focusText, setFocusText] = useState(plan.name);
   const enabled = !!plan.enabled;
 
@@ -1899,6 +1906,7 @@ function DaySection({
 // ─── PlanScreen ───────────────────────────────────────────────────────────────
 
 export default function PlanScreen() {
+  const styles = useStyles(makeStyles);
   const router = useRouter();
   const [plans, setPlans] = useState<Record<Day, DayPlan> | null>(null);
   const [exercises, setExercises] = useState<Record<Day, Exercise[]>>(
@@ -2057,7 +2065,7 @@ export default function PlanScreen() {
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
     flexDirection: "row",
@@ -2072,8 +2080,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
-  subtitle: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
+  subtitle: { fontSize: s(12), color: colors.textSecondary, marginTop: 1 },
   content: {
     paddingHorizontal: 16,
     paddingTop: 4,
@@ -2082,7 +2090,7 @@ const styles = StyleSheet.create({
   },
 });
 
-const ds = StyleSheet.create({
+const makeDs = (s: (n: number) => number) => StyleSheet.create({
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -2097,10 +2105,10 @@ const ds = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 10,
   },
-  dayName: { fontSize: 16, fontWeight: "600", color: colors.text },
+  dayName: { fontSize: s(16), fontWeight: "600", color: colors.text },
   dayNameDisabled: { color: colors.textSecondary },
   focusInput: {
-    fontSize: 14,
+    fontSize: s(14),
     color: colors.text,
     paddingVertical: 9,
     paddingHorizontal: 12,
@@ -2133,7 +2141,7 @@ const ds = StyleSheet.create({
     padding: 2,
   },
   muscleLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     fontWeight: "600",
     color: colors.textMuted,
     textTransform: "uppercase",
@@ -2155,8 +2163,8 @@ const ds = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   accentBar: { width: 3, height: 32, borderRadius: 2, flexShrink: 0 },
-  exerciseName: { fontSize: 14, fontWeight: "500", color: colors.text },
-  exerciseMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 1 },
+  exerciseName: { fontSize: s(14), fontWeight: "500", color: colors.text },
+  exerciseMeta: { fontSize: s(12), color: colors.textSecondary, marginTop: 1 },
   dayActions: {
     flexDirection: "row",
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -2169,7 +2177,7 @@ const ds = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  addBtnText: { fontSize: 13, color: colors.primary, fontWeight: "500" },
+  addBtnText: { fontSize: s(13), color: colors.primary, fontWeight: "500" },
   copyBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -2179,10 +2187,10 @@ const ds = StyleSheet.create({
     borderLeftWidth: StyleSheet.hairlineWidth,
     borderLeftColor: colors.border,
   },
-  copyBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  copyBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
 });
 
-const ss = StyleSheet.create({
+const makeSs = (s: (n: number) => number) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.55)",
@@ -2204,10 +2212,10 @@ const ss = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
 
   fieldLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -2216,7 +2224,7 @@ const ss = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -2237,7 +2245,7 @@ const ss = StyleSheet.create({
     borderColor: colors.border,
   },
   stepperValue: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: "600",
     color: colors.text,
     minWidth: 24,
@@ -2260,7 +2268,7 @@ const ss = StyleSheet.create({
     borderRadius: 8,
   },
   segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: 11, color: colors.textSecondary, fontWeight: "500" },
+  segmentText: { fontSize: s(11), color: colors.textSecondary, fontWeight: "500" },
   segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   saveBtn: {
@@ -2270,7 +2278,7 @@ const ss = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  saveBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  saveBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
   deleteDivider: {
     height: StyleSheet.hairlineWidth,
@@ -2287,8 +2295,8 @@ const ss = StyleSheet.create({
     backgroundColor: colors.red + "12",
     alignItems: "center",
   },
-  deleteBtnText: { fontSize: 14, fontWeight: "600", color: colors.red },
-  deleteBtnSub: { fontSize: 11, color: colors.red + "AA", marginTop: 2 },
+  deleteBtnText: { fontSize: s(14), fontWeight: "600", color: colors.red },
+  deleteBtnSub: { fontSize: s(11), color: colors.red + "AA", marginTop: 2 },
 
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
   pill: {
@@ -2299,7 +2307,7 @@ const ss = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.background,
   },
-  pillText: { fontSize: 12, color: colors.textSecondary, fontWeight: "500" },
+  pillText: { fontSize: s(12), color: colors.textSecondary, fontWeight: "500" },
 
   modeToggle: {
     flexDirection: "row",
@@ -2318,7 +2326,7 @@ const ss = StyleSheet.create({
     borderRadius: 8,
   },
   modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
   modeBtnTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   listContainer: {
@@ -2338,9 +2346,9 @@ const ss = StyleSheet.create({
     borderBottomColor: colors.border,
   },
   libraryRowSelected: { backgroundColor: colors.primary + "18" },
-  libraryRowName: { fontSize: 14, color: colors.text, fontWeight: "500" },
+  libraryRowName: { fontSize: s(14), color: colors.text, fontWeight: "500" },
   libraryRowNameSelected: { color: colors.primary, fontWeight: "600" },
-  libraryRowMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  libraryRowMeta: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
   checkBadge: {
     width: 22,
     height: 22,
@@ -2350,10 +2358,10 @@ const ss = StyleSheet.create({
     justifyContent: "center",
     marginLeft: 8,
   },
-  checkText: { color: "#FFFFFF", fontSize: 12, fontWeight: "700" },
+  checkText: { color: "#FFFFFF", fontSize: s(12), fontWeight: "700" },
   emptyText: {
     color: colors.textMuted,
-    fontSize: 13,
+    fontSize: s(13),
     textAlign: "center",
     paddingVertical: 16,
     lineHeight: 18,
@@ -2369,12 +2377,12 @@ const ss = StyleSheet.create({
     borderColor: colors.primary + "40",
   },
   selectedBannerText: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: "600",
     color: colors.primary,
   },
   selectedBannerSub: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -2388,7 +2396,7 @@ const ss = StyleSheet.create({
     gap: 8,
   },
   partnerHeaderText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -2402,9 +2410,9 @@ const ss = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary + "50",
   },
-  partnerBadgeText: { fontSize: 11, color: colors.primary, fontWeight: "600" },
+  partnerBadgeText: { fontSize: s(11), color: colors.primary, fontWeight: "600" },
   partnerHint: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.warning,
     marginTop: 8,
     textAlign: "center",

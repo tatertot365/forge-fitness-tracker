@@ -4,6 +4,7 @@ import { Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getCustomRestSeconds, setCustomRestSeconds } from '../db/queries';
 import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 import { hapticSelect, hapticSuccess } from '../utils/haptics';
 import { cancelRestNotification, scheduleRestComplete } from '../utils/notifications';
 
@@ -33,6 +34,7 @@ type Props = {
 };
 
 export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Props) {
+  const styles = useStyles(makeStyles);
   const [customSecs, setCustomSecsState] = useState<number>(savedCustomSecs ?? DEFAULT_CUSTOM_SECS);
   const [preset, setPreset] = useState<number>(saved?.preset ?? defaultSeconds);
   const [editOpen, setEditOpen] = useState(false);
@@ -329,6 +331,7 @@ function CustomRestSheet({
   onClose: () => void;
   onSave: (seconds: number) => void | Promise<void>;
 }) {
+  const sheetStyles = useStyles(makeSheetStyles);
   const [secs, setSecs] = useState(initialSeconds);
 
   useEffect(() => {
@@ -436,7 +439,7 @@ function formatPresetLabel(s: number): string {
   return formatTime(s);
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   bar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -466,7 +469,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primary,
   },
   presetText: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
     color: colors.textSecondary,
     fontVariant: ['tabular-nums'],
@@ -491,7 +494,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   time: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '600',
     color: colors.text,
     fontVariant: ['tabular-nums'],
@@ -515,12 +518,12 @@ const styles = StyleSheet.create({
   },
   startBtnText: {
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: '600',
   },
 });
 
-const sheetStyles = StyleSheet.create({
+const makeSheetStyles = (s: (n: number) => number) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -541,9 +544,9 @@ const sheetStyles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 16,
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   display: {
-    fontSize: 48,
+    fontSize: s(48),
     fontWeight: '700',
     color: colors.text,
     textAlign: 'center',
@@ -553,6 +556,7 @@ const sheetStyles = StyleSheet.create({
   },
   hint: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     textAlign: 'center',
     marginBottom: 20,
@@ -576,7 +580,7 @@ const sheetStyles = StyleSheet.create({
     borderColor: colors.border,
   },
   stepperLabel: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: '600',
     color: colors.text,
     fontVariant: ['tabular-nums'],
@@ -587,5 +591,5 @@ const sheetStyles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: 'center',
   },
-  saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  saveBtnText: { color: '#FFFFFF', fontSize: s(15), fontWeight: '600' },
 });

@@ -12,7 +12,6 @@ import React, { useCallback, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
-  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -23,6 +22,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ProgressBar } from "../../src/components/ProgressBar";
@@ -52,6 +52,7 @@ import {
 } from "../../src/utils/tdee";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
+import { useStyles } from "../../src/theme/useStyles";
 import { type Measurement } from "../../src/types";
 import { todayISO } from "../../src/utils/date";
 
@@ -117,6 +118,7 @@ function leanMass(
 }
 
 export default function MeasureScreen() {
+  const styles = useStyles(makeStyles);
   const [latest, setLatest] = useState<Measurement | null>(null);
   const [prior, setPrior] = useState<Measurement | null>(null);
   const [starting, setStarting] = useState<{
@@ -793,6 +795,7 @@ function StatCard({
   goodOnIncrease: boolean;
   neutral?: boolean;
 }) {
+  const styles = useStyles(makeStyles);
   return (
     <View style={styles.statCard}>
       <Text style={styles.statLabel}>{label}</Text>
@@ -824,6 +827,7 @@ function GoalProgressRow({
   goal: number;
   unit: string;
 }) {
+  const styles = useStyles(makeStyles);
   const hasData = current != null;
   // Direction is set by the user's starting measurement (when the goal was set)
   // relative to the goal. Fall back to current if start is unavailable.
@@ -887,6 +891,7 @@ function BodyGoalsSheet({
   onClose: () => void;
   onSave: (goals: Partial<BodyGoals>) => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [weightInput, setWeightInput] = useState("");
   const [bfInput, setBfInput] = useState("");
   const [showRatio, setShowRatio] = useState(false);
@@ -1015,6 +1020,8 @@ function MeasurementLineChart({
   unit: string;
   color: string;
 }) {
+  const styles = useStyles(makeStyles);
+  const { width } = useWindowDimensions();
   const points = data
     .map((m, i) => ({ i, value: m[valueKey] as number | null, date: m.date }))
     .filter((p) => p.value != null) as {
@@ -1034,7 +1041,7 @@ function MeasurementLineChart({
     );
   }
 
-  const chartWidth = Dimensions.get("window").width - 16 * 2 - 16 * 2;
+  const chartWidth = width - 16 * 2 - 16 * 2;
   const chartHeight = 100;
   const padX = 8;
   const padY = 12;
@@ -1141,6 +1148,7 @@ function DeltaChip({
   neutral?: boolean;
   unit: string;
 }) {
+  const styles = useStyles(makeStyles);
   if (current == null || prior == null) return <View style={{ height: 18 }} />;
   const d = current - prior;
   if (Math.abs(d) < 0.05) {
@@ -1195,14 +1203,14 @@ function parseField(v: string): number | null {
 
 // ─── Styles ─────────────────────────────���─────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   inputError: {
     borderColor: colors.red,
     borderWidth: 1,
   },
   errorText: {
     color: colors.red,
-    fontSize: 12,
+    fontSize: s(12),
     marginTop: 4,
   },
   header: {
@@ -1211,9 +1219,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 8,
   },
-  title: { ...typography.screenTitle, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
   subtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -1230,7 +1239,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  editBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
+  editBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
 
   // Goals card
   goalsCard: {
@@ -1248,7 +1257,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
   },
   goalsCardTitle: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1261,19 +1270,19 @@ const styles = StyleSheet.create({
     alignItems: "baseline",
     marginBottom: 4,
   },
-  goalRowLabel: { fontSize: 13, fontWeight: "500", color: colors.text },
+  goalRowLabel: { fontSize: s(13), fontWeight: "500", color: colors.text },
   goalRowValues: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   goalRowTarget: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "400",
     color: colors.textSecondary,
   },
-  goalRowHint: { fontSize: 11, color: colors.textSecondary, marginTop: 3 },
+  goalRowHint: { fontSize: s(11), color: colors.textSecondary, marginTop: 3 },
 
   // First-launch card
   firstCheckInCard: {
@@ -1286,17 +1295,17 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   firstCheckInTitle: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: "600",
     color: colors.text,
   },
   firstCheckInSub: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textSecondary,
     lineHeight: 18,
   },
   firstCheckInCta: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.primary,
     marginTop: 4,
@@ -1314,19 +1323,19 @@ const styles = StyleSheet.create({
     gap: 1,
   },
   statLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
     fontWeight: "600",
   },
   statValue: {
-    fontSize: 20,
+    fontSize: s(20),
     fontWeight: "600",
     color: colors.text,
     marginTop: 3,
   },
-  statUnit: { fontSize: 11, color: colors.textSecondary, marginBottom: 2 },
+  statUnit: { fontSize: s(11), color: colors.textSecondary, marginBottom: 2 },
 
   // Ratio card
   ratioCard: {
@@ -1338,7 +1347,7 @@ const styles = StyleSheet.create({
     marginTop: 6,
   },
   ratioLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1350,16 +1359,16 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 4,
   },
-  ratioValue: { fontSize: 34, fontWeight: "600", color: colors.text },
-  ratioTarget: { fontSize: 14, color: colors.textSecondary },
+  ratioValue: { fontSize: s(34), fontWeight: "600", color: colors.text },
+  ratioTarget: { fontSize: s(14), color: colors.textSecondary },
   ratioPct: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontWeight: "500",
     marginTop: 8,
   },
   ratioHint: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textMuted,
     marginTop: 4,
     fontStyle: "italic",
@@ -1384,15 +1393,15 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  listLabel: { fontSize: 14, fontWeight: "500", color: colors.text },
+  listLabel: { fontSize: s(14), fontWeight: "500", color: colors.text },
   listTrailing: { flexDirection: "row", alignItems: "center", gap: 8 },
   listValue: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   deltaChip: { flexDirection: "row", alignItems: "center", gap: 2 },
-  deltaText: { fontSize: 11, fontWeight: "600" },
+  deltaText: { fontSize: s(11), fontWeight: "600" },
 
   // Profile collapsible
   profileHeader: {
@@ -1403,7 +1412,7 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   profileHeaderText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     color: colors.textSecondary,
     textTransform: "uppercase",
@@ -1411,7 +1420,7 @@ const styles = StyleSheet.create({
   },
   profileHeaderRight: { flexDirection: "row", alignItems: "center", gap: 6 },
   profileIncomplete: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.warning,
     fontWeight: "500",
   },
@@ -1426,7 +1435,7 @@ const styles = StyleSheet.create({
   },
   formRow: { marginBottom: 10 },
   formLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -1434,7 +1443,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -1452,7 +1461,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  saveBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  saveBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
 
   toggleRow: {
     flexDirection: "row",
@@ -1463,8 +1472,8 @@ const styles = StyleSheet.create({
     marginTop: 14,
     gap: 12,
   },
-  toggleLabel: { fontSize: 14, fontWeight: "500", color: colors.text },
-  toggleSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  toggleLabel: { fontSize: s(14), fontWeight: "500", color: colors.text },
+  toggleSub: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
   toggleTrack: {
     width: 44,
     height: 26,
@@ -1486,9 +1495,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pickerText: { fontSize: 15, color: colors.text },
-  pickerPlaceholder: { fontSize: 15, color: colors.textMuted },
-  pickerChevron: { fontSize: 18, color: colors.textSecondary, lineHeight: 20 },
+  pickerText: { fontSize: s(15), color: colors.text },
+  pickerPlaceholder: { fontSize: s(15), color: colors.textMuted },
+  pickerChevron: { fontSize: s(18), color: colors.textSecondary, lineHeight: 20 },
 
   // BF banner
   bfBanner: {
@@ -1499,7 +1508,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary,
   },
-  bfBannerText: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+  bfBannerText: { fontSize: s(13), color: colors.textSecondary, lineHeight: 18 },
 
   // Chart
   chartCard: {
@@ -1516,21 +1525,21 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 8,
   },
-  chartLabel: { fontSize: 13, fontWeight: "600", color: colors.text },
+  chartLabel: { fontSize: s(13), fontWeight: "600", color: colors.text },
   chartMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
-  chartDelta: { fontSize: 12, fontWeight: "600" },
+  chartDelta: { fontSize: s(12), fontWeight: "600" },
   chartRange: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontVariant: ["tabular-nums"],
   },
-  chartEmpty: { fontSize: 13, color: colors.textMuted, paddingVertical: 8 },
+  chartEmpty: { fontSize: s(13), color: colors.textMuted, paddingVertical: 8 },
   xAxis: {
     flexDirection: "row",
     justifyContent: "space-between",
     marginTop: 2,
   },
-  xLabel: { fontSize: 10, color: colors.textMuted },
+  xLabel: { fontSize: s(10), color: colors.textMuted },
 
   // Edit sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
@@ -1549,6 +1558,6 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 16,
   },
-  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
-  sheetClose: { fontSize: 18, color: colors.textSecondary, padding: 4 },
+  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
+  sheetClose: { fontSize: s(18), color: colors.textSecondary, padding: 4 },
 });

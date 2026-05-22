@@ -15,6 +15,7 @@ import {
 import { createExercise, findExercisesByName, getLibraryExercises } from '../db/queries';
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 import {
   MUSCLE_LABEL,
   type Day,
@@ -47,6 +48,7 @@ export function AddExerciseSheet({
   onClose,
   onCreated,
 }: Props) {
+  const styles = useStyles(makeStyles);
   const [mode, setMode] = useState<Mode>('library');
   const [search, setSearch] = useState('');
   const [filterGroup, setFilterGroup] = useState<MuscleGroup | null>(
@@ -457,6 +459,7 @@ function Chip({
   onPress: () => void;
   accent?: string;
 }) {
+  const styles = useStyles(makeStyles);
   const tint = accent ?? colors.primary;
   return (
     <Pressable
@@ -474,7 +477,7 @@ function Chip({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -496,7 +499,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
 
   modeToggle: {
     flexDirection: 'row',
@@ -515,7 +518,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: '500' },
+  modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: '500' },
   modeBtnTextActive: { color: '#FFFFFF', fontWeight: '600' },
 
   chipRow: {
@@ -533,7 +536,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  chipText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  chipText: { fontSize: s(12), color: colors.textSecondary, fontWeight: '500' },
 
   listContainer: {
     borderRadius: 12,
@@ -558,9 +561,9 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: radius.accent,
   },
-  libraryRowName: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  libraryRowName: { fontSize: s(15), color: colors.text, fontWeight: '500' },
   libraryRowNameSelected: { color: colors.primary, fontWeight: '600' },
-  libraryRowMeta: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  libraryRowMeta: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
   checkBadge: {
     width: 22,
     height: 22,
@@ -570,11 +573,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginLeft: 8,
   },
-  checkText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
+  checkText: { color: '#FFFFFF', fontSize: s(12), fontWeight: '700' },
 
   emptyText: {
     color: colors.textMuted,
-    fontSize: 14,
+    fontSize: s(14),
     textAlign: 'center',
     paddingVertical: 20,
   },
@@ -589,8 +592,8 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary + '40',
   },
-  selectedBannerText: { fontSize: 15, fontWeight: '600', color: colors.primary },
-  selectedBannerSub: { fontSize: 12, color: colors.textSecondary, marginTop: 2 },
+  selectedBannerText: { fontSize: s(15), fontWeight: '600', color: colors.primary },
+  selectedBannerSub: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
 
   pillRow: {
     flexDirection: 'row',
@@ -606,10 +609,10 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  pillText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  pillText: { fontSize: s(12), color: colors.textSecondary, fontWeight: '500' },
 
   fieldLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -618,7 +621,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -643,7 +646,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   stepperValue: {
-    fontSize: 18,
+    fontSize: s(18),
     fontWeight: '600',
     color: colors.text,
     minWidth: 24,
@@ -666,7 +669,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: 12, color: colors.textSecondary, fontWeight: '500' },
+  segmentText: { fontSize: s(12), color: colors.textSecondary, fontWeight: '500' },
   segmentTextActive: { color: '#FFFFFF', fontWeight: '600' },
 
   saveBtn: {
@@ -676,5 +679,5 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: 'center',
   },
-  saveBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '600' },
+  saveBtnText: { color: '#FFFFFF', fontSize: s(15), fontWeight: '600' },
 });

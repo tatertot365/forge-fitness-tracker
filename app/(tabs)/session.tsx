@@ -34,6 +34,7 @@ import {
 } from "../../src/health";
 import { colors, muscleAccent } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
+import { useStyles } from "../../src/theme/useStyles";
 import {
   DAY_LABEL,
   MUSCLE_LABEL,
@@ -49,6 +50,7 @@ import { hapticSuccess, hapticTap } from "../../src/utils/haptics";
 type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 
 export default function SessionScreen() {
+  const styles = useStyles(makeStyles);
   const router = useRouter();
   const rootNavigation = useRootNavigation();
   const day = dayOfWeek();
@@ -399,6 +401,7 @@ function SummaryModal({
   };
   onClose: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   return (
     <Modal
       visible={!!summary}
@@ -494,6 +497,7 @@ function HkCell({
   label: string;
   value: string;
 }) {
+  const styles = useStyles(makeStyles);
   return (
     <View style={styles.hkCell}>
       {icon}
@@ -503,7 +507,7 @@ function HkCell({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -511,9 +515,10 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
     gap: 8,
   },
-  title: { ...typography.screenTitle, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
   subtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -525,8 +530,8 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     backgroundColor: colors.card,
   },
-  fullPlanBtnText: { fontSize: 12, fontWeight: "600", color: colors.primary },
-  restText: { color: colors.textSecondary, fontSize: 14, lineHeight: 20 },
+  fullPlanBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
+  restText: { color: colors.textSecondary, fontSize: s(14), lineHeight: 20 },
 
   groupTrailing: {
     flexDirection: "row",
@@ -546,7 +551,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
     backgroundColor: colors.primary + "0F",
   },
-  addGroupText: { color: colors.primary, fontSize: 13, fontWeight: "600" },
+  addGroupText: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
   addExerciseBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -561,7 +566,7 @@ const styles = StyleSheet.create({
   },
   addExerciseText: {
     color: colors.primary,
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
   },
   finishBtn: {
@@ -571,7 +576,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  finishBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  finishBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
   modalBackdrop: {
     flex: 1,
@@ -587,7 +592,7 @@ const styles = StyleSheet.create({
   },
   modalIconWrap: { marginBottom: 8 },
   modalTitle: {
-    fontSize: 20,
+    fontSize: s(20),
     fontWeight: "600",
     color: colors.text,
     marginBottom: 16,
@@ -607,17 +612,20 @@ const styles = StyleSheet.create({
   },
   metricLabel: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
   },
   metricValue: {
     ...typography.metricValue,
+    fontSize: s(22),
     color: colors.text,
     marginTop: 4,
   },
   metricUnit: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontWeight: "400",
   },
@@ -632,6 +640,7 @@ const styles = StyleSheet.create({
   },
   hkHeaderText: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -651,13 +660,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   hkCellValue: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: "600",
     color: colors.text,
     marginTop: 2,
   },
   hkCellLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -665,6 +674,7 @@ const styles = StyleSheet.create({
 
   hkHint: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textMuted,
     marginTop: 8,
   },
@@ -678,5 +688,5 @@ const styles = StyleSheet.create({
     alignSelf: "stretch",
     alignItems: "center",
   },
-  modalBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  modalBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 });

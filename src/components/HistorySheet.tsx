@@ -11,6 +11,7 @@ import {
 import { type ExerciseSessionHistory } from '../db/queries';
 import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   visible: boolean;
@@ -21,6 +22,7 @@ type Props = {
 };
 
 export function HistorySheet({ visible, exerciseName, history, isBodyweight = false, onClose }: Props) {
+  const styles = useStyles(makeStyles);
   const bestEverScore = history.reduce(
     (m, h) => Math.max(m, isBodyweight ? h.best_reps : (h.best_weight_lb ?? 0) * h.best_reps),
     0,
@@ -107,7 +109,7 @@ function formatDate(iso: string): string {
   return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -128,8 +130,8 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginBottom: 10,
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textSecondary, marginTop: 1 },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
+  subtitle: { ...typography.caption, fontSize: s(12), color: colors.textSecondary, marginTop: 1 },
 
   list: {
     marginTop: 4,
@@ -151,10 +153,12 @@ const styles = StyleSheet.create({
   },
   date: {
     ...typography.exerciseName,
+    fontSize: s(14),
     color: colors.text,
   },
   meta: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -167,13 +171,13 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   best: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: '600',
     color: colors.text,
     fontVariant: ['tabular-nums'],
   },
   bestLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textSecondary,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
@@ -185,6 +189,7 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textMuted,
   },
 });

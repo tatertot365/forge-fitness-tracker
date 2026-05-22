@@ -1,12 +1,16 @@
 import { Tabs } from "expo-router";
 import { Apple, Dumbbell, House, Ruler } from "lucide-react-native";
 import { StyleSheet } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { colors } from "../../src/theme/colors";
 
 const ICON_SIZE = 22;
 const STROKE = 1.75;
+const BAR_CHROME = 56;
 
 export default function TabsLayout() {
+  const insets = useSafeAreaInsets();
+
   return (
     <Tabs
       screenOptions={{
@@ -14,9 +18,9 @@ export default function TabsLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textSecondary,
         tabBarStyle: {
-          height: 74,
+          height: BAR_CHROME + insets.bottom,
           paddingTop: 8,
-          paddingBottom: 18,
+          paddingBottom: Math.max(insets.bottom, 8),
           borderTopWidth: StyleSheet.hairlineWidth,
           borderTopColor: colors.border,
           backgroundColor: colors.card,

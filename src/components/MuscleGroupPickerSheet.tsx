@@ -3,6 +3,7 @@ import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 import { MUSCLE_LABEL, type MuscleGroup } from '../types';
 
 const GROUPS = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
@@ -14,6 +15,7 @@ type Props = {
 };
 
 export function MuscleGroupPickerSheet({ visible, onClose, onSelect }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.backdrop}>
@@ -45,7 +47,7 @@ export function MuscleGroupPickerSheet({ visible, onClose, onSelect }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.4)',
@@ -67,7 +69,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     marginBottom: 12,
   },
-  title: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -81,5 +83,5 @@ const styles = StyleSheet.create({
     height: 28,
     borderRadius: radius.accent,
   },
-  rowLabel: { fontSize: 15, color: colors.text, fontWeight: '500' },
+  rowLabel: { fontSize: s(15), color: colors.text, fontWeight: '500' },
 });

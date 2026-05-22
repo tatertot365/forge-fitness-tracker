@@ -17,7 +17,6 @@ import {
   ActivityIndicator,
   Alert,
   AppState,
-  Dimensions,
   Keyboard,
   KeyboardAvoidingView,
   Linking,
@@ -29,6 +28,7 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from "react-native";
 import ReanimatedSwipeable, {
   type SwipeableMethods,
@@ -65,6 +65,7 @@ import {
 } from "../../src/utils/tdee";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
+import { useStyles } from "../../src/theme/useStyles";
 import {
   type DailyNutritionTotal,
   type FoodEntry,
@@ -84,6 +85,7 @@ import {
 } from "../../src/utils/openFoodFacts";
 
 export default function FoodScreen() {
+  const styles = useStyles(makeStyles);
   const [phase, setPhaseState] = useState<Phase>("maintain");
   const [goal, setGoal] = useState<NutritionGoal | null>(null);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
@@ -621,6 +623,8 @@ function BarcodeScannerModal({
   onClose: () => void;
   onScanned: (barcode: string) => void;
 }) {
+  const styles = useStyles(makeStyles);
+  const scan = useStyles(makeScanStyles);
   const [permission, requestPermission] = useCameraPermissions();
   const scanned = useRef(false);
 
@@ -745,6 +749,7 @@ function BarcodeResultSheet({
     carbs_g: number;
   }) => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [servingsInput, setServingsInput] = useState("1");
   const [calsInput, setCalsInput] = useState("");
   const [proteinInput, setProteinInput] = useState("");
@@ -952,6 +957,7 @@ function MacroCalculatorSheet({
     carbs_g: number;
   }) => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [foodName, setFoodName] = useState("");
   const [unit, setUnit] = useState<ServingUnit>("g");
   const [servingSizeInput, setServingSizeInput] = useState("");
@@ -1219,6 +1225,7 @@ function GoalRow({
   unit: string;
   color: string;
 }) {
+  const styles = useStyles(makeStyles);
   const remaining = Math.max(0, goal - value);
   const over = value > goal;
   return (
@@ -1263,6 +1270,7 @@ function SwipeableFoodRow({
   onDelete: () => void;
   onEdit: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const ref = useRef<SwipeableMethods>(null);
   const renderRight = () => (
     <View style={styles.swipeActions}>
@@ -1337,6 +1345,7 @@ function GoalSheet({
   onClose: () => void;
   onSave: (cal: number, prot: number, fat: number, carbs: number) => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [mode, setMode] = useState<"calculated" | "manual">("manual");
   const [activity, setActivity] = useState<ActivityLevel | null>(null);
   const [calculated, setCalculated] = useState<MacroGoals | null>(null);
@@ -1675,6 +1684,7 @@ function EditFoodSheet({
     },
   ) => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [name, setName] = useState("");
   const [calInput, setCalInput] = useState("");
   const [proteinInput, setProteinInput] = useState("");
@@ -1820,6 +1830,7 @@ function DayHistorySheet({
   date: string | null;
   onClose: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
   const [goal, setGoal] = useState<NutritionGoal | null>(null);
 
@@ -1921,7 +1932,9 @@ function NutritionTrendChart({
   data: DailyNutritionTotal[];
   onTapDay: (date: string) => void;
 }) {
-  const chartWidth = Dimensions.get("window").width - 16 * 2 - 16 * 2;
+  const styles = useStyles(makeStyles);
+  const { width } = useWindowDimensions();
+  const chartWidth = width - 16 * 2 - 16 * 2;
   const chartHeight = 110;
   const pad = 4;
   const innerW = chartWidth - pad * 2;
@@ -2228,7 +2241,7 @@ function shortDate(iso: string): string {
 
 // ─── styles ───────────────────────────────────────────────────────────
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -2236,9 +2249,10 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 12,
   },
-  title: { ...typography.screenTitle, color: colors.text },
+  title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
   subtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -2255,7 +2269,7 @@ const styles = StyleSheet.create({
     backgroundColor: colors.card,
   },
   editGoalText: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "600",
     color: colors.primary,
   },
@@ -2267,27 +2281,27 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   goalLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  goalLabel: { ...typography.exerciseName, color: colors.text },
+  goalLabel: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
   goalValue: {
-    fontSize: 14,
+    fontSize: s(14),
     fontWeight: "600",
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   goalGoal: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "400",
     color: colors.textSecondary,
   },
   goalRemaining: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     marginTop: 4,
     fontVariant: ["tabular-nums"],
   },
 
   formLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     textTransform: "uppercase",
     letterSpacing: 0.6,
@@ -2295,7 +2309,7 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   input: {
-    fontSize: 15,
+    fontSize: s(15),
     color: colors.text,
     paddingVertical: 10,
     paddingHorizontal: 12,
@@ -2322,7 +2336,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: radius.card,
   },
-  addBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  addBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
 
   recentsRow: {
     gap: 8,
@@ -2340,10 +2354,12 @@ const styles = StyleSheet.create({
   },
   recentName: {
     ...typography.exerciseName,
+    fontSize: s(14),
     color: colors.text,
   },
   recentMeta: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -2360,25 +2376,27 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
-  entryName: { ...typography.exerciseName, color: colors.text },
+  entryName: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
   entryMeta: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
   },
   entryCal: {
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: "600",
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   entryCalUnit: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "400",
     color: colors.textSecondary,
   },
   emptyText: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textMuted,
     textAlign: "center",
     padding: 20,
@@ -2397,7 +2415,7 @@ const styles = StyleSheet.create({
   },
   swipeLabel: {
     color: "#FFFFFF",
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     letterSpacing: 0.3,
   },
@@ -2410,12 +2428,12 @@ const styles = StyleSheet.create({
   },
   chartLabelRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   chartLabel: {
-    fontSize: 12,
+    fontSize: s(12),
     fontWeight: "600",
     color: colors.text,
   },
   chartGoal: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     fontVariant: ["tabular-nums"],
   },
@@ -2432,7 +2450,7 @@ const styles = StyleSheet.create({
     paddingRight: 4,
   },
   xAxisLabel: {
-    fontSize: 9,
+    fontSize: s(9),
     color: colors.textMuted,
     textAlign: "center",
     fontVariant: ["tabular-nums"],
@@ -2453,7 +2471,7 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary,
   },
-  calcBtnText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  calcBtnText: { color: colors.primary, fontSize: s(14), fontWeight: "600" },
 
   quickAddRow: {
     flexDirection: "row",
@@ -2471,10 +2489,10 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.primary + "40",
   },
-  quickAddText: { color: colors.primary, fontSize: 14, fontWeight: "600" },
+  quickAddText: { color: colors.primary, fontSize: s(14), fontWeight: "600" },
 
   calcSectionLabel: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textSecondary,
     fontWeight: "600",
     textTransform: "uppercase",
@@ -2491,9 +2509,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: colors.background,
   },
-  unitPickerText: { fontSize: 15, color: colors.text, fontWeight: "500" },
+  unitPickerText: { fontSize: s(15), color: colors.text, fontWeight: "500" },
   unitPickerChevron: {
-    fontSize: 18,
+    fontSize: s(18),
     color: colors.textSecondary,
     lineHeight: 20,
   },
@@ -2507,7 +2525,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   calcResultTitle: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: "600",
     color: colors.primary,
     textTransform: "uppercase",
@@ -2520,13 +2538,13 @@ const styles = StyleSheet.create({
   },
   calcResultItem: { alignItems: "center", flex: 1 },
   calcResultValue: {
-    fontSize: 16,
+    fontSize: s(16),
     fontWeight: "600",
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
   calcResultLabel: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textSecondary,
     marginTop: 2,
   },
@@ -2548,9 +2566,10 @@ const styles = StyleSheet.create({
     alignItems: "flex-start",
     marginBottom: 14,
   },
-  sheetTitle: { ...typography.screenTitle, fontSize: 18, color: colors.text },
+  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   sheetSubtitle: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 2,
     fontVariant: ["tabular-nums"],
@@ -2562,7 +2581,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.card,
     alignItems: "center",
   },
-  saveBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "600" },
+  saveBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
 
   modeToggle: {
     flexDirection: "row",
@@ -2581,7 +2600,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: 13, color: colors.textSecondary, fontWeight: "500" },
+  modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
   modeBtnTextActive: { color: "#FFFFFF", fontWeight: "600" },
 
   pickerRow: {
@@ -2589,8 +2608,8 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  pickerText: { fontSize: 15, color: colors.text, flex: 1 },
-  pickerPlaceholder: { fontSize: 15, color: colors.textMuted, flex: 1 },
+  pickerText: { fontSize: s(15), color: colors.text, flex: 1 },
+  pickerPlaceholder: { fontSize: s(15), color: colors.textMuted, flex: 1 },
 
   calcWarning: {
     marginTop: 14,
@@ -2601,12 +2620,12 @@ const styles = StyleSheet.create({
     borderColor: colors.borderStrong,
   },
   calcWarningText: {
-    fontSize: 13,
+    fontSize: s(13),
     color: colors.textSecondary,
     lineHeight: 18,
   },
   calcNoteText: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textMuted,
     marginTop: 8,
     lineHeight: 17,
@@ -2631,7 +2650,7 @@ const styles = StyleSheet.create({
   },
   toastText: {
     color: colors.text,
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "500",
     textAlign: "center",
   },
@@ -2643,7 +2662,7 @@ const WINDOW_SIZE = 260;
 const CORNER = 20;
 const CORNER_THICKNESS = 3;
 
-const scan = StyleSheet.create({
+const makeScanStyles = (s: (n: number) => number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
   overlay: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
   topShade: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
@@ -2661,7 +2680,7 @@ const scan = StyleSheet.create({
     paddingTop: 24,
     gap: 20,
   },
-  hint: { color: "rgba(255,255,255,0.8)", fontSize: 14, fontWeight: "500" },
+  hint: { color: "rgba(255,255,255,0.8)", fontSize: s(14), fontWeight: "500" },
   cancelBtn: {
     paddingHorizontal: 32,
     paddingVertical: 12,
@@ -2669,7 +2688,7 @@ const scan = StyleSheet.create({
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.4)",
   },
-  cancelBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  cancelBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
   // Corner bracket helpers
   corner: {
     position: "absolute",
@@ -2703,7 +2722,7 @@ const scan = StyleSheet.create({
   },
   deniedText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: s(15),
     textAlign: "center",
     margin: 32,
   },
@@ -2714,14 +2733,14 @@ const scan = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     marginBottom: 12,
   },
-  primaryBtnText: { color: "#000000", fontSize: 15, fontWeight: "600" },
+  primaryBtnText: { color: "#000000", fontSize: s(15), fontWeight: "600" },
   closeBtn: {
     paddingHorizontal: 32,
     paddingVertical: 12,
     borderRadius: 24,
     backgroundColor: "rgba(255,255,255,0.2)",
   },
-  closeBtnText: { color: "#FFFFFF", fontSize: 15, fontWeight: "600" },
+  closeBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
   loadingPane: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "#000",
@@ -2731,7 +2750,7 @@ const scan = StyleSheet.create({
   },
   loadingText: {
     color: "#FFFFFF",
-    fontSize: 15,
+    fontSize: s(15),
     fontWeight: "500",
   },
 });

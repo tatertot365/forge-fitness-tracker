@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Check } from 'lucide-react-native';
 import { colors } from '../theme/colors';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   completed: boolean;
@@ -10,6 +11,7 @@ type Props = {
 };
 
 export function SetCheckButton({ completed, onToggle, disabled }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <Pressable
       onPress={onToggle}
@@ -30,7 +32,7 @@ export function SetCheckButton({ completed, onToggle, disabled }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   btn: {
     alignItems: 'center',
     justifyContent: 'center',

@@ -6,6 +6,7 @@ import ReanimatedSwipeable, {
 } from 'react-native-gesture-handler/ReanimatedSwipeable';
 import { colors } from '../theme/colors';
 import { radius } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 import { hapticTap } from '../utils/haptics';
 
 type Props = {
@@ -17,6 +18,7 @@ type Props = {
 const ACTION_WIDTH = 76;
 
 export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
+  const styles = useStyles(makeStyles);
   const ref = useRef<SwipeableMethods>(null);
 
   const close = () => ref.current?.close();
@@ -75,7 +77,7 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   actions: {
     width: ACTION_WIDTH * 2,
     flexDirection: 'row',
@@ -91,7 +93,7 @@ const styles = StyleSheet.create({
   },
   actionLabel: {
     color: '#FFFFFF',
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '600',
     letterSpacing: 0.3,
   },

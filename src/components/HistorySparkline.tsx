@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 import { colors } from '../theme/colors';
+import { useStyles } from '../theme/useStyles';
 
 type Point = { date: string; score: number };
 
@@ -12,6 +13,7 @@ type Props = {
 };
 
 export function HistorySparkline({ data, width = 120, height = 36 }: Props) {
+  const styles = useStyles(makeStyles);
   if (data.length < 2) {
     return (
       <View style={[styles.empty, { width, height }]}>
@@ -54,13 +56,13 @@ export function HistorySparkline({ data, width = 120, height = 36 }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   empty: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   emptyText: {
-    fontSize: 10,
+    fontSize: s(10),
     color: colors.textMuted,
   },
 });

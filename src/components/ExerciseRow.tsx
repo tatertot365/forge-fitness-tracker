@@ -2,6 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
+import { useStyles } from '../theme/useStyles';
 
 type Props = {
   name: string;
@@ -28,6 +29,7 @@ export function ExerciseRow({
   typeBadge,
   partnerName,
 }: Props) {
+  const styles = useStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -68,7 +70,7 @@ export function ExerciseRow({
   );
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'stretch',
@@ -98,27 +100,32 @@ const styles = StyleSheet.create({
   },
   name: {
     ...typography.exerciseName,
+    fontSize: s(14),
     color: colors.text,
     flex: 1,
     paddingRight: 12,
   },
   counter: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
     fontVariant: ['tabular-nums'],
   },
   meta: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textSecondary,
   },
   lastSet: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.primary,
     marginTop: 2,
     fontWeight: '500',
   },
   notes: {
     ...typography.caption,
+    fontSize: s(12),
     color: colors.textMuted,
     marginTop: 2,
   },
@@ -130,7 +137,7 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   badgeText: {
-    fontSize: 11,
+    fontSize: s(11),
     fontWeight: '600',
     letterSpacing: 0.3,
   },

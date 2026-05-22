@@ -27,11 +27,13 @@ import {
 } from "../src/db/queries";
 import { colors } from "../src/theme/colors";
 import { radius, typography } from "../src/theme/spacing";
+import { useStyles } from "../src/theme/useStyles";
 
 const PRIVACY_URL = "https://forge.tatertot365.com/privacy-policy.html";
 const SUPPORT_EMAIL = "tate.gillespie@gmail.com";
 
 export default function SettingsScreen() {
+  const styles = useStyles(makeStyles);
   const router = useRouter();
   const [exporting, setExporting] = useState(false);
 
@@ -208,6 +210,7 @@ function RowButton({
   disabled?: boolean;
   onPress: () => void;
 }) {
+  const styles = useStyles(makeStyles);
   return (
     <Pressable
       onPress={onPress}
@@ -231,10 +234,11 @@ function RowButton({
 }
 
 function Divider() {
+  const styles = useStyles(makeStyles);
   return <View style={styles.divider} />;
 }
 
-const styles = StyleSheet.create({
+const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -248,7 +252,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  title: { ...typography.screenTitle, color: colors.text, flex: 1, textAlign: "center" },
+  title: { ...typography.screenTitle, fontSize: s(22), color: colors.text, flex: 1, textAlign: "center" },
   card: {
     backgroundColor: colors.card,
     borderRadius: radius.card,
@@ -265,9 +269,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
   },
   rowIcon: { width: 22, alignItems: "center" },
-  rowLabel: { fontSize: 14, fontWeight: "500", color: colors.text },
+  rowLabel: { fontSize: s(14), fontWeight: "500", color: colors.text },
   rowSub: {
-    fontSize: 12,
+    fontSize: s(12),
     color: colors.textSecondary,
     marginTop: 3,
     lineHeight: 16,
@@ -283,14 +287,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
   },
   versionApp: {
-    fontSize: 13,
+    fontSize: s(13),
     fontWeight: "600",
     color: colors.text,
     marginBottom: 2,
   },
-  versionLine: { fontSize: 12, color: colors.textSecondary },
+  versionLine: { fontSize: s(12), color: colors.textSecondary },
   versionFoot: {
-    fontSize: 11,
+    fontSize: s(11),
     color: colors.textMuted,
     textAlign: "center",
     marginTop: 12,

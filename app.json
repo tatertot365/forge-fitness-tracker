@@ -14,7 +14,7 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "bundleIdentifier": "com.tategillespie.forge",
+      "bundleIdentifier": "com.tategillespie.forgetrainer",
       "buildNumber": "1",
       "supportsTablet": false,
       "infoPlist": {
@@ -49,7 +49,7 @@
       "typedRoutes": true
     },
     "android": {
-      "package": "com.tategillespie.forge"
+      "package": "com.tategillespie.forgetrainer"
     }
   }
 }

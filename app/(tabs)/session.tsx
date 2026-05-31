@@ -2,6 +2,7 @@ import { useRootNavigation, useRouter } from "expo-router";
 import {
   AlertTriangle,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Flame,
   Heart,
@@ -70,6 +71,7 @@ export default function SessionScreen() {
   );
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [catchup, setCatchup] = useState<CatchupItem[]>([]);
+  const [catchupOpen, setCatchupOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [summary, setSummary] = useState<null | {
     completed: number;
@@ -245,6 +247,22 @@ export default function SessionScreen() {
     router.replace("/(tabs)");
   };
 
+  const catchupSection =
+    catchup.length > 0 ? (
+      <CatchupDropdown
+        items={catchup}
+        open={catchupOpen}
+        onToggle={() => {
+          hapticTap();
+          setCatchupOpen((v) => !v);
+        }}
+        onPressItem={(item) =>
+          router.push(`/exercise/${item.exercise_id}?date=${item.date_missed}`)
+        }
+        onSkipItem={onSkipCatchup}
+      />
+    ) : null;
+
   if (dayPlan && !dayPlan.enabled) {
     return (
       <Screen>
@@ -267,25 +285,7 @@ export default function SessionScreen() {
             <Text style={styles.fullPlanBtnText}>Full plan</Text>
           </Pressable>
         </View>
-        {catchup.length > 0 ? (
-          <>
-            <SectionLabel>Catch-up</SectionLabel>
-            <View style={{ gap: 8, marginBottom: 12 }}>
-              {catchup.map((item) => (
-                <SwipeableCatchupRow
-                  key={`${item.exercise_id}-${item.date_missed}`}
-                  item={item}
-                  onPress={() =>
-                    router.push(
-                      `/exercise/${item.exercise_id}?date=${item.date_missed}`,
-                    )
-                  }
-                  onSkip={() => onSkipCatchup(item)}
-                />
-              ))}
-            </View>
-          </>
-        ) : null}
+        {catchupSection}
         <Card>
           <Text style={styles.restText}>
             Take it easy. Recovery is where the growth happens.
@@ -321,25 +321,7 @@ export default function SessionScreen() {
           </Pressable>
         </View>
 
-        {catchup.length > 0 ? (
-          <>
-            <SectionLabel>Catch-up</SectionLabel>
-            <View style={{ gap: 8 }}>
-              {catchup.map((item) => (
-                <SwipeableCatchupRow
-                  key={`${item.exercise_id}-${item.date_missed}`}
-                  item={item}
-                  onPress={() =>
-                    router.push(
-                      `/exercise/${item.exercise_id}?date=${item.date_missed}`,
-                    )
-                  }
-                  onSkip={() => onSkipCatchup(item)}
-                />
-              ))}
-            </View>
-          </>
-        ) : null}
+        {catchupSection}
 
         {grouped.map(({ group, items }) => (
           <View key={group}>
@@ -549,6 +531,64 @@ function HkCell({
   );
 }
 
+function CatchupDropdown({
+  items,
+  open,
+  onToggle,
+  onPressItem,
+  onSkipItem,
+}: {
+  items: CatchupItem[];
+  open: boolean;
+  onToggle: () => void;
+  onPressItem: (item: CatchupItem) => void;
+  onSkipItem: (item: CatchupItem) => void;
+}) {
+  const styles = useStyles(makeStyles);
+  const atRiskCount = items.filter((i) => i.days_ago >= 3).length;
+  return (
+    <View style={styles.catchupWrap}>
+      <Pressable
+        onPress={onToggle}
+        style={({ pressed }) => [
+          styles.catchupHeader,
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Text style={styles.catchupHeaderLabel}>Catch-up</Text>
+        <View style={styles.catchupBadge}>
+          <Text style={styles.catchupBadgeText}>{items.length}</Text>
+        </View>
+        {atRiskCount > 0 ? (
+          <View style={styles.catchupAtRiskBadge}>
+            <AlertTriangle size={11} color={colors.warning} strokeWidth={2.2} />
+            <Text style={styles.catchupAtRiskText}>{atRiskCount} at risk</Text>
+          </View>
+        ) : null}
+        <View style={{ flex: 1 }} />
+        <ChevronDown
+          size={16}
+          color={colors.textSecondary}
+          strokeWidth={2}
+          style={{ transform: [{ rotate: open ? "180deg" : "0deg" }] }}
+        />
+      </Pressable>
+      {open ? (
+        <View style={styles.catchupList}>
+          {items.map((item) => (
+            <SwipeableCatchupRow
+              key={`${item.exercise_id}-${item.date_missed}`}
+              item={item}
+              onPress={() => onPressItem(item)}
+              onSkip={() => onSkipItem(item)}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function SwipeableCatchupRow({
   item,
   onPress,
@@ -686,6 +726,59 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   finishBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
+  catchupWrap: {
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  catchupHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  catchupHeaderLabel: {
+    fontSize: s(13),
+    fontWeight: "600",
+    color: colors.text,
+  },
+  catchupBadge: {
+    minWidth: 20,
+    height: 20,
+    paddingHorizontal: 6,
+    borderRadius: 10,
+    backgroundColor: colors.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  catchupBadgeText: {
+    color: "#FFFFFF",
+    fontSize: s(11),
+    fontWeight: "700",
+    fontVariant: ["tabular-nums"],
+  },
+  catchupAtRiskBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warning + "1F",
+  },
+  catchupAtRiskText: {
+    fontSize: s(11),
+    fontWeight: "600",
+    color: colors.warning,
+  },
+  catchupList: {
+    gap: 8,
+    marginTop: 8,
+  },
   catchRow: {
     flexDirection: "row",
     alignItems: "stretch",

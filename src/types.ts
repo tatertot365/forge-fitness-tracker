@@ -24,7 +24,7 @@ export type MuscleGroup =
   | 'calves'
   | 'core';
 
-export type ExerciseType = 'normal' | 'drop' | 'superset' | 'bodyweight';
+export type ExerciseType = 'normal' | 'drop' | 'superset' | 'bodyweight' | 'stretch';
 
 // Library entry — one row per unique exercise, no day/sets/reps
 export type LibraryExercise = {
@@ -48,6 +48,7 @@ export type DayExercise = {
   sort_order: number;
   type: ExerciseType;
   superset_partner_id: number | null;
+  hold_seconds: number | null;
 };
 
 // Alias kept so existing code that imports Exercise still compiles during migration
@@ -137,6 +138,24 @@ export type DayPlan = {
   day: Day;
   name: string;
   enabled: 0 | 1;
+};
+
+export type Stretch = {
+  id: number;
+  name: string;
+  muscle_group: MuscleGroup;
+  hold_seconds: number;
+  per_side: 0 | 1;
+  notes: string | null;
+  builtin: 0 | 1;
+};
+
+export type CooldownLog = {
+  id: number;
+  session_id: number;
+  stretch_id: number;
+  duration_seconds: number;
+  completed_at: string;
 };
 
 export type CatchupItem = {

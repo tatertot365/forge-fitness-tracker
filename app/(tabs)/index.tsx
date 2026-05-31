@@ -47,6 +47,7 @@ import {
   getDayPlans,
   getExercisesByDay,
   getFoodEntriesForDate,
+  getMobilityMinutesThisWeek,
   getMuscleGroupSetsThisWeek,
   getNutritionGoalForDate,
   getPhase,
@@ -115,6 +116,7 @@ export default function TodayScreen() {
     Session | null
   > | null>(null);
   const [cardioCount, setCardioCount] = useState(0);
+  const [mobilityMinutes, setMobilityMinutes] = useState(0);
   const [todayExerciseCount, setTodayExerciseCount] = useState(0);
   const [todayTotalSets, setTodayTotalSets] = useState(0);
   const [todayCompletedSets, setTodayCompletedSets] = useState(0);
@@ -186,6 +188,7 @@ export default function TodayScreen() {
       prevM,
       startM,
       goals,
+      mobMin,
     ] = await Promise.all([
       getPhase(),
       getCatchupItems(),
@@ -205,6 +208,7 @@ export default function TodayScreen() {
       measurementOneWeekAgo(),
       startingMeasurement(),
       getBodyGoals(),
+      getMobilityMinutesThisWeek(),
     ]);
     const hasGoal = await hasNutritionGoal(currentDate);
     setNutritionGoalSet(hasGoal);
@@ -244,6 +248,7 @@ export default function TodayScreen() {
     });
     setBodyStats({ latest: latestM, prev: prevM, start: startM });
     setBodyGoalsState(goals);
+    setMobilityMinutes(mobMin);
   }, []);
 
   useFocusEffect(
@@ -555,6 +560,22 @@ export default function TodayScreen() {
           </Pressable>
         </View>
       </Card>
+
+      <SectionLabel>Mobility</SectionLabel>
+      <Card>
+        <View style={styles.mobilityRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mobilityValue}>
+              {mobilityMinutes}
+              <Text style={styles.mobilityUnit}> min</Text>
+            </Text>
+            <Text style={styles.mobilityMeta}>
+              Stretching & cooldown this week
+            </Text>
+          </View>
+        </View>
+      </Card>
+
       <EditCardioSheet
         visible={editCardioOpen}
         current={cardioInfo}
@@ -1470,6 +1491,30 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     backgroundColor: colors.primary,
   },
   addBtnText: { color: "#FFFFFF", fontSize: s(12), fontWeight: "600" },
+
+  mobilityRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  mobilityValue: {
+    ...typography.metricValue,
+    fontSize: s(20),
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  mobilityUnit: {
+    ...typography.caption,
+    fontSize: s(12),
+    color: colors.textSecondary,
+    fontWeight: "400",
+  },
+  mobilityMeta: {
+    ...typography.caption,
+    fontSize: s(12),
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
 
   mgGrid: {
     flexDirection: "row",

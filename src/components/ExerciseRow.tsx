@@ -13,8 +13,9 @@ type Props = {
   accentColor: string;
   onPress: () => void;
   notes?: string | null;
-  typeBadge?: 'drop' | 'superset' | 'bodyweight' | null;
+  typeBadge?: 'drop' | 'superset' | 'bodyweight' | 'stretch' | null;
   partnerName?: string | null;
+  holdSeconds?: number | null;
 };
 
 export function ExerciseRow({
@@ -28,8 +29,10 @@ export function ExerciseRow({
   notes,
   typeBadge,
   partnerName,
+  holdSeconds,
 }: Props) {
   const styles = useStyles(makeStyles);
+  const isStretch = typeBadge === 'stretch';
   return (
     <Pressable
       onPress={onPress}
@@ -44,7 +47,9 @@ export function ExerciseRow({
           </Text>
         </View>
         <Text style={styles.meta}>
-          {sets} sets · {repRange}
+          {isStretch
+            ? `${sets} ${sets === 1 ? 'round' : 'rounds'} · ${holdSeconds ?? 30}s hold`
+            : `${sets} sets · ${repRange}`}
         </Text>
         {typeBadge === 'drop' ? (
           <View style={[styles.badge, { backgroundColor: colors.purple + '1F' }]}>
@@ -63,7 +68,12 @@ export function ExerciseRow({
             <Text style={[styles.badgeText, { color: colors.green }]}>Bodyweight</Text>
           </View>
         ) : null}
-        {lastSet ? <Text style={styles.lastSet}>Last: {lastSet}</Text> : null}
+        {isStretch ? (
+          <View style={[styles.badge, { backgroundColor: colors.teal + '1F' }]}>
+            <Text style={[styles.badgeText, { color: colors.teal }]}>Stretch</Text>
+          </View>
+        ) : null}
+        {lastSet && !isStretch ? <Text style={styles.lastSet}>Last: {lastSet}</Text> : null}
         {notes ? <Text style={styles.notes} numberOfLines={2}>{notes}</Text> : null}
       </View>
     </Pressable>

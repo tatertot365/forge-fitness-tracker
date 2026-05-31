@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { createExercise, findExercisesByName, getLibraryExercises } from '../db/queries';
+import { createExercise, findExercisesByName, getAllStretches, getLibraryExercises } from '../db/queries';
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
@@ -22,6 +22,7 @@ import {
   type ExerciseType,
   type LibraryExercise,
   type MuscleGroup,
+  type Stretch,
 } from '../types';
 import { hapticSuccess } from '../utils/haptics';
 
@@ -37,7 +38,7 @@ type Props = {
   onCreated: (newId: number) => void | Promise<void>;
 };
 
-type Mode = 'library' | 'new';
+type Mode = 'library' | 'stretches' | 'new';
 
 const ALL_MUSCLE_GROUPS: MuscleGroup[] = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
 
@@ -55,7 +56,9 @@ export function AddExerciseSheet({
     initialMuscleGroup ?? null,
   );
   const [library, setLibrary] = useState<LibraryExercise[]>([]);
+  const [stretchLibrary, setStretchLibrary] = useState<Stretch[]>([]);
   const [selected, setSelected] = useState<LibraryExercise | null>(null);
+  const [selectedStretch, setSelectedStretch] = useState<Stretch | null>(null);
 
   // For "new" mode the user picks muscle group explicitly. For "library" mode
   // we read it off the selection. Tracking both as `pickedGroup` keeps the
@@ -67,11 +70,13 @@ export function AddExerciseSheet({
   const [repRange, setRepRange] = useState('8–12');
   const [notes, setNotes] = useState('');
   const [type, setType] = useState<ExerciseType>('normal');
+  const [holdSeconds, setHoldSeconds] = useState(30);
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (visible) {
       getLibraryExercises().then(setLibrary);
+      getAllStretches().then(setStretchLibrary);
       setFilterGroup(initialMuscleGroup ?? null);
     }
   }, [visible, initialMuscleGroup]);
@@ -81,6 +86,7 @@ export function AddExerciseSheet({
     setSearch('');
     setFilterGroup(initialMuscleGroup ?? null);
     setSelected(null);
+    setSelectedStretch(null);
     setPickedGroup(null);
     setName('');
     setSets(3);
@@ -88,6 +94,7 @@ export function AddExerciseSheet({
     setRepRange('8–12');
     setNotes('');
     setType('normal');
+    setHoldSeconds(30);
   };
 
   const close = () => {
@@ -98,6 +105,7 @@ export function AddExerciseSheet({
 
   const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
+    setSelectedStretch(null);
     setPickedGroup(ex.muscle_group);
     setType('normal');
     setSets(3);
@@ -106,11 +114,27 @@ export function AddExerciseSheet({
     setNotes(ex.notes ?? '');
   };
 
+  const selectFromStretches = (st: Stretch) => {
+    setSelectedStretch(st);
+    setSelected(null);
+    setPickedGroup(st.muscle_group);
+    setType('stretch');
+    setSets(2);
+    setHoldSeconds(st.hold_seconds);
+    setNotes(st.notes ?? '');
+  };
+
   const switchMode = (m: Mode) => {
     setMode(m);
     setSelected(null);
+    setSelectedStretch(null);
     setPickedGroup(m === 'new' ? (initialMuscleGroup ?? null) : null);
     setSearch('');
+    if (m === 'stretches') {
+      setType('stretch');
+    } else if (m === 'new') {
+      setType('normal');
+    }
   };
 
   const filtered = useMemo(() => {
@@ -122,23 +146,38 @@ export function AddExerciseSheet({
     });
   }, [library, filterGroup, search]);
 
+  const filteredStretches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return stretchLibrary.filter((st) => {
+      if (filterGroup && st.muscle_group !== filterGroup) return false;
+      if (q && !st.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [stretchLibrary, filterGroup, search]);
+
   const canSave =
     pickedGroup !== null &&
-    (mode === 'library' ? selected !== null : name.trim().length > 0);
+    (mode === 'library'
+      ? selected !== null
+      : mode === 'stretches'
+        ? selectedStretch !== null
+        : name.trim().length > 0);
 
   const doCreate = async (trimmed: string) => {
     if (!pickedGroup) return;
     setBusy(true);
     try {
+      const isStretch = type === 'stretch';
       const newId = await createExercise({
         day,
         muscle_group: pickedGroup,
         name: trimmed,
         sets,
-        warmup_sets: warmupSets,
-        rep_range: repRange.trim() || '8–12',
+        warmup_sets: isStretch ? 0 : warmupSets,
+        rep_range: isStretch ? '—' : repRange.trim() || '8–12',
         notes: notes.trim() ? notes.trim() : null,
         type,
+        hold_seconds: isStretch ? holdSeconds : null,
       });
       hapticSuccess();
       reset();
@@ -149,7 +188,13 @@ export function AddExerciseSheet({
   };
 
   const onSave = async () => {
-    const trimmed = (mode === 'library' ? selected?.name ?? '' : name).trim();
+    const trimmed = (
+      mode === 'library'
+        ? selected?.name ?? ''
+        : mode === 'stretches'
+          ? selectedStretch?.name ?? ''
+          : name
+    ).trim();
     if (!trimmed || busy || !pickedGroup) return;
 
     if (mode === 'new') {
@@ -172,7 +217,10 @@ export function AddExerciseSheet({
     await doCreate(trimmed);
   };
 
-  const showConfig = mode === 'new' || (mode === 'library' && selected !== null);
+  const showConfig =
+    mode === 'new' ||
+    (mode === 'library' && selected !== null) ||
+    (mode === 'stretches' && selectedStretch !== null);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={close}>
@@ -189,14 +237,18 @@ export function AddExerciseSheet({
 
             {/* Mode toggle */}
             <View style={styles.modeToggle}>
-              {(['library', 'new'] as Mode[]).map((m) => (
+              {(['library', 'stretches', 'new'] as Mode[]).map((m) => (
                 <Pressable
                   key={m}
                   onPress={() => switchMode(m)}
                   style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
                 >
                   <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>
-                    {m === 'library' ? 'From library' : 'New exercise'}
+                    {m === 'library'
+                      ? 'Library'
+                      : m === 'stretches'
+                        ? 'Stretches'
+                        : 'New'}
                   </Text>
                 </Pressable>
               ))}
@@ -295,6 +347,95 @@ export function AddExerciseSheet({
                 </>
               )}
 
+              {/* Stretches mode — pick from seeded stretch library */}
+              {mode === 'stretches' && (
+                <>
+                  <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    style={[styles.input, { marginBottom: 10 }]}
+                    placeholder="Search stretches…"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    clearButtonMode="while-editing"
+                  />
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.chipRow}
+                    keyboardShouldPersistTaps="handled"
+                  >
+                    <Chip
+                      label="All"
+                      active={filterGroup === null}
+                      onPress={() => setFilterGroup(null)}
+                    />
+                    {ALL_MUSCLE_GROUPS.map((mg) => (
+                      <Chip
+                        key={mg}
+                        label={MUSCLE_LABEL[mg]}
+                        accent={muscleAccent[mg] ?? colors.primary}
+                        active={filterGroup === mg}
+                        onPress={() =>
+                          setFilterGroup((cur) => (cur === mg ? null : mg))
+                        }
+                      />
+                    ))}
+                  </ScrollView>
+
+                  {filteredStretches.length === 0 ? (
+                    <Text style={styles.emptyText}>No stretches found</Text>
+                  ) : (
+                    <View style={[styles.listContainer, { maxHeight: 280 }]}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {filteredStretches.map((st) => {
+                          const isSelected = selectedStretch?.id === st.id;
+                          const accent =
+                            muscleAccent[st.muscle_group] ?? colors.primary;
+                          return (
+                            <Pressable
+                              key={st.id}
+                              onPress={() => selectFromStretches(st)}
+                              style={({ pressed }) => [
+                                styles.libraryRow,
+                                isSelected && styles.libraryRowSelected,
+                                pressed && { opacity: 0.7 },
+                              ]}
+                            >
+                              <View style={[styles.accentBar, { backgroundColor: accent }]} />
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    styles.libraryRowName,
+                                    isSelected && styles.libraryRowNameSelected,
+                                  ]}
+                                >
+                                  {st.name}
+                                </Text>
+                                <Text style={styles.libraryRowMeta}>
+                                  {MUSCLE_LABEL[st.muscle_group]} · {st.hold_seconds}s
+                                  {st.per_side ? ' · per side' : ''}
+                                </Text>
+                              </View>
+                              {isSelected && (
+                                <View style={styles.checkBadge}>
+                                  <Text style={styles.checkText}>✓</Text>
+                                </View>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </>
+              )}
+
               {/* New mode — explicit muscle group picker */}
               {mode === 'new' && (
                 <>
@@ -352,8 +493,18 @@ export function AddExerciseSheet({
                       </Text>
                     </View>
                   )}
+                  {mode === 'stretches' && selectedStretch && pickedGroup && (
+                    <View style={styles.selectedBanner}>
+                      <Text style={styles.selectedBannerText}>{selectedStretch.name}</Text>
+                      <Text style={styles.selectedBannerSub}>
+                        Stretch · {MUSCLE_LABEL[pickedGroup]}
+                      </Text>
+                    </View>
+                  )}
 
-                  <Text style={styles.fieldLabel}>Sets</Text>
+                  <Text style={styles.fieldLabel}>
+                    {type === 'stretch' ? 'Rounds' : 'Sets'}
+                  </Text>
                   <View style={styles.stepperRow}>
                     <Pressable
                       onPress={() => setSets((s) => Math.max(1, s - 1))}
@@ -370,31 +521,64 @@ export function AddExerciseSheet({
                     </Pressable>
                   </View>
 
-                  <Text style={styles.fieldLabel}>Warmup sets</Text>
-                  <View style={styles.stepperRow}>
-                    <Pressable
-                      onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                      style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
-                    >
-                      <Minus size={16} color={colors.text} />
-                    </Pressable>
-                    <Text style={styles.stepperValue}>{warmupSets}</Text>
-                    <Pressable
-                      onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                      style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
-                    >
-                      <Plus size={16} color={colors.text} />
-                    </Pressable>
-                  </View>
+                  {type === 'stretch' ? (
+                    <>
+                      <Text style={styles.fieldLabel}>Hold (seconds)</Text>
+                      <View style={styles.stepperRow}>
+                        <Pressable
+                          onPress={() =>
+                            setHoldSeconds((s) => Math.max(5, s - 5))
+                          }
+                          style={({ pressed }) => [
+                            styles.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Minus size={16} color={colors.text} />
+                        </Pressable>
+                        <Text style={styles.stepperValue}>{holdSeconds}</Text>
+                        <Pressable
+                          onPress={() =>
+                            setHoldSeconds((s) => Math.min(300, s + 5))
+                          }
+                          style={({ pressed }) => [
+                            styles.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Plus size={16} color={colors.text} />
+                        </Pressable>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.fieldLabel}>Warmup sets</Text>
+                      <View style={styles.stepperRow}>
+                        <Pressable
+                          onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
+                          style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+                        >
+                          <Minus size={16} color={colors.text} />
+                        </Pressable>
+                        <Text style={styles.stepperValue}>{warmupSets}</Text>
+                        <Pressable
+                          onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
+                          style={({ pressed }) => [styles.stepperBtn, pressed && { opacity: 0.6 }]}
+                        >
+                          <Plus size={16} color={colors.text} />
+                        </Pressable>
+                      </View>
 
-                  <Text style={styles.fieldLabel}>Rep range</Text>
-                  <TextInput
-                    value={repRange}
-                    onChangeText={setRepRange}
-                    style={styles.input}
-                    placeholder="e.g. 8–12"
-                    placeholderTextColor={colors.textMuted}
-                  />
+                      <Text style={styles.fieldLabel}>Rep range</Text>
+                      <TextInput
+                        value={repRange}
+                        onChangeText={setRepRange}
+                        style={styles.input}
+                        placeholder="e.g. 8–12"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </>
+                  )}
 
                   <Text style={styles.fieldLabel}>Notes</Text>
                   <TextInput
@@ -406,24 +590,28 @@ export function AddExerciseSheet({
                     multiline
                   />
 
-                  <Text style={styles.fieldLabel}>Type</Text>
-                  <View style={styles.segmented}>
-                    {(['normal', 'drop', 'superset', 'bodyweight'] as ExerciseType[]).map((t) => (
-                      <Pressable
-                        key={t}
-                        onPress={() => setType(t)}
-                        style={({ pressed }) => [
-                          styles.segment,
-                          type === t && styles.segmentActive,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Text style={[styles.segmentText, type === t && styles.segmentTextActive]}>
-                          {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Bodyweight'}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  {type !== 'stretch' && (
+                    <>
+                      <Text style={styles.fieldLabel}>Type</Text>
+                      <View style={styles.segmented}>
+                        {(['normal', 'drop', 'superset', 'bodyweight'] as ExerciseType[]).map((t) => (
+                          <Pressable
+                            key={t}
+                            onPress={() => setType(t)}
+                            style={({ pressed }) => [
+                              styles.segment,
+                              type === t && styles.segmentActive,
+                              pressed && { opacity: 0.7 },
+                            ]}
+                          >
+                            <Text style={[styles.segmentText, type === t && styles.segmentTextActive]}>
+                              {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Bodyweight'}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  )}
                 </>
               )}
 
@@ -437,7 +625,11 @@ export function AddExerciseSheet({
                 ]}
               >
                 <Text style={styles.saveBtnText}>
-                  {mode === 'library' && selected ? `Add "${selected.name}"` : 'Add exercise'}
+                  {mode === 'library' && selected
+                    ? `Add "${selected.name}"`
+                    : mode === 'stretches' && selectedStretch
+                      ? `Add "${selectedStretch.name}"`
+                      : 'Add exercise'}
                 </Text>
               </Pressable>
             </ScrollView>

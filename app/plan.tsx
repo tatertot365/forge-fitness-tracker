@@ -39,6 +39,7 @@ import {
   deleteExercisesByGroup,
   deleteExercisesByName,
   findExercisesByName,
+  getAllStretches,
   getLibraryExercises,
   getDayPlans,
   getExercise,
@@ -62,6 +63,7 @@ import {
   type Exercise,
   type ExerciseType,
   type LibraryExercise,
+  type Stretch,
   type MuscleGroup,
 } from "../src/types";
 import {
@@ -341,6 +343,7 @@ function EditSheet({
   const [repRange, setRepRange] = useState("8–12");
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<ExerciseType>("normal");
+  const [holdSeconds, setHoldSeconds] = useState(30);
   const [busy, setBusy] = useState(false);
 
   const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
@@ -358,6 +361,7 @@ function EditSheet({
       setRepRange(exercise.rep_range);
       setNotes(exercise.notes ?? "");
       setType(exercise.type);
+      setHoldSeconds(exercise.hold_seconds ?? 30);
       setPartnerValue(null);
       setCurrentPartner(null);
       setDayExercises([]);
@@ -398,13 +402,15 @@ function EditSheet({
     const performSave = async () => {
       setBusy(true);
       try {
+        const isStretch = type === "stretch";
         await updateExercise(exercise.id, {
           name: name.trim() || exercise.name,
           sets,
-          warmup_sets: warmupSets,
-          rep_range: repRange.trim() || exercise.rep_range,
+          warmup_sets: isStretch ? 0 : warmupSets,
+          rep_range: isStretch ? "—" : repRange.trim() || exercise.rep_range,
           notes: notes.trim() || null,
           type,
+          hold_seconds: isStretch ? holdSeconds : null,
         });
 
         if (type === "superset" && partnerValue) {
@@ -548,7 +554,9 @@ function EditSheet({
                   autoCapitalize="words"
                 />
 
-                <Text style={ss.fieldLabel}>Sets</Text>
+                <Text style={ss.fieldLabel}>
+                  {type === "stretch" ? "Rounds" : "Sets"}
+                </Text>
                 <View style={ss.stepperRow}>
                   <Pressable
                     onPress={() => setSets((s) => Math.max(1, s - 1))}
@@ -571,37 +579,70 @@ function EditSheet({
                   </Pressable>
                 </View>
 
-                <Text style={ss.fieldLabel}>Warmup sets</Text>
-                <View style={ss.stepperRow}>
-                  <Pressable
-                    onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                    style={({ pressed }) => [
-                      ss.stepperBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Minus size={16} color={colors.text} />
-                  </Pressable>
-                  <Text style={ss.stepperValue}>{warmupSets}</Text>
-                  <Pressable
-                    onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                    style={({ pressed }) => [
-                      ss.stepperBtn,
-                      pressed && { opacity: 0.6 },
-                    ]}
-                  >
-                    <Plus size={16} color={colors.text} />
-                  </Pressable>
-                </View>
+                {type === "stretch" ? (
+                  <>
+                    <Text style={ss.fieldLabel}>Hold (seconds)</Text>
+                    <View style={ss.stepperRow}>
+                      <Pressable
+                        onPress={() =>
+                          setHoldSeconds((s) => Math.max(5, s - 5))
+                        }
+                        style={({ pressed }) => [
+                          ss.stepperBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Minus size={16} color={colors.text} />
+                      </Pressable>
+                      <Text style={ss.stepperValue}>{holdSeconds}</Text>
+                      <Pressable
+                        onPress={() =>
+                          setHoldSeconds((s) => Math.min(300, s + 5))
+                        }
+                        style={({ pressed }) => [
+                          ss.stepperBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Plus size={16} color={colors.text} />
+                      </Pressable>
+                    </View>
+                  </>
+                ) : (
+                  <>
+                    <Text style={ss.fieldLabel}>Warmup sets</Text>
+                    <View style={ss.stepperRow}>
+                      <Pressable
+                        onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
+                        style={({ pressed }) => [
+                          ss.stepperBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Minus size={16} color={colors.text} />
+                      </Pressable>
+                      <Text style={ss.stepperValue}>{warmupSets}</Text>
+                      <Pressable
+                        onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
+                        style={({ pressed }) => [
+                          ss.stepperBtn,
+                          pressed && { opacity: 0.6 },
+                        ]}
+                      >
+                        <Plus size={16} color={colors.text} />
+                      </Pressable>
+                    </View>
 
-                <Text style={ss.fieldLabel}>Rep range</Text>
-                <TextInput
-                  value={repRange}
-                  onChangeText={setRepRange}
-                  style={ss.input}
-                  placeholder="e.g. 8–12"
-                  placeholderTextColor={colors.textMuted}
-                />
+                    <Text style={ss.fieldLabel}>Rep range</Text>
+                    <TextInput
+                      value={repRange}
+                      onChangeText={setRepRange}
+                      style={ss.input}
+                      placeholder="e.g. 8–12"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </>
+                )}
 
                 <Text style={ss.fieldLabel}>Notes</Text>
                 <TextInput
@@ -613,42 +654,46 @@ function EditSheet({
                   multiline
                 />
 
-                <Text style={ss.fieldLabel}>Type</Text>
-                <View style={ss.segmented}>
-                  {(
-                    [
-                      "normal",
-                      "superset",
-                      "drop",
-                      "bodyweight",
-                    ] as ExerciseType[]
-                  ).map((t) => (
-                    <Pressable
-                      key={t}
-                      onPress={() => setType(t)}
-                      style={({ pressed }) => [
-                        ss.segment,
-                        type === t && ss.segmentActive,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          ss.segmentText,
-                          type === t && ss.segmentTextActive,
-                        ]}
-                      >
-                        {t === "normal"
-                          ? "Normal"
-                          : t === "superset"
-                            ? "Superset"
-                            : t === "drop"
-                              ? "Drop"
-                              : "Bodyweight"}
-                      </Text>
-                    </Pressable>
-                  ))}
-                </View>
+                {type !== "stretch" && (
+                  <>
+                    <Text style={ss.fieldLabel}>Type</Text>
+                    <View style={ss.segmented}>
+                      {(
+                        [
+                          "normal",
+                          "superset",
+                          "drop",
+                          "bodyweight",
+                        ] as ExerciseType[]
+                      ).map((t) => (
+                        <Pressable
+                          key={t}
+                          onPress={() => setType(t)}
+                          style={({ pressed }) => [
+                            ss.segment,
+                            type === t && ss.segmentActive,
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ss.segmentText,
+                              type === t && ss.segmentTextActive,
+                            ]}
+                          >
+                            {t === "normal"
+                              ? "Normal"
+                              : t === "superset"
+                                ? "Superset"
+                                : t === "drop"
+                                  ? "Drop"
+                                  : "Bodyweight"}
+                          </Text>
+                        </Pressable>
+                      ))}
+                    </View>
+                  </>
+                )}
 
                 {/* Superset partner picker */}
                 {type === "superset" && (
@@ -741,7 +786,7 @@ type AddSheetProps = {
   onCreated: () => void;
 };
 
-type AddMode = "library" | "new";
+type AddMode = "library" | "stretches" | "new";
 
 function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const ss = useStyles(makeSs);
@@ -749,7 +794,9 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const [search, setSearch] = useState("");
   const [filterGroup, setFilterGroup] = useState<MuscleGroup | null>(null);
   const [library, setLibrary] = useState<LibraryExercise[]>([]);
+  const [stretchLibrary, setStretchLibrary] = useState<Stretch[]>([]);
   const [selected, setSelected] = useState<LibraryExercise | null>(null);
+  const [selectedStretch, setSelectedStretch] = useState<Stretch | null>(null);
   const [pickedGroup, setPickedGroup] = useState<MuscleGroup | null>(null);
 
   const [name, setName] = useState("");
@@ -758,6 +805,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const [repRange, setRepRange] = useState("8–12");
   const [notes, setNotes] = useState("");
   const [type, setType] = useState<ExerciseType>("normal");
+  const [holdSeconds, setHoldSeconds] = useState(30);
   const [busy, setBusy] = useState(false);
 
   const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
@@ -768,6 +816,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   useEffect(() => {
     if (visible) {
       getLibraryExercises().then(setLibrary);
+      getAllStretches().then(setStretchLibrary);
     }
   }, [visible]);
 
@@ -784,6 +833,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     setSearch("");
     setFilterGroup(null);
     setSelected(null);
+    setSelectedStretch(null);
     setPickedGroup(null);
     setName("");
     setSets(3);
@@ -791,6 +841,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     setRepRange("8–12");
     setNotes("");
     setType("normal");
+    setHoldSeconds(30);
     setDayExercises([]);
     setPartnerValue(null);
   };
@@ -803,6 +854,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const selectFromLibrary = (ex: LibraryExercise) => {
     setSelected(ex);
+    setSelectedStretch(null);
     setPickedGroup(ex.muscle_group);
     setType("normal");
     setSets(3);
@@ -811,9 +863,20 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     setNotes(ex.notes ?? "");
   };
 
+  const selectFromStretches = (st: Stretch) => {
+    setSelectedStretch(st);
+    setSelected(null);
+    setPickedGroup(st.muscle_group);
+    setType("stretch");
+    setSets(2);
+    setHoldSeconds(st.hold_seconds);
+    setNotes(st.notes ?? "");
+  };
+
   const switchMode = (m: AddMode) => {
     setMode(m);
     setSelected(null);
+    setSelectedStretch(null);
     setPickedGroup(null);
     setSearch("");
     if (m === "new") {
@@ -823,6 +886,8 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
       setRepRange("8–12");
       setNotes("");
       setType("normal");
+    } else if (m === "stretches") {
+      setType("stretch");
     }
     setPartnerValue(null);
   };
@@ -836,24 +901,39 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     });
   }, [library, filterGroup, search]);
 
+  const filteredStretches = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return stretchLibrary.filter((st) => {
+      if (filterGroup && st.muscle_group !== filterGroup) return false;
+      if (q && !st.name.toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }, [stretchLibrary, filterGroup, search]);
+
   const canSave =
     pickedGroup !== null &&
-    (mode === "library" ? selected !== null : name.trim().length > 0) &&
+    (mode === "library"
+      ? selected !== null
+      : mode === "stretches"
+        ? selectedStretch !== null
+        : name.trim().length > 0) &&
     (type !== "superset" || partnerValue !== null);
 
   const doCreate = async (trimmed: string) => {
     if (!pickedGroup) return;
     setBusy(true);
     try {
+      const isStretch = type === "stretch";
       const newId = await createExercise({
         day,
         muscle_group: pickedGroup,
         name: trimmed,
         sets,
-        warmup_sets: warmupSets,
-        rep_range: repRange.trim() || "8–12",
+        warmup_sets: isStretch ? 0 : warmupSets,
+        rep_range: isStretch ? "—" : repRange.trim() || "8–12",
         notes: notes.trim() ? notes.trim() : null,
         type,
+        hold_seconds: isStretch ? holdSeconds : null,
       });
 
       // Handle superset partner
@@ -887,7 +967,13 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
 
   const onSave = async () => {
     if (!canSave || busy) return;
-    const trimmed = (mode === "library" ? (selected?.name ?? "") : name).trim();
+    const trimmed = (
+      mode === "library"
+        ? selected?.name ?? ""
+        : mode === "stretches"
+          ? selectedStretch?.name ?? ""
+          : name
+    ).trim();
     if (!trimmed) return;
 
     if (mode === "new") {
@@ -910,7 +996,10 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     await doCreate(trimmed);
   };
 
-  const showConfig = mode === "new" || (mode === "library" && selected !== null);
+  const showConfig =
+    mode === "new" ||
+    (mode === "library" && selected !== null) ||
+    (mode === "stretches" && selectedStretch !== null);
 
   return (
     <Modal
@@ -939,7 +1028,7 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
             >
               {/* Mode toggle */}
               <View style={ss.modeToggle}>
-                {(["library", "new"] as AddMode[]).map((m) => (
+                {(["library", "stretches", "new"] as AddMode[]).map((m) => (
                   <Pressable
                     key={m}
                     onPress={() => switchMode(m)}
@@ -951,7 +1040,11 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                         mode === m && ss.modeBtnTextActive,
                       ]}
                     >
-                      {m === "library" ? "From library" : "New exercise"}
+                      {m === "library"
+                        ? "Library"
+                        : m === "stretches"
+                          ? "Stretches"
+                          : "New"}
                     </Text>
                   </Pressable>
                 ))}
@@ -1098,6 +1191,148 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                 </>
               )}
 
+              {/* Stretches mode: pick from seeded stretch library */}
+              {mode === "stretches" && (
+                <>
+                  <TextInput
+                    value={search}
+                    onChangeText={setSearch}
+                    style={[ss.input, { marginBottom: 10 }]}
+                    placeholder="Search stretches…"
+                    placeholderTextColor={colors.textMuted}
+                    autoCapitalize="none"
+                    clearButtonMode="while-editing"
+                  />
+
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={{
+                      flexDirection: "row",
+                      gap: 6,
+                      paddingRight: 8,
+                      paddingVertical: 2,
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    style={{ marginBottom: 10 }}
+                  >
+                    <Pressable
+                      onPress={() => setFilterGroup(null)}
+                      style={({ pressed }) => [
+                        ss.pill,
+                        filterGroup === null && {
+                          backgroundColor: colors.primary + "28",
+                          borderColor: colors.primary,
+                        },
+                        pressed && { opacity: 0.7 },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          ss.pillText,
+                          filterGroup === null && {
+                            color: colors.primary,
+                            fontWeight: "600",
+                          },
+                        ]}
+                      >
+                        All
+                      </Text>
+                    </Pressable>
+                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                      const active = filterGroup === mg;
+                      const accent = muscleAccent[mg] ?? colors.primary;
+                      return (
+                        <Pressable
+                          key={mg}
+                          onPress={() =>
+                            setFilterGroup(active ? null : mg)
+                          }
+                          style={({ pressed }) => [
+                            ss.pill,
+                            active && {
+                              backgroundColor: accent + "28",
+                              borderColor: accent,
+                            },
+                            pressed && { opacity: 0.7 },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              ss.pillText,
+                              active && {
+                                color: accent,
+                                fontWeight: "600",
+                              },
+                            ]}
+                          >
+                            {MUSCLE_LABEL[mg]}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </ScrollView>
+
+                  {filteredStretches.length === 0 ? (
+                    <Text style={ss.emptyText}>No stretches found</Text>
+                  ) : (
+                    <View style={[ss.listContainer, { maxHeight: 280 }]}>
+                      <ScrollView
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                        showsVerticalScrollIndicator={false}
+                      >
+                        {filteredStretches.map((st) => {
+                          const isSel = selectedStretch?.id === st.id;
+                          const accent =
+                            muscleAccent[st.muscle_group] ?? colors.primary;
+                          return (
+                            <Pressable
+                              key={st.id}
+                              onPress={() => selectFromStretches(st)}
+                              style={({ pressed }) => [
+                                ss.libraryRow,
+                                isSel && ss.libraryRowSelected,
+                                pressed && { opacity: 0.7 },
+                              ]}
+                            >
+                              <View
+                                style={{
+                                  width: 3,
+                                  height: 28,
+                                  borderRadius: radius.accent,
+                                  backgroundColor: accent,
+                                  marginRight: 10,
+                                }}
+                              />
+                              <View style={{ flex: 1 }}>
+                                <Text
+                                  style={[
+                                    ss.libraryRowName,
+                                    isSel && ss.libraryRowNameSelected,
+                                  ]}
+                                >
+                                  {st.name}
+                                </Text>
+                                <Text style={ss.libraryRowMeta}>
+                                  {MUSCLE_LABEL[st.muscle_group]} · {st.hold_seconds}s
+                                  {st.per_side ? ' · per side' : ''}
+                                </Text>
+                              </View>
+                              {isSel && (
+                                <View style={ss.checkBadge}>
+                                  <Text style={ss.checkText}>✓</Text>
+                                </View>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
+                    </View>
+                  )}
+                </>
+              )}
+
               {/* New mode: name + explicit muscle group picker */}
               {mode === "new" && (
                 <>
@@ -1162,8 +1397,20 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                       </Text>
                     </View>
                   )}
+                  {mode === "stretches" && selectedStretch && pickedGroup && (
+                    <View style={[ss.selectedBanner, { marginTop: 14 }]}>
+                      <Text style={ss.selectedBannerText}>
+                        {selectedStretch.name}
+                      </Text>
+                      <Text style={ss.selectedBannerSub}>
+                        Stretch · {MUSCLE_LABEL[pickedGroup]}
+                      </Text>
+                    </View>
+                  )}
 
-                  <Text style={ss.fieldLabel}>Sets</Text>
+                  <Text style={ss.fieldLabel}>
+                    {type === "stretch" ? "Rounds" : "Sets"}
+                  </Text>
                   <View style={ss.stepperRow}>
                     <Pressable
                       onPress={() => setSets((s) => Math.max(1, s - 1))}
@@ -1186,41 +1433,74 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                     </Pressable>
                   </View>
 
-                  <Text style={ss.fieldLabel}>Warmup sets</Text>
-                  <View style={ss.stepperRow}>
-                    <Pressable
-                      onPress={() =>
-                        setWarmupSets((s) => Math.max(0, s - 1))
-                      }
-                      style={({ pressed }) => [
-                        ss.stepperBtn,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Minus size={16} color={colors.text} />
-                    </Pressable>
-                    <Text style={ss.stepperValue}>{warmupSets}</Text>
-                    <Pressable
-                      onPress={() =>
-                        setWarmupSets((s) => Math.min(5, s + 1))
-                      }
-                      style={({ pressed }) => [
-                        ss.stepperBtn,
-                        pressed && { opacity: 0.6 },
-                      ]}
-                    >
-                      <Plus size={16} color={colors.text} />
-                    </Pressable>
-                  </View>
+                  {type === "stretch" ? (
+                    <>
+                      <Text style={ss.fieldLabel}>Hold (seconds)</Text>
+                      <View style={ss.stepperRow}>
+                        <Pressable
+                          onPress={() =>
+                            setHoldSeconds((s) => Math.max(5, s - 5))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Minus size={16} color={colors.text} />
+                        </Pressable>
+                        <Text style={ss.stepperValue}>{holdSeconds}</Text>
+                        <Pressable
+                          onPress={() =>
+                            setHoldSeconds((s) => Math.min(300, s + 5))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Plus size={16} color={colors.text} />
+                        </Pressable>
+                      </View>
+                    </>
+                  ) : (
+                    <>
+                      <Text style={ss.fieldLabel}>Warmup sets</Text>
+                      <View style={ss.stepperRow}>
+                        <Pressable
+                          onPress={() =>
+                            setWarmupSets((s) => Math.max(0, s - 1))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Minus size={16} color={colors.text} />
+                        </Pressable>
+                        <Text style={ss.stepperValue}>{warmupSets}</Text>
+                        <Pressable
+                          onPress={() =>
+                            setWarmupSets((s) => Math.min(5, s + 1))
+                          }
+                          style={({ pressed }) => [
+                            ss.stepperBtn,
+                            pressed && { opacity: 0.6 },
+                          ]}
+                        >
+                          <Plus size={16} color={colors.text} />
+                        </Pressable>
+                      </View>
 
-                  <Text style={ss.fieldLabel}>Rep range</Text>
-                  <TextInput
-                    value={repRange}
-                    onChangeText={setRepRange}
-                    style={ss.input}
-                    placeholder="e.g. 8–12"
-                    placeholderTextColor={colors.textMuted}
-                  />
+                      <Text style={ss.fieldLabel}>Rep range</Text>
+                      <TextInput
+                        value={repRange}
+                        onChangeText={setRepRange}
+                        style={ss.input}
+                        placeholder="e.g. 8–12"
+                        placeholderTextColor={colors.textMuted}
+                      />
+                    </>
+                  )}
 
                   <Text style={ss.fieldLabel}>Notes</Text>
                   <TextInput
@@ -1232,42 +1512,46 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                     multiline
                   />
 
-                  <Text style={ss.fieldLabel}>Type</Text>
-                  <View style={ss.segmented}>
-                    {(
-                      [
-                        "normal",
-                        "superset",
-                        "drop",
-                        "bodyweight",
-                      ] as ExerciseType[]
-                    ).map((t) => (
-                      <Pressable
-                        key={t}
-                        onPress={() => setType(t)}
-                        style={({ pressed }) => [
-                          ss.segment,
-                          type === t && ss.segmentActive,
-                          pressed && { opacity: 0.7 },
-                        ]}
-                      >
-                        <Text
-                          style={[
-                            ss.segmentText,
-                            type === t && ss.segmentTextActive,
-                          ]}
-                        >
-                          {t === "normal"
-                            ? "Normal"
-                            : t === "superset"
-                              ? "Superset"
-                              : t === "drop"
-                                ? "Drop"
-                                : "Bodyweight"}
-                        </Text>
-                      </Pressable>
-                    ))}
-                  </View>
+                  {type !== "stretch" && (
+                    <>
+                      <Text style={ss.fieldLabel}>Type</Text>
+                      <View style={ss.segmented}>
+                        {(
+                          [
+                            "normal",
+                            "superset",
+                            "drop",
+                            "bodyweight",
+                          ] as ExerciseType[]
+                        ).map((t) => (
+                          <Pressable
+                            key={t}
+                            onPress={() => setType(t)}
+                            style={({ pressed }) => [
+                              ss.segment,
+                              type === t && ss.segmentActive,
+                              pressed && { opacity: 0.7 },
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                ss.segmentText,
+                                type === t && ss.segmentTextActive,
+                              ]}
+                            >
+                              {t === "normal"
+                                ? "Normal"
+                                : t === "superset"
+                                  ? "Superset"
+                                  : t === "drop"
+                                    ? "Drop"
+                                    : "Bodyweight"}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    </>
+                  )}
 
                   {/* Superset partner picker */}
                   {type === "superset" && (
@@ -1302,7 +1586,9 @@ function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                     <Text style={ss.saveBtnText}>
                       {mode === "library" && selected
                         ? `Add "${selected.name}"`
-                        : "Add exercise"}
+                        : mode === "stretches" && selectedStretch
+                          ? `Add "${selectedStretch.name}"`
+                          : "Add exercise"}
                     </Text>
                   </Pressable>
                 </>

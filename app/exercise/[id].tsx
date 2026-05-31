@@ -25,6 +25,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Card } from "../../src/components/Card";
 import { HistorySheet } from "../../src/components/HistorySheet";
 import { HistorySparkline } from "../../src/components/HistorySparkline";
+import { HoldTimer } from "../../src/components/HoldTimer";
 import { RestTimer } from "../../src/components/RestTimer";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { SetCheckButton } from "../../src/components/SetCheckButton";
@@ -400,11 +401,13 @@ export default function ExerciseDetailScreen() {
           </Text>
           <Text style={styles.subtitle}>
             {exercise
-              ? `${exercise.sets} sets · ${exercise.rep_range}${
-                  exercise.type === "drop" ? " · Drop set" : ""
-                }${exercise.type === "superset" ? " · Superset" : ""}${
-                  exercise.type === "bodyweight" ? " · Bodyweight" : ""
-                }`
+              ? exercise.type === "stretch"
+                ? `${exercise.sets} ${exercise.sets === 1 ? "round" : "rounds"} · ${exercise.hold_seconds ?? 30}s hold · Stretch`
+                : `${exercise.sets} sets · ${exercise.rep_range}${
+                    exercise.type === "drop" ? " · Drop set" : ""
+                  }${exercise.type === "superset" ? " · Superset" : ""}${
+                    exercise.type === "bodyweight" ? " · Bodyweight" : ""
+                  }`
               : ""}
           </Text>
         </View>
@@ -434,37 +437,39 @@ export default function ExerciseDetailScreen() {
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          <Pressable
-            onPress={() => setHistoryOpen(true)}
-            style={({ pressed }) => pressed && { opacity: 0.85 }}
-          >
-            <Card style={styles.beatCard}>
-              <View style={styles.beatIconWrap}>
-                <TrendingUp size={18} color={colors.primary} strokeWidth={2} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.beatLabel}>Beat this</Text>
-                <Text style={styles.beatValue}>
-                  {beatThis ?? "No previous data"}
-                </Text>
-                {history.length > 0 ? (
-                  <Text style={styles.beatCta}>Tap to see history →</Text>
-                ) : null}
-              </View>
-              <HistorySparkline
-                data={history
-                  .slice(0, 8)
-                  .map((h) => ({
-                    date: h.date,
-                    score:
-                      exercise?.type === "bodyweight"
-                        ? h.best_reps
-                        : (h.best_weight_lb ?? 0) * h.best_reps,
-                  }))
-                  .reverse()}
-              />
-            </Card>
-          </Pressable>
+          {exercise?.type !== "stretch" ? (
+            <Pressable
+              onPress={() => setHistoryOpen(true)}
+              style={({ pressed }) => pressed && { opacity: 0.85 }}
+            >
+              <Card style={styles.beatCard}>
+                <View style={styles.beatIconWrap}>
+                  <TrendingUp size={18} color={colors.primary} strokeWidth={2} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.beatLabel}>Beat this</Text>
+                  <Text style={styles.beatValue}>
+                    {beatThis ?? "No previous data"}
+                  </Text>
+                  {history.length > 0 ? (
+                    <Text style={styles.beatCta}>Tap to see history →</Text>
+                  ) : null}
+                </View>
+                <HistorySparkline
+                  data={history
+                    .slice(0, 8)
+                    .map((h) => ({
+                      date: h.date,
+                      score:
+                        exercise?.type === "bodyweight"
+                          ? h.best_reps
+                          : (h.best_weight_lb ?? 0) * h.best_reps,
+                    }))
+                    .reverse()}
+                />
+              </Card>
+            </Pressable>
+          ) : null}
 
           {exercise?.type === "superset" && partner ? (
             <Pressable
@@ -485,6 +490,17 @@ export default function ExerciseDetailScreen() {
             <Text style={styles.notes}>{exercise.notes}</Text>
           ) : null}
 
+          {exercise?.type === "stretch" && exercise ? (
+            <StretchPanel
+              key={exercise.id}
+              rows={rows}
+              holdSeconds={exercise.hold_seconds ?? 30}
+              onRoundComplete={(roundIdx) => toggleComplete(roundIdx)}
+            />
+          ) : null}
+
+          {exercise?.type !== "stretch" ? (
+            <>
           <SectionLabel>Warmup</SectionLabel>
 
           <View style={styles.tableHeader}>
@@ -682,6 +698,8 @@ export default function ExerciseDetailScreen() {
           <View style={styles.restWrap}>
             <RestTimer autoStartKey={restKey} />
           </View>
+            </>
+          ) : null}
 
           <Pressable
             onPress={() => {
@@ -729,6 +747,55 @@ export default function ExerciseDetailScreen() {
         />
       ) : null}
     </SafeAreaView>
+  );
+}
+
+function StretchPanel({
+  rows,
+  holdSeconds,
+  onRoundComplete,
+}: {
+  rows: Row[];
+  holdSeconds: number;
+  onRoundComplete: (idx: number) => void;
+}) {
+  const styles = useStyles(makeStyles);
+  const nextIdx = rows.findIndex((r) => !r.completed);
+  const allDone = nextIdx === -1;
+  const currentIdx = allDone ? rows.length - 1 : nextIdx;
+  const current = rows[currentIdx];
+  return (
+    <View style={styles.stretchPanel}>
+      <View style={styles.stretchHeader}>
+        <Text style={styles.stretchHeaderLabel}>
+          {allDone
+            ? `All ${rows.length} ${rows.length === 1 ? "round" : "rounds"} complete`
+            : `Round ${current?.setNumber ?? 1} of ${rows.length}`}
+        </Text>
+        <View style={styles.stretchDots}>
+          {rows.map((r) => (
+            <View
+              key={r.setNumber}
+              style={[
+                styles.stretchDot,
+                r.completed && styles.stretchDotDone,
+              ]}
+            />
+          ))}
+        </View>
+      </View>
+      {!allDone ? (
+        <View style={{ marginTop: 14 }}>
+          <HoldTimer
+            key={`${currentIdx}-${holdSeconds}`}
+            durationSeconds={holdSeconds}
+            autoStart
+            onComplete={() => onRoundComplete(currentIdx)}
+            onSkip={() => onRoundComplete(currentIdx)}
+          />
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -1035,6 +1102,42 @@ function EditExerciseSheet({
 }
 
 const makeStyles = (s: (n: number) => number) => StyleSheet.create({
+  stretchPanel: {
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    marginTop: 12,
+  },
+  stretchHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  stretchHeaderLabel: {
+    fontSize: s(14),
+    fontWeight: "600",
+    color: colors.text,
+    flex: 1,
+  },
+  stretchDots: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  stretchDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+  },
+  stretchDotDone: {
+    backgroundColor: colors.green,
+    borderColor: colors.green,
+  },
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
     flexDirection: "row",

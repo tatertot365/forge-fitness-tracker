@@ -2,6 +2,14 @@ import type { SQLiteDatabase } from 'expo-sqlite';
 
 type ExerciseSeed = { name: string; muscle_group: string; notes: string | null };
 
+type StretchSeed = {
+  name: string;
+  muscle_group: string;
+  hold_seconds: number;
+  per_side: 0 | 1;
+  notes: string | null;
+};
+
 const EXERCISES: ExerciseSeed[] = [
   // Chest
   { name: 'Flat barbell bench press',           muscle_group: 'chest',           notes: null },
@@ -147,11 +155,74 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'GHD sit-up',                          muscle_group: 'core',            notes: 'Full hip extension at bottom' },
 ];
 
+const STRETCHES: StretchSeed[] = [
+  // Chest
+  { name: 'Doorway pec stretch',          muscle_group: 'chest',           hold_seconds: 30, per_side: 0, notes: 'Forearm on frame, step through' },
+  { name: 'Floor pec stretch',            muscle_group: 'chest',           hold_seconds: 30, per_side: 1, notes: 'Prone, arm out at 90°, roll onto shoulder' },
+  { name: "Child's pose with arm reach",  muscle_group: 'chest',           hold_seconds: 30, per_side: 0, notes: 'Press chest toward floor' },
+
+  // Shoulders
+  { name: 'Cross-body shoulder stretch',  muscle_group: 'shoulders',       hold_seconds: 30, per_side: 1, notes: 'Pull arm across chest with opposite hand' },
+  { name: 'Sleeper stretch',              muscle_group: 'shoulders',       hold_seconds: 30, per_side: 1, notes: 'Side-lying, gently rotate forearm down' },
+  { name: 'Behind-back towel stretch',    muscle_group: 'shoulders',       hold_seconds: 30, per_side: 1, notes: 'Top hand pulls towel up' },
+
+  // Triceps
+  { name: 'Overhead tricep stretch',      muscle_group: 'triceps',         hold_seconds: 30, per_side: 1, notes: 'Elbow up, opposite hand presses down' },
+  { name: 'Cross-body tricep stretch',    muscle_group: 'triceps',         hold_seconds: 30, per_side: 1, notes: 'Arm across chest, bend elbow' },
+
+  // Back — width
+  { name: 'Lat hang',                     muscle_group: 'back-width',      hold_seconds: 30, per_side: 0, notes: 'Passive hang from bar, full stretch' },
+  { name: "Child's pose lat stretch",     muscle_group: 'back-width',      hold_seconds: 30, per_side: 1, notes: 'Walk hands to opposite side' },
+  { name: 'Doorway lat stretch',          muscle_group: 'back-width',      hold_seconds: 30, per_side: 1, notes: 'Grab frame, hinge at hip, sit back' },
+
+  // Back — thickness
+  { name: 'Cat-cow',                      muscle_group: 'back-thickness',  hold_seconds: 45, per_side: 0, notes: 'Flow between arch and round, controlled' },
+  { name: 'Thoracic rotation',            muscle_group: 'back-thickness',  hold_seconds: 30, per_side: 1, notes: 'Quadruped, hand behind head, rotate up' },
+  { name: 'Prone press-up',               muscle_group: 'back-thickness',  hold_seconds: 20, per_side: 0, notes: 'Cobra position, hips on floor' },
+
+  // Biceps
+  { name: 'Wall bicep stretch',           muscle_group: 'biceps',          hold_seconds: 30, per_side: 1, notes: 'Palm on wall behind you, turn body away' },
+  { name: 'Standing bicep stretch',       muscle_group: 'biceps',          hold_seconds: 30, per_side: 0, notes: 'Hands clasped behind back, lift arms' },
+
+  // Grip
+  { name: 'Wrist flexor stretch',         muscle_group: 'grip',            hold_seconds: 20, per_side: 1, notes: 'Arm extended, pull fingers back' },
+  { name: 'Wrist extensor stretch',       muscle_group: 'grip',            hold_seconds: 20, per_side: 1, notes: 'Arm extended, pull fingers down' },
+
+  // Traps
+  { name: 'Upper trap stretch',           muscle_group: 'traps',           hold_seconds: 30, per_side: 1, notes: 'Ear to shoulder, opposite hand reaches down' },
+  { name: 'Levator scapulae stretch',     muscle_group: 'traps',           hold_seconds: 30, per_side: 1, notes: 'Look toward armpit, gentle pull on head' },
+
+  // Quads
+  { name: 'Standing quad stretch',        muscle_group: 'quads',           hold_seconds: 30, per_side: 1, notes: 'Heel to glute, knees together' },
+  { name: 'Couch stretch',                muscle_group: 'quads',           hold_seconds: 45, per_side: 1, notes: 'Rear shin up wall/couch, lunge position' },
+  { name: 'Kneeling hip flexor stretch',  muscle_group: 'quads',           hold_seconds: 30, per_side: 1, notes: 'Squeeze glute, push hips forward' },
+
+  // Hamstrings
+  { name: 'Standing forward fold',        muscle_group: 'hamstrings',      hold_seconds: 30, per_side: 0, notes: 'Hinge at hips, soft knees if needed' },
+  { name: 'Single-leg hamstring stretch', muscle_group: 'hamstrings',      hold_seconds: 30, per_side: 1, notes: 'Heel on bench, hinge forward' },
+  { name: 'Supine hamstring stretch',     muscle_group: 'hamstrings',      hold_seconds: 30, per_side: 1, notes: 'Lying down, strap or hands around foot' },
+
+  // Glutes
+  { name: 'Pigeon pose',                  muscle_group: 'glutes',          hold_seconds: 45, per_side: 1, notes: 'Front shin parallel to body, hinge forward' },
+  { name: 'Figure-4 stretch',             muscle_group: 'glutes',          hold_seconds: 30, per_side: 1, notes: 'Lying on back, ankle on opposite knee' },
+  { name: 'Seated glute stretch',         muscle_group: 'glutes',          hold_seconds: 30, per_side: 1, notes: 'Ankle on opposite knee, hinge forward' },
+
+  // Calves
+  { name: 'Wall calf stretch',            muscle_group: 'calves',          hold_seconds: 30, per_side: 1, notes: 'Hands on wall, back leg straight, heel down' },
+  { name: 'Downward dog calf pedal',      muscle_group: 'calves',          hold_seconds: 30, per_side: 0, notes: 'Alternate heel drops in downward dog' },
+  { name: 'Seated calf stretch',          muscle_group: 'calves',          hold_seconds: 30, per_side: 1, notes: 'Leg extended, strap around ball of foot' },
+
+  // Core
+  { name: 'Cobra pose',                   muscle_group: 'core',            hold_seconds: 30, per_side: 0, notes: 'Prone, press chest up, hips down' },
+  { name: 'Seated spinal twist',          muscle_group: 'core',            hold_seconds: 30, per_side: 1, notes: 'Knee bent, opposite elbow outside knee' },
+  { name: "Child's pose side reach",      muscle_group: 'core',            hold_seconds: 30, per_side: 1, notes: 'Walk hands to opposite side, stretch obliques' },
+];
+
 export async function seedIfNeeded(db: SQLiteDatabase): Promise<void> {
   const seeded = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM settings WHERE key = 'seeded'`,
   );
-  if (seeded?.value === 'library-v3') return;
+  if (seeded?.value === 'library-v4') return;
 
   const existingPhase = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM settings WHERE key = 'phase'`,
@@ -167,8 +238,23 @@ export async function seedIfNeeded(db: SQLiteDatabase): Promise<void> {
     );
   }
 
+  // Seed builtin stretches only when the table is empty so we don't duplicate
+  // them on re-seed and we don't overwrite user edits to builtin rows.
+  const stretchCount = await db.getFirstAsync<{ c: number }>(
+    `SELECT COUNT(*) as c FROM stretches`,
+  );
+  if ((stretchCount?.c ?? 0) === 0) {
+    for (const s of STRETCHES) {
+      await db.runAsync(
+        `INSERT INTO stretches (name, muscle_group, hold_seconds, per_side, notes, builtin)
+         VALUES (?, ?, ?, ?, ?, 1)`,
+        [s.name, s.muscle_group, s.hold_seconds, s.per_side, s.notes],
+      );
+    }
+  }
+
   await db.runAsync(
-    `INSERT INTO settings (key, value) VALUES ('seeded', 'library-v3')
+    `INSERT INTO settings (key, value) VALUES ('seeded', 'library-v4')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }

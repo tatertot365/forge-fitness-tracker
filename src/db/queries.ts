@@ -14,6 +14,7 @@ import type {
   Phase,
   Session,
   SetLog,
+  Stretch,
 } from '../types';
 import { DAYS, DAY_LABEL } from '../types';
 import { daysBetween, toISO, todayISO, weekDates } from '../utils/date';
@@ -256,7 +257,8 @@ const DAY_EXERCISE_JOIN = `
     de.rep_range,
     de.sort_order,
     de.type,
-    de.superset_partner_id
+    de.superset_partner_id,
+    de.hold_seconds
   FROM day_exercises de
   JOIN exercises e ON e.id = de.exercise_id
 `;
@@ -287,6 +289,7 @@ export async function createExercise(input: {
   rep_range: string;
   notes?: string | null;
   type?: string;
+  hold_seconds?: number | null;
 }): Promise<number> {
   const db = await getDb();
 
@@ -312,8 +315,8 @@ export async function createExercise(input: {
   const sortOrder = (tail?.max_order ?? -1) + 1;
 
   const result = await db.runAsync(
-    `INSERT OR IGNORE INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR IGNORE INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type, hold_seconds)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       input.day,
       libId,
@@ -322,6 +325,7 @@ export async function createExercise(input: {
       input.rep_range,
       sortOrder,
       input.type ?? 'normal',
+      input.hold_seconds ?? null,
     ],
   );
 
@@ -348,6 +352,7 @@ export async function copyDayExercises(fromDay: Day, toDay: Day): Promise<void> 
       rep_range: ex.rep_range,
       notes: ex.notes,
       type: ex.type,
+      hold_seconds: ex.hold_seconds,
     });
   }
 }
@@ -361,6 +366,7 @@ export async function updateExercise(
     rep_range?: string;
     notes?: string | null;
     type?: string;
+    hold_seconds?: number | null;
   },
 ): Promise<void> {
   const db = await getDb();
@@ -382,13 +388,14 @@ export async function updateExercise(
   // Update day-specific fields on day_exercises
   await db.runAsync(
     `UPDATE day_exercises
-     SET sets = ?, warmup_sets = ?, rep_range = ?, type = ?
+     SET sets = ?, warmup_sets = ?, rep_range = ?, type = ?, hold_seconds = ?
      WHERE id = ?`,
     [
       patch.sets !== undefined ? patch.sets : ex.sets,
       patch.warmup_sets !== undefined ? patch.warmup_sets : ex.warmup_sets,
       patch.rep_range !== undefined ? patch.rep_range.trim() : ex.rep_range,
       patch.type !== undefined ? patch.type : ex.type,
+      patch.hold_seconds !== undefined ? patch.hold_seconds : ex.hold_seconds,
       id,
     ],
   );
@@ -1491,6 +1498,8 @@ const BACKUP_TABLES = [
   'cardio_sessions',
   'catchup_skips',
   'day_skips',
+  'stretches',
+  'cooldown_logs',
 ] as const;
 
 const BACKUP_VERSION = 1;
@@ -1565,6 +1574,75 @@ export async function resetAllData(): Promise<void> {
       await db.runAsync(`DELETE FROM ${t}`);
     }
   });
+}
+
+// ─── Stretches & cooldown ─────────────────────────────────────────────
+
+export async function getStretchesByMuscleGroups(
+  groups: MuscleGroup[],
+): Promise<Stretch[]> {
+  if (groups.length === 0) return [];
+  const db = await getDb();
+  const placeholders = groups.map(() => '?').join(',');
+  return await db.getAllAsync<Stretch>(
+    `SELECT id, name, muscle_group, hold_seconds, per_side, notes, builtin
+     FROM stretches
+     WHERE muscle_group IN (${placeholders})
+     ORDER BY muscle_group, name`,
+    groups,
+  );
+}
+
+export async function getAllStretches(): Promise<Stretch[]> {
+  const db = await getDb();
+  return await db.getAllAsync<Stretch>(
+    `SELECT id, name, muscle_group, hold_seconds, per_side, notes, builtin
+     FROM stretches
+     ORDER BY muscle_group, name`,
+  );
+}
+
+export async function getMuscleGroupsTrainedInSession(
+  sessionId: number,
+): Promise<MuscleGroup[]> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ muscle_group: MuscleGroup }>(
+    `SELECT DISTINCT e.muscle_group
+     FROM set_logs sl
+     JOIN exercises e ON e.id = sl.exercise_id
+     WHERE sl.session_id = ? AND sl.completed = 1`,
+    [sessionId],
+  );
+  return rows.map((r) => r.muscle_group);
+}
+
+export async function logCooldownStretch(
+  sessionId: number,
+  stretchId: number,
+  durationSeconds: number,
+): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO cooldown_logs (session_id, stretch_id, duration_seconds, completed_at)
+     VALUES (?, ?, ?, ?)`,
+    [sessionId, stretchId, durationSeconds, new Date().toISOString()],
+  );
+}
+
+export async function getMobilityMinutesThisWeek(): Promise<number> {
+  const db = await getDb();
+  const week = weekDates();
+  const dates = Object.values(week) as string[];
+  const placeholders = dates.map(() => '?').join(',');
+  const row = await db.getFirstAsync<{ total: number | null }>(
+    `SELECT SUM(cl.duration_seconds) as total
+     FROM cooldown_logs cl
+     JOIN sessions s ON s.id = cl.session_id
+     WHERE s.date IN (${placeholders})`,
+    dates,
+  );
+  const seconds = row?.total ?? 0;
+  return Math.round(seconds / 60);
 }
 
 // ─── Utility re-exports ───────────────────────────────────────────────

@@ -34,6 +34,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       sort_order INTEGER NOT NULL DEFAULT 0,
       type TEXT NOT NULL DEFAULT 'normal',
       superset_partner_id INTEGER,
+      hold_seconds INTEGER,
       UNIQUE(day, exercise_id)
     );
 
@@ -120,10 +121,36 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       date TEXT NOT NULL,
       PRIMARY KEY (day, date)
     );
+
+    CREATE TABLE IF NOT EXISTS stretches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      name TEXT NOT NULL,
+      muscle_group TEXT NOT NULL,
+      hold_seconds INTEGER NOT NULL DEFAULT 30,
+      per_side INTEGER NOT NULL DEFAULT 0,
+      notes TEXT,
+      builtin INTEGER NOT NULL DEFAULT 0
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_stretches_muscle ON stretches(muscle_group);
+
+    CREATE TABLE IF NOT EXISTS cooldown_logs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      session_id INTEGER NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+      stretch_id INTEGER NOT NULL REFERENCES stretches(id) ON DELETE CASCADE,
+      duration_seconds INTEGER NOT NULL,
+      completed_at TEXT NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_cooldown_session ON cooldown_logs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_cooldown_completed ON cooldown_logs(completed_at);
   `);
 
   // Run migration: drop old exercises schema and replace with new library schema
   await migrateToLibrarySchema(db);
+
+  // Add the hold_seconds column for existing installs created before schema_v3.
+  await migrateAddHoldSeconds(db);
 
   // Insert default day_plan rows for all 7 days if not present
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -145,6 +172,25 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
   const pruneDate = toISO(new Date(Date.now() - 7 * 86_400_000));
   await db.runAsync('DELETE FROM catchup_skips WHERE date_missed < ?', [pruneDate]);
   await db.runAsync('DELETE FROM day_skips WHERE date < ?', [pruneDate]);
+}
+
+async function migrateAddHoldSeconds(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v3'`,
+  );
+  if (done?.value === '3') return;
+
+  const cols = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(day_exercises)`,
+  );
+  if (!cols.some((c) => c.name === 'hold_seconds')) {
+    await db.execAsync(`ALTER TABLE day_exercises ADD COLUMN hold_seconds INTEGER`);
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v3', '3')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
 }
 
 async function migrateToLibrarySchema(db: SQLiteDatabase): Promise<void> {

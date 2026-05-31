@@ -18,6 +18,7 @@ import ReanimatedSwipeable, {
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { Card } from "../../src/components/Card";
+import { CooldownSheet } from "../../src/components/CooldownSheet";
 import { ExerciseRow } from "../../src/components/ExerciseRow";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
@@ -73,6 +74,13 @@ export default function SessionScreen() {
   const [catchup, setCatchup] = useState<CatchupItem[]>([]);
   const [catchupOpen, setCatchupOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
+  const [cooldownOpen, setCooldownOpen] = useState(false);
+  const [pendingSummary, setPendingSummary] = useState<null | {
+    completed: number;
+    total: number;
+    volume: number;
+    hk: HealthMetrics;
+  }>(null);
   const [summary, setSummary] = useState<null | {
     completed: number;
     total: number;
@@ -219,7 +227,21 @@ export default function SessionScreen() {
     const hk = await fetchRecentWorkoutMetrics();
     await finalizeSession(sessionId, hk);
     hapticSuccess();
-    setSummary({ completed: completedTotal, total: totalSets, volume, hk });
+    setPendingSummary({
+      completed: completedTotal,
+      total: totalSets,
+      volume,
+      hk,
+    });
+    setCooldownOpen(true);
+  };
+
+  const onCloseCooldown = () => {
+    setCooldownOpen(false);
+    if (pendingSummary) {
+      setSummary(pendingSummary);
+      setPendingSummary(null);
+    }
   };
 
   const onFinish = () => {
@@ -356,6 +378,7 @@ export default function SessionScreen() {
                   accentColor={muscleAccent[e.muscle_group] ?? colors.primary}
                   notes={e.notes}
                   typeBadge={e.type === "normal" ? null : e.type}
+                  holdSeconds={e.hold_seconds}
                   partnerName={
                     e.type === "superset" && e.superset_partner_id
                       ? (nameById[e.superset_partner_id] ?? null)
@@ -397,6 +420,12 @@ export default function SessionScreen() {
           <Text style={styles.finishBtnText}>Finish session</Text>
         </Pressable>
       </Screen>
+
+      <CooldownSheet
+        visible={cooldownOpen}
+        sessionId={sessionId}
+        onClose={onCloseCooldown}
+      />
 
       <SummaryModal summary={summary} onClose={onCloseSummary} />
 

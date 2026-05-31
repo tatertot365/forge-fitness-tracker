@@ -1,16 +1,21 @@
 import { useRootNavigation, useRouter } from "expo-router";
 import {
+  AlertTriangle,
   CheckCircle2,
+  Clock,
   Flame,
   Heart,
   Plus,
+  SkipForward,
   Timer,
   Trash2,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import ReanimatedSwipeable, {
+  type SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
-import { MuscleGroupPickerSheet } from "../../src/components/MuscleGroupPickerSheet";
 import { Card } from "../../src/components/Card";
 import { ExerciseRow } from "../../src/components/ExerciseRow";
 import { Screen } from "../../src/components/Screen";
@@ -20,6 +25,7 @@ import {
   bestSet,
   deleteExercisesByGroup,
   finalizeSession,
+  getCatchupItems,
   getDayPlans,
   getExercisesByDay,
   getLastCompletedSetsForExercise,
@@ -38,7 +44,7 @@ import { useStyles } from "../../src/theme/useStyles";
 import {
   DAY_LABEL,
   MUSCLE_LABEL,
-  type Day,
+  type CatchupItem,
   type DayPlan,
   type Exercise,
   type MuscleGroup,
@@ -63,8 +69,8 @@ export default function SessionScreen() {
     {},
   );
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
-  const [addingToGroup, setAddingToGroup] = useState<MuscleGroup | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [catchup, setCatchup] = useState<CatchupItem[]>([]);
+  const [addOpen, setAddOpen] = useState(false);
   const [summary, setSummary] = useState<null | {
     completed: number;
     total: number;
@@ -73,7 +79,11 @@ export default function SessionScreen() {
   }>(null);
 
   const load = useCallback(async () => {
-    const plans = await getDayPlans();
+    const [plans, catchupItems] = await Promise.all([
+      getDayPlans(),
+      getCatchupItems(),
+    ]);
+    setCatchup(catchupItems);
     const plan = plans[day];
     setDayPlan(plan);
     if (!plan.enabled) {
@@ -189,6 +199,19 @@ export default function SessionScreen() {
     setExercises((prev) => prev.filter((e) => e.id !== ex.id));
   };
 
+  const onSkipCatchup = async (item: CatchupItem) => {
+    await skipCatchupItem(item.exercise_id, item.date_missed);
+    setCatchup((prev) =>
+      prev.filter(
+        (c) =>
+          !(
+            c.exercise_id === item.exercise_id &&
+            c.date_missed === item.date_missed
+          ),
+      ),
+    );
+  };
+
   const finalizeAndShow = async () => {
     if (!sessionId) return;
     const hk = await fetchRecentWorkoutMetrics();
@@ -244,6 +267,25 @@ export default function SessionScreen() {
             <Text style={styles.fullPlanBtnText}>Full plan</Text>
           </Pressable>
         </View>
+        {catchup.length > 0 ? (
+          <>
+            <SectionLabel>Catch-up</SectionLabel>
+            <View style={{ gap: 8, marginBottom: 12 }}>
+              {catchup.map((item) => (
+                <SwipeableCatchupRow
+                  key={`${item.exercise_id}-${item.date_missed}`}
+                  item={item}
+                  onPress={() =>
+                    router.push(
+                      `/exercise/${item.exercise_id}?date=${item.date_missed}`,
+                    )
+                  }
+                  onSkip={() => onSkipCatchup(item)}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
         <Card>
           <Text style={styles.restText}>
             Take it easy. Recovery is where the growth happens.
@@ -278,6 +320,26 @@ export default function SessionScreen() {
             <Text style={styles.fullPlanBtnText}>Full plan</Text>
           </Pressable>
         </View>
+
+        {catchup.length > 0 ? (
+          <>
+            <SectionLabel>Catch-up</SectionLabel>
+            <View style={{ gap: 8 }}>
+              {catchup.map((item) => (
+                <SwipeableCatchupRow
+                  key={`${item.exercise_id}-${item.date_missed}`}
+                  item={item}
+                  onPress={() =>
+                    router.push(
+                      `/exercise/${item.exercise_id}?date=${item.date_missed}`,
+                    )
+                  }
+                  onSkip={() => onSkipCatchup(item)}
+                />
+              ))}
+            </View>
+          </>
+        ) : null}
 
         {grouped.map(({ group, items }) => (
           <View key={group}>
@@ -325,26 +387,13 @@ export default function SessionScreen() {
                 />
               </SwipeableExerciseRow>
             ))}
-            <Pressable
-              onPress={() => {
-                hapticTap();
-                setAddingToGroup(group);
-              }}
-              style={({ pressed }) => [
-                styles.addExerciseBtn,
-                pressed && { opacity: 0.7 },
-              ]}
-            >
-              <Plus size={14} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.addExerciseText}>Add new exercise</Text>
-            </Pressable>
           </View>
         ))}
 
         <Pressable
           onPress={() => {
             hapticTap();
-            setPickerOpen(true);
+            setAddOpen(true);
           }}
           style={({ pressed }) => [
             styles.addGroupBtn,
@@ -352,7 +401,7 @@ export default function SessionScreen() {
           ]}
         >
           <Plus size={14} color={colors.primary} strokeWidth={2} />
-          <Text style={styles.addGroupText}>Add muscle group</Text>
+          <Text style={styles.addGroupText}>Add exercise</Text>
         </Pressable>
 
         <Pressable
@@ -369,19 +418,12 @@ export default function SessionScreen() {
 
       <SummaryModal summary={summary} onClose={onCloseSummary} />
 
-      <MuscleGroupPickerSheet
-        visible={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onSelect={(g) => setAddingToGroup(g)}
-      />
-
       <AddExerciseSheet
-        visible={addingToGroup !== null}
+        visible={addOpen}
         day={day}
-        initialMuscleGroup={addingToGroup}
-        onClose={() => setAddingToGroup(null)}
+        onClose={() => setAddOpen(false)}
         onCreated={async () => {
-          setAddingToGroup(null);
+          setAddOpen(false);
           await load();
         }}
       />
@@ -507,6 +549,89 @@ function HkCell({
   );
 }
 
+function SwipeableCatchupRow({
+  item,
+  onPress,
+  onSkip,
+}: {
+  item: CatchupItem;
+  onPress: () => void;
+  onSkip: () => void;
+}) {
+  const styles = useStyles(makeStyles);
+  const ref = useRef<SwipeableMethods>(null);
+
+  const handleSkip = () => {
+    hapticTap();
+    ref.current?.close();
+    onSkip();
+  };
+
+  const renderRight = () => (
+    <Pressable
+      onPress={handleSkip}
+      style={({ pressed }) => [styles.skipAction, pressed && { opacity: 0.85 }]}
+    >
+      <SkipForward size={18} color="#FFFFFF" strokeWidth={2} />
+      <Text style={styles.skipLabel}>Skip</Text>
+    </Pressable>
+  );
+
+  return (
+    <ReanimatedSwipeable
+      ref={ref}
+      renderRightActions={renderRight}
+      friction={2}
+      rightThreshold={40}
+      overshootRight={false}
+    >
+      <CatchupRow item={item} onPress={onPress} />
+    </ReanimatedSwipeable>
+  );
+}
+
+function CatchupRow({
+  item,
+  onPress,
+}: {
+  item: CatchupItem;
+  onPress: () => void;
+}) {
+  const styles = useStyles(makeStyles);
+  const atRisk = item.days_ago >= 3;
+  const Icon = atRisk ? AlertTriangle : Clock;
+  const iconColor = atRisk ? colors.warning : colors.gray;
+  return (
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => [styles.catchRow, pressed && { opacity: 0.7 }]}
+    >
+      <View
+        style={[
+          styles.catchAccent,
+          {
+            backgroundColor: muscleAccent[item.muscle_group] ?? colors.primary,
+          },
+        ]}
+      />
+      <View style={{ flex: 1, paddingVertical: 12, paddingRight: 16, gap: 2 }}>
+        <Text style={styles.catchName}>{item.exercise_name}</Text>
+        <Text style={styles.catchMeta}>
+          {DAY_LABEL[item.day]} · {item.sets_missed} set
+          {item.sets_missed === 1 ? "" : "s"} ·{" "}
+          {MUSCLE_LABEL[item.muscle_group]}
+        </Text>
+      </View>
+      <View style={styles.catchTrailing}>
+        <Icon size={16} color={iconColor} strokeWidth={2} />
+        <Text style={[styles.catchTrailingText, { color: iconColor }]}>
+          {atRisk ? "at risk" : `${item.days_ago}d ago`}
+        </Text>
+      </View>
+    </Pressable>
+  );
+}
+
 const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   header: {
     flexDirection: "row",
@@ -552,23 +677,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     backgroundColor: colors.primary + "0F",
   },
   addGroupText: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
-  addExerciseBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    marginBottom: 4,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  addExerciseText: {
-    color: colors.primary,
-    fontSize: s(13),
-    fontWeight: "600",
-  },
   finishBtn: {
     marginTop: 24,
     backgroundColor: colors.primary,
@@ -577,6 +685,47 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     alignItems: "center",
   },
   finishBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
+
+  catchRow: {
+    flexDirection: "row",
+    alignItems: "stretch",
+    backgroundColor: colors.card,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    overflow: "hidden",
+  },
+  catchAccent: {
+    width: 3,
+    marginVertical: 10,
+    marginLeft: 10,
+    borderRadius: radius.accent,
+    marginRight: 12,
+  },
+  catchName: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
+  catchMeta: { ...typography.caption, fontSize: s(12), color: colors.textSecondary },
+  catchTrailing: {
+    alignItems: "flex-end",
+    justifyContent: "center",
+    paddingRight: 14,
+    gap: 2,
+  },
+  catchTrailingText: { fontSize: s(11), fontWeight: "600" },
+  skipAction: {
+    width: 76,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 4,
+    backgroundColor: colors.gray,
+    borderRadius: radius.card,
+    marginLeft: 6,
+  },
+  skipLabel: {
+    color: "#FFFFFF",
+    fontSize: s(11),
+    fontWeight: "600",
+    letterSpacing: 0.3,
+  },
 
   modalBackdrop: {
     flex: 1,

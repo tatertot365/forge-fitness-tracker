@@ -39,7 +39,7 @@ export default function SettingsScreen() {
 
   const appName = (Constants.expoConfig?.name as string | undefined) ?? "Forge";
   const version =
-    (Constants.expoConfig?.version as string | undefined) ?? "1.0.0";
+    (Constants.expoConfig?.version as string | undefined) ?? "1.1.0";
   const build =
     (Constants.expoConfig?.ios?.buildNumber as string | undefined) ?? "1";
 

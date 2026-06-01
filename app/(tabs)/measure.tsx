@@ -12,6 +12,7 @@ import React, { useCallback, useState } from "react";
 import {
   ActionSheetIOS,
   Alert,
+  InputAccessoryView,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -87,6 +88,7 @@ const RANGES: Record<keyof Inputs, { min: number; max: number; label: string }> 
 };
 
 const HEIGHT_RANGE = { min: 36, max: 96, label: "Height should be 36–96 in" };
+const HEIGHT_INPUT_ID = "height-input-accessory";
 const AGE_RANGE = { min: 13, max: 100, label: "Age must be 13–100" };
 
 type Inputs = {
@@ -176,6 +178,19 @@ export default function MeasureScreen() {
   const saveProfile = async (patch: Partial<UserProfile>) => {
     await setUserProfile(patch);
     setProfile((p) => ({ ...p, ...patch }));
+  };
+
+  const commitHeight = async () => {
+    const v = parseField(heightInput);
+    if (v == null) return;
+    if (v < HEIGHT_RANGE.min || v > HEIGHT_RANGE.max) {
+      Alert.alert(HEIGHT_RANGE.label);
+      setHeightInput(
+        profile.height_in != null ? String(profile.height_in) : "",
+      );
+      return;
+    }
+    await saveProfile({ height_in: v });
   };
 
   const pickSex = () => {
@@ -416,18 +431,15 @@ export default function MeasureScreen() {
               <TextInput
                 value={heightInput}
                 onChangeText={setHeightInput}
-                onBlur={async () => {
-                  const v = parseField(heightInput);
-                  if (v == null) return;
-                  if (v < HEIGHT_RANGE.min || v > HEIGHT_RANGE.max) {
-                    Alert.alert(HEIGHT_RANGE.label);
-                    setHeightInput(
-                      profile.height_in != null ? String(profile.height_in) : "",
-                    );
-                    return;
-                  }
-                  await saveProfile({ height_in: v });
+                onBlur={commitHeight}
+                onSubmitEditing={() => {
+                  commitHeight();
+                  Keyboard.dismiss();
                 }}
+                returnKeyType="done"
+                inputAccessoryViewID={
+                  Platform.OS === "ios" ? HEIGHT_INPUT_ID : undefined
+                }
                 keyboardType="decimal-pad"
                 style={styles.input}
                 placeholder="e.g. 70 (5′10″)"
@@ -437,7 +449,10 @@ export default function MeasureScreen() {
             <View style={styles.formRow}>
               <Text style={styles.formLabel}>Date of birth</Text>
               <Pressable
-                onPress={() => setShowDobPicker((v) => !v)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setShowDobPicker(true);
+                }}
                 style={({ pressed }) => [
                   styles.input,
                   styles.pickerRow,
@@ -452,28 +467,48 @@ export default function MeasureScreen() {
                 <Text style={styles.pickerChevron}>›</Text>
               </Pressable>
               {showDobPicker && (
-                <DateTimePicker
-                  value={dobDate ?? new Date(2000, 0, 1)}
-                  mode="date"
-                  display="spinner"
-                  maximumDate={new Date()}
-                  textColor="#FFFFFF"
-                  onChange={async (_, date) => {
-                    if (!date) return;
-                    const age = Math.floor(
-                      (Date.now() - date.getTime()) /
-                        (365.25 * 24 * 3600 * 1000),
-                    );
-                    if (age < AGE_RANGE.min || age > AGE_RANGE.max) {
-                      Alert.alert(AGE_RANGE.label);
-                      return;
-                    }
-                    setDobDate(date);
-                    const iso = toISODate(date);
-                    await saveProfile({ dob: iso });
-                  }}
-                  style={{ marginTop: 4 }}
-                />
+                <>
+                  <DateTimePicker
+                    value={dobDate ?? new Date(2000, 0, 1)}
+                    mode="date"
+                    display={Platform.OS === "ios" ? "spinner" : "default"}
+                    maximumDate={new Date()}
+                    textColor="#FFFFFF"
+                    onChange={async (event, date) => {
+                      // Android fires once with type=set/dismissed and the
+                      // picker dismisses itself — close it here too.
+                      if (Platform.OS === "android") {
+                        setShowDobPicker(false);
+                        if (event.type !== "set" || !date) return;
+                      } else if (!date) {
+                        return;
+                      }
+                      const age = Math.floor(
+                        (Date.now() - date.getTime()) /
+                          (365.25 * 24 * 3600 * 1000),
+                      );
+                      if (age < AGE_RANGE.min || age > AGE_RANGE.max) {
+                        Alert.alert(AGE_RANGE.label);
+                        return;
+                      }
+                      setDobDate(date);
+                      const iso = toISODate(date);
+                      await saveProfile({ dob: iso });
+                    }}
+                    style={{ marginTop: 4 }}
+                  />
+                  {Platform.OS === "ios" && (
+                    <Pressable
+                      onPress={() => setShowDobPicker(false)}
+                      style={({ pressed }) => [
+                        styles.dobDoneBtn,
+                        pressed && { opacity: 0.85 },
+                      ]}
+                    >
+                      <Text style={styles.dobDoneBtnText}>Done</Text>
+                    </Pressable>
+                  )}
+                </>
               )}
             </View>
             <View style={[styles.formRow, { marginBottom: 0 }]}>
@@ -639,6 +674,25 @@ export default function MeasureScreen() {
           </>
         ) : null}
       </Screen>
+
+      {Platform.OS === "ios" && (
+        <InputAccessoryView nativeID={HEIGHT_INPUT_ID}>
+          <View style={styles.accessoryBar}>
+            <Pressable
+              onPress={() => {
+                commitHeight();
+                Keyboard.dismiss();
+              }}
+              style={({ pressed }) => [
+                styles.accessoryBtn,
+                pressed && { opacity: 0.7 },
+              ]}
+            >
+              <Text style={styles.accessoryBtnText}>Done</Text>
+            </Pressable>
+          </View>
+        </InputAccessoryView>
+      )}
 
       {/* Edit modal */}
       <Modal
@@ -1498,6 +1552,33 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   pickerText: { fontSize: s(15), color: colors.text },
   pickerPlaceholder: { fontSize: s(15), color: colors.textMuted },
   pickerChevron: { fontSize: s(18), color: colors.textSecondary, lineHeight: 20 },
+
+  dobDoneBtn: {
+    alignSelf: "flex-end",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+    marginTop: 4,
+  },
+  dobDoneBtnText: { color: "#FFFFFF", fontSize: s(13), fontWeight: "600" },
+
+  accessoryBar: {
+    backgroundColor: colors.card,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    flexDirection: "row",
+    justifyContent: "flex-end",
+  },
+  accessoryBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  accessoryBtnText: { color: "#FFFFFF", fontSize: s(13), fontWeight: "600" },
 
   // BF banner
   bfBanner: {

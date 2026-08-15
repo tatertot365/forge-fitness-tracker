@@ -137,7 +137,7 @@ export function BarcodeScannerModal({
 
 const makeScanStyles = (s: (n: number) => number) => StyleSheet.create({
   container: { flex: 1, backgroundColor: "#000" },
-  overlay: { ...StyleSheet.absoluteFillObject, flexDirection: "column" },
+  overlay: { ...StyleSheet.absoluteFill, flexDirection: "column" },
   topShade: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
   middleRow: { flexDirection: "row", height: WINDOW_SIZE },
   sideShade: { flex: 1, backgroundColor: "rgba(0,0,0,0.55)" },
@@ -215,7 +215,7 @@ const makeScanStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   closeBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
   loadingPane: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: "#000",
     alignItems: "center",
     justifyContent: "center",

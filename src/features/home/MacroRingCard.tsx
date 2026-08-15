@@ -124,7 +124,7 @@ export function MacroRingCard({
                     />
                   </Svg>
                   <View
-                    style={[StyleSheet.absoluteFillObject, styles.ringCenter]}
+                    style={[StyleSheet.absoluteFill, styles.ringCenter]}
                   >
                     <Text style={[styles.ringValue, { color: m.color }]}>
                       {displayVal}

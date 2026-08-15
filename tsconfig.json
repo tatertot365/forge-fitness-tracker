@@ -3,11 +3,7 @@
   "compilerOptions": {
     "strict": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": [
-        "./src/*"
-      ],
       "expo-router/src/*": [
         "./node_modules/expo-router/build/*"
       ],

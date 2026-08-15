@@ -129,7 +129,7 @@ export function HoldTimer({
             origin={`${RING_SIZE / 2}, ${RING_SIZE / 2}`}
           />
         </Svg>
-        <View style={[StyleSheet.absoluteFillObject, styles.ringCenter]}>
+        <View style={[StyleSheet.absoluteFill, styles.ringCenter]}>
           <Text style={styles.ringValue}>{displaySecs}</Text>
           <Text style={styles.ringUnit}>seconds</Text>
           {label ? <Text style={styles.ringLabel}>{label}</Text> : null}

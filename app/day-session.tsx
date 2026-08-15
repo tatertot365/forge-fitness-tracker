@@ -1,17 +1,8 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import {
-  CheckCircle2,
-  ChevronLeft,
-  Flame,
-  Heart,
-  Plus,
-  Timer,
-  Trash2,
-} from "lucide-react-native";
+import { ChevronLeft, Plus, Trash2 } from "lucide-react-native";
 import React, { useCallback, useMemo, useState } from "react";
 import {
   Alert,
-  Modal,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -20,10 +11,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AddExerciseSheet } from "../src/components/AddExerciseSheet";
-import { MuscleGroupPickerSheet } from "../src/components/MuscleGroupPickerSheet";
 import { ExerciseRow } from "../src/components/ExerciseRow";
+import { MuscleGroupPickerSheet } from "../src/components/MuscleGroupPickerSheet";
 import { SectionLabel } from "../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
+import { SummaryModal } from "../src/features/session";
 import {
   bestSet,
   deleteExercisesByGroup,
@@ -386,114 +378,6 @@ export default function DaySessionScreen() {
   );
 }
 
-function SummaryModal({
-  summary,
-  onClose,
-}: {
-  summary: null | {
-    completed: number;
-    total: number;
-    volume: number;
-    hk: HealthMetrics;
-  };
-  onClose: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  return (
-    <Modal
-      visible={!!summary}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalIconWrap}>
-            <CheckCircle2 size={40} color={colors.green} strokeWidth={1.5} />
-          </View>
-          <Text style={styles.modalTitle}>Session complete</Text>
-          <View style={styles.metricsRow}>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Sets completed</Text>
-              <Text style={styles.metricValue}>
-                {summary?.completed ?? 0}/{summary?.total ?? 0}
-              </Text>
-            </View>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Volume</Text>
-              <Text style={styles.metricValue}>
-                {Math.round(summary?.volume ?? 0).toLocaleString()}
-                <Text style={styles.metricUnit}> lb</Text>
-              </Text>
-            </View>
-          </View>
-          <View style={styles.hkHeader}>
-            <Heart size={13} color={colors.red} strokeWidth={2} />
-            <Text style={styles.hkHeaderText}>From Apple Health</Text>
-          </View>
-          <View style={styles.hkRow}>
-            <HkCell
-              icon={
-                <Timer size={16} color={colors.primary} strokeWidth={1.75} />
-              }
-              label="Duration"
-              value={
-                summary?.hk.durationMinutes != null
-                  ? `${summary.hk.durationMinutes} min`
-                  : "—"
-              }
-            />
-            <HkCell
-              icon={<Heart size={16} color={colors.red} strokeWidth={1.75} />}
-              label="Avg HR"
-              value={
-                summary?.hk.avgHr != null ? `${summary.hk.avgHr} bpm` : "—"
-              }
-            />
-            <HkCell
-              icon={<Flame size={16} color={colors.amber} strokeWidth={1.75} />}
-              label="Active"
-              value={
-                summary?.hk.calories != null
-                  ? `${summary.hk.calories} kcal`
-                  : "—"
-              }
-            />
-          </View>
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [
-              styles.modalBtn,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={styles.modalBtnText}>Done</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function HkCell({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  const styles = useStyles(makeStyles);
-  return (
-    <View style={styles.hkCell}>
-      {icon}
-      <Text style={styles.hkCellValue}>{value}</Text>
-      <Text style={styles.hkCellLabel}>{label}</Text>
-    </View>
-  );
-}
-
 const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
@@ -565,98 +449,4 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     alignItems: "center",
   },
   finishBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-  },
-  modalIconWrap: { marginBottom: 8 },
-  modalTitle: {
-    fontSize: s(20),
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 16,
-  },
-  metricsRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignSelf: "stretch",
-    marginBottom: 16,
-  },
-  metricBox: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  metricLabel: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  metricValue: { ...typography.metricValue, fontSize: s(22), color: colors.text, marginTop: 4 },
-  metricUnit: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    fontWeight: "400",
-  },
-  hkHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    marginBottom: 10,
-    marginTop: 2,
-  },
-  hkHeaderText: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "600",
-  },
-  hkRow: { flexDirection: "row", gap: 12, alignSelf: "stretch" },
-  hkCell: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    gap: 4,
-  },
-  hkCellValue: {
-    fontSize: s(15),
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 2,
-  },
-  hkCellLabel: {
-    fontSize: s(10),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  modalBtn: {
-    marginTop: 20,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: radius.card,
-    alignSelf: "stretch",
-    alignItems: "center",
-  },
-  modalBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 });

@@ -1,21 +1,12 @@
 import { useRootNavigation, useRouter } from "expo-router";
 import {
   AlertTriangle,
-  CheckCircle2,
   ChevronDown,
-  Clock,
-  Flame,
-  Heart,
   Plus,
-  SkipForward,
-  Timer,
   Trash2,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import ReanimatedSwipeable, {
-  type SwipeableMethods,
-} from "react-native-gesture-handler/ReanimatedSwipeable";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { Card } from "../../src/components/Card";
 import { CooldownSheet } from "../../src/components/CooldownSheet";
@@ -23,6 +14,10 @@ import { ExerciseRow } from "../../src/components/ExerciseRow";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../../src/components/SwipeableExerciseRow";
+import {
+  SummaryModal,
+  SwipeableCatchupRow,
+} from "../../src/features/session";
 import {
   bestSet,
   deleteExercisesByGroup,
@@ -442,124 +437,6 @@ export default function SessionScreen() {
   );
 }
 
-function SummaryModal({
-  summary,
-  onClose,
-}: {
-  summary: null | {
-    completed: number;
-    total: number;
-    volume: number;
-    hk: HealthMetrics;
-  };
-  onClose: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  return (
-    <Modal
-      visible={!!summary}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.modalBackdrop}>
-        <View style={styles.modalCard}>
-          <View style={styles.modalIconWrap}>
-            <CheckCircle2 size={40} color={colors.green} strokeWidth={1.5} />
-          </View>
-          <Text style={styles.modalTitle}>Session complete</Text>
-
-          <View style={styles.metricsRow}>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Sets completed</Text>
-              <Text style={styles.metricValue}>
-                {summary?.completed ?? 0}/{summary?.total ?? 0}
-              </Text>
-            </View>
-            <View style={styles.metricBox}>
-              <Text style={styles.metricLabel}>Volume</Text>
-              <Text style={styles.metricValue}>
-                {Math.round(summary?.volume ?? 0).toLocaleString()}
-                <Text style={styles.metricUnit}> lb</Text>
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.hkHeader}>
-            <Heart size={13} color={colors.red} strokeWidth={2} />
-            <Text style={styles.hkHeaderText}>From Apple Health</Text>
-          </View>
-
-          <View style={styles.hkRow}>
-            <HkCell
-              icon={
-                <Timer size={16} color={colors.primary} strokeWidth={1.75} />
-              }
-              label="Duration"
-              value={
-                summary?.hk.durationMinutes != null
-                  ? `${summary.hk.durationMinutes} min`
-                  : "—"
-              }
-            />
-            <HkCell
-              icon={<Heart size={16} color={colors.red} strokeWidth={1.75} />}
-              label="Avg HR"
-              value={
-                summary?.hk.avgHr != null ? `${summary.hk.avgHr} bpm` : "—"
-              }
-            />
-            <HkCell
-              icon={<Flame size={16} color={colors.amber} strokeWidth={1.75} />}
-              label="Active"
-              value={
-                summary?.hk.calories != null
-                  ? `${summary.hk.calories} kcal`
-                  : "—"
-              }
-            />
-          </View>
-
-          {summary?.hk.durationMinutes == null &&
-          summary?.hk.avgHr == null &&
-          summary?.hk.calories == null ? (
-            <Text style={styles.hkHint}>Enable Health access in Settings</Text>
-          ) : null}
-
-          <Pressable
-            onPress={onClose}
-            style={({ pressed }) => [
-              styles.modalBtn,
-              pressed && { opacity: 0.85 },
-            ]}
-          >
-            <Text style={styles.modalBtnText}>Done</Text>
-          </Pressable>
-        </View>
-      </View>
-    </Modal>
-  );
-}
-
-function HkCell({
-  icon,
-  label,
-  value,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}) {
-  const styles = useStyles(makeStyles);
-  return (
-    <View style={styles.hkCell}>
-      {icon}
-      <Text style={styles.hkCellValue}>{value}</Text>
-      <Text style={styles.hkCellLabel}>{label}</Text>
-    </View>
-  );
-}
-
 function CatchupDropdown({
   items,
   open,
@@ -615,89 +492,6 @@ function CatchupDropdown({
         </View>
       ) : null}
     </View>
-  );
-}
-
-function SwipeableCatchupRow({
-  item,
-  onPress,
-  onSkip,
-}: {
-  item: CatchupItem;
-  onPress: () => void;
-  onSkip: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const ref = useRef<SwipeableMethods>(null);
-
-  const handleSkip = () => {
-    hapticTap();
-    ref.current?.close();
-    onSkip();
-  };
-
-  const renderRight = () => (
-    <Pressable
-      onPress={handleSkip}
-      style={({ pressed }) => [styles.skipAction, pressed && { opacity: 0.85 }]}
-    >
-      <SkipForward size={18} color="#FFFFFF" strokeWidth={2} />
-      <Text style={styles.skipLabel}>Skip</Text>
-    </Pressable>
-  );
-
-  return (
-    <ReanimatedSwipeable
-      ref={ref}
-      renderRightActions={renderRight}
-      friction={2}
-      rightThreshold={40}
-      overshootRight={false}
-    >
-      <CatchupRow item={item} onPress={onPress} />
-    </ReanimatedSwipeable>
-  );
-}
-
-function CatchupRow({
-  item,
-  onPress,
-}: {
-  item: CatchupItem;
-  onPress: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const atRisk = item.days_ago >= 3;
-  const Icon = atRisk ? AlertTriangle : Clock;
-  const iconColor = atRisk ? colors.warning : colors.gray;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.catchRow, pressed && { opacity: 0.7 }]}
-    >
-      <View
-        style={[
-          styles.catchAccent,
-          {
-            backgroundColor: muscleAccent[item.muscle_group] ?? colors.primary,
-          },
-        ]}
-      />
-      <View style={{ flex: 1, paddingVertical: 12, paddingRight: 16, gap: 2 }}>
-        <Text style={styles.catchName}>{item.exercise_name}</Text>
-        <Text style={styles.catchMeta}>
-          {DAY_LABEL[item.day]} · {item.sets_missed} set
-          {item.sets_missed === 1 ? "" : "s"} ·{" "}
-          {MUSCLE_LABEL[item.muscle_group]}
-        </Text>
-      </View>
-      <View style={styles.catchTrailing}>
-        <Icon size={16} color={iconColor} strokeWidth={2} />
-        <Text style={[styles.catchTrailingText, { color: iconColor }]}>
-          {atRisk ? "at risk" : `${item.days_ago}d ago`}
-        </Text>
-      </View>
-    </Pressable>
   );
 }
 
@@ -808,156 +602,4 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     gap: 8,
     marginTop: 8,
   },
-  catchRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  catchAccent: {
-    width: 3,
-    marginVertical: 10,
-    marginLeft: 10,
-    borderRadius: radius.accent,
-    marginRight: 12,
-  },
-  catchName: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
-  catchMeta: { ...typography.caption, fontSize: s(12), color: colors.textSecondary },
-  catchTrailing: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-    paddingRight: 14,
-    gap: 2,
-  },
-  catchTrailingText: { fontSize: s(11), fontWeight: "600" },
-  skipAction: {
-    width: 76,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    backgroundColor: colors.gray,
-    borderRadius: radius.card,
-    marginLeft: 6,
-  },
-  skipLabel: {
-    color: "#FFFFFF",
-    fontSize: s(11),
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
-
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.45)",
-    justifyContent: "center",
-    paddingHorizontal: 20,
-  },
-  modalCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 24,
-    alignItems: "center",
-  },
-  modalIconWrap: { marginBottom: 8 },
-  modalTitle: {
-    fontSize: s(20),
-    fontWeight: "600",
-    color: colors.text,
-    marginBottom: 16,
-  },
-  metricsRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignSelf: "stretch",
-    marginBottom: 16,
-  },
-  metricBox: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-  },
-  metricLabel: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-  metricValue: {
-    ...typography.metricValue,
-    fontSize: s(22),
-    color: colors.text,
-    marginTop: 4,
-  },
-  metricUnit: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    fontWeight: "400",
-  },
-
-  hkHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    alignSelf: "flex-start",
-    marginBottom: 10,
-    marginTop: 2,
-  },
-  hkHeaderText: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "600",
-  },
-  hkRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignSelf: "stretch",
-  },
-  hkCell: {
-    flex: 1,
-    backgroundColor: colors.background,
-    borderRadius: 12,
-    paddingVertical: 14,
-    alignItems: "center",
-    gap: 4,
-  },
-  hkCellValue: {
-    fontSize: s(15),
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 2,
-  },
-  hkCellLabel: {
-    fontSize: s(10),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-  },
-
-  hkHint: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textMuted,
-    marginTop: 8,
-  },
-
-  modalBtn: {
-    marginTop: 20,
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 32,
-    borderRadius: radius.card,
-    alignSelf: "stretch",
-    alignItems: "center",
-  },
-  modalBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 });

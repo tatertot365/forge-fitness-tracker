@@ -2,8 +2,6 @@ import * as FileSystem from "expo-file-system/legacy";
 import { useFocusEffect, useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
 import {
-  AlertTriangle,
-  Clock,
   Download,
   Heart,
   Pencil,
@@ -12,7 +10,7 @@ import {
   SkipForward,
   X,
 } from "lucide-react-native";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import Svg, { Circle as SvgCircle } from "react-native-svg";
 import {
   Alert,
@@ -27,13 +25,11 @@ import {
   View,
   useWindowDimensions,
 } from "react-native";
-import ReanimatedSwipeable, {
-  type SwipeableMethods,
-} from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Card } from "../../src/components/Card";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
+import { SwipeableCatchupRow } from "../../src/features/session";
 import {
   addCardioToday,
   exportFoodLogCSV,
@@ -901,91 +897,6 @@ function WeekStrip({
   );
 }
 
-// ── Catch-up rows ─────────────────────────────────────────────────────────────
-
-function SwipeableCatchupRow({
-  item,
-  onPress,
-  onSkip,
-}: {
-  item: CatchupItem;
-  onPress: () => void;
-  onSkip: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const ref = useRef<SwipeableMethods>(null);
-
-  const handleSkip = () => {
-    hapticTap();
-    ref.current?.close();
-    onSkip();
-  };
-
-  const renderRight = () => (
-    <Pressable
-      onPress={handleSkip}
-      style={({ pressed }) => [styles.skipAction, pressed && { opacity: 0.85 }]}
-    >
-      <SkipForward size={18} color="#FFFFFF" strokeWidth={2} />
-      <Text style={styles.skipLabel}>Skip</Text>
-    </Pressable>
-  );
-
-  return (
-    <ReanimatedSwipeable
-      ref={ref}
-      renderRightActions={renderRight}
-      friction={2}
-      rightThreshold={40}
-      overshootRight={false}
-    >
-      <CatchupRow item={item} onPress={onPress} />
-    </ReanimatedSwipeable>
-  );
-}
-
-function CatchupRow({
-  item,
-  onPress,
-}: {
-  item: CatchupItem;
-  onPress: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const atRisk = item.days_ago >= 3;
-  const Icon = atRisk ? AlertTriangle : Clock;
-  const iconColor = atRisk ? colors.warning : colors.gray;
-  return (
-    <Pressable
-      onPress={onPress}
-      style={({ pressed }) => [styles.catchRow, pressed && { opacity: 0.7 }]}
-    >
-      <View
-        style={[
-          styles.catchAccent,
-          {
-            backgroundColor: muscleAccent[item.muscle_group] ?? colors.primary,
-          },
-        ]}
-      />
-      <View style={{ flex: 1, paddingVertical: 12, paddingRight: 16, gap: 2 }}>
-        <Text style={styles.catchName}>{item.exercise_name}</Text>
-        <Text style={styles.catchMeta}>
-          {DAY_LABEL[item.day]} · {item.sets_missed} set
-          {item.sets_missed === 1 ? "" : "s"} ·{" "}
-          {MUSCLE_LABEL[item.muscle_group]}
-        </Text>
-      </View>
-      <View style={styles.catchTrailing}>
-        <Icon size={16} color={iconColor} strokeWidth={2} />
-        <Text style={[styles.catchTrailingText, { color: iconColor }]}>
-          {atRisk ? "at risk" : `${item.days_ago}d ago`}
-        </Text>
-      </View>
-    </Pressable>
-  );
-}
-
 // ── Muscle group grid ─────────────────────────────────────────────────────────
 
 function MuscleGroupGrid({
@@ -1434,33 +1345,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     color: colors.textSecondary,
   },
 
-  // Catch-up
-  catchRow: {
-    flexDirection: "row",
-    alignItems: "stretch",
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    overflow: "hidden",
-  },
-  catchAccent: {
-    width: 3,
-    marginVertical: 10,
-    marginLeft: 10,
-    borderRadius: radius.accent,
-    marginRight: 12,
-  },
-  catchName: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
-  catchMeta: { ...typography.caption, fontSize: s(12), color: colors.textSecondary },
-  catchTrailing: {
-    alignItems: "flex-end",
-    justifyContent: "center",
-    paddingRight: 14,
-    gap: 2,
-  },
-  catchTrailingText: { fontSize: s(11), fontWeight: "600" },
-
   // Cardio
   cardioTitle: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
   cardioMeta: {
@@ -1716,22 +1600,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     borderColor: colors.primary,
   },
   exportCheckmark: { color: "#FFFFFF", fontSize: s(13), fontWeight: "700", lineHeight: 16 },
-
-  skipAction: {
-    width: 76,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 4,
-    backgroundColor: colors.gray,
-    borderRadius: radius.card,
-    marginLeft: 6,
-  },
-  skipLabel: {
-    color: "#FFFFFF",
-    fontSize: s(11),
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
   skipDayRow: {
     flexDirection: "row",
     flexWrap: "wrap",

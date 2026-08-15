@@ -306,9 +306,6 @@ export default function SessionScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Rest day</Text>
-            <Text style={styles.subtitle}>
-              {DAY_LABEL[day]} — no training scheduled
-            </Text>
           </View>
           <Pressable
             onPress={() => router.push("/plan")}
@@ -340,10 +337,6 @@ export default function SessionScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{focusLabel}</Text>
-            <Text style={styles.subtitle}>
-              {DAY_LABEL[day]} · {exercises.length} exercise
-              {exercises.length === 1 ? "" : "s"}
-            </Text>
           </View>
           <Pressable
             onPress={() => router.push("/plan")}
@@ -528,12 +521,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     gap: 8,
   },
   title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
-  subtitle: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
   fullPlanBtn: {
     paddingHorizontal: 10,
     paddingVertical: 6,

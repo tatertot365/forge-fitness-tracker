@@ -20,13 +20,8 @@ import {
   setBodyGoals,
   setNutritionGoal,
   upsertMeasurement,
-  type BodyGoals,
 } from "../../src/db/queries";
-import {
-  calculateTdee,
-  type Sex,
-  type UserProfile,
-} from "../../src/utils/tdee";
+import { calculateTdee } from "../../src/utils/tdee";
 import {
   BodyGoalsSheet,
   CIRC_FIELDS,
@@ -44,7 +39,6 @@ import {
 } from "../../src/features/measure";
 import { colors } from "../../src/theme/colors";
 import { useStyles } from "../../src/theme/useStyles";
-import { type Measurement } from "../../src/types";
 import { todayISO } from "../../src/utils/date";
 
 const TARGET_RATIO = 1.618;
@@ -145,9 +139,6 @@ export default function MeasureScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Measurements</Text>
-            <Text style={styles.subtitle}>
-              Shoulder-to-waist ratio · target {TARGET_RATIO}
-            </Text>
           </View>
           <View style={styles.headerBtns}>
             <Pressable

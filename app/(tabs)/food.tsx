@@ -35,7 +35,6 @@ import {
   NutritionTrendChart,
   SwipeableFoodRow,
 } from "../../src/features/food";
-import { formatHeaderDate } from "../../src/features/food/helpers";
 import {
   addFoodEntry,
   deleteFoodEntry,
@@ -295,7 +294,6 @@ export default function FoodScreen() {
       <View style={styles.header}>
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Food</Text>
-          <Text style={styles.subtitle}>{formatHeaderDate(today)}</Text>
         </View>
         <Pressable
           onPress={() => {
@@ -612,12 +610,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     paddingBottom: 12,
   },
   title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
-  subtitle: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
 
   editGoalBtn: {
     flexDirection: "row",

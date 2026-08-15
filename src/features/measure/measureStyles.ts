@@ -23,12 +23,6 @@ export const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     paddingBottom: 8,
   },
   title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
-  subtitle: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
 
   headerBtns: { flexDirection: "row", gap: 8 },
   editBtn: {

@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
+  clearDayExercises,
   copyDayExercises,
   deleteExercisesByGroup,
   getDayPlans,
@@ -111,6 +112,26 @@ export default function PlanScreen() {
     );
   };
 
+  const onClearDay = (day: Day) => {
+    const count = exercises[day]?.length ?? 0;
+    Alert.alert(
+      `Clear ${DAY_LABEL[day]}?`,
+      `All ${count} exercise${count === 1 ? "" : "s"} will be removed from ${DAY_LABEL[day]}, along with any sets logged for them on this day. The day itself stays on your plan.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Clear day",
+          style: "destructive",
+          onPress: async () => {
+            await clearDayExercises(day);
+            hapticTap();
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
   const onCopy = (fromDay: Day) => {
     const otherDays = DAYS.filter((d) => d !== fromDay);
     Alert.alert(
@@ -174,6 +195,7 @@ export default function PlanScreen() {
               onAdd={() => setAddSheet({ visible: true, day })}
               onCopy={() => onCopy(day)}
               onDeleteGroup={(mg) => onDeleteGroup(day, mg)}
+              onClearDay={() => onClearDay(day)}
               onEditExercise={(ex) =>
                 setEditSheet({ visible: true, exercise: ex })
               }

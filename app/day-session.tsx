@@ -18,6 +18,7 @@ import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
 import { SummaryModal } from "../src/features/session";
 import {
   bestSet,
+  deleteExercise,
   deleteExercisesByGroup,
   finalizeSession,
   getDayPlans,
@@ -191,6 +192,26 @@ export default function DaySessionScreen() {
     );
   };
 
+  const onDeleteExercise = (ex: Exercise) => {
+    if (!day) return;
+    Alert.alert(
+      `Delete ${ex.name}?`,
+      `It will be removed from ${DAY_LABEL[day]} permanently, along with any sets logged for it on this day.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteExercise(ex.id);
+            hapticTap();
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
   const onSkipExercise = async (ex: Exercise) => {
     if (!sessionDate) return;
     await skipCatchupItem(ex.id, sessionDate);
@@ -282,6 +303,7 @@ export default function DaySessionScreen() {
                 <SwipeableExerciseRow
                   key={e.id}
                   onSkip={() => onSkipExercise(e)}
+                  onDelete={() => onDeleteExercise(e)}
                 >
                   <ExerciseRow
                     name={e.name}

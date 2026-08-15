@@ -20,6 +20,7 @@ import {
 } from "../../src/features/session";
 import {
   bestSet,
+  deleteExercise,
   deleteExercisesByGroup,
   finalizeSession,
   getCatchupItems,
@@ -199,6 +200,25 @@ export default function SessionScreen() {
     );
   };
 
+  const onDeleteExercise = (ex: Exercise) => {
+    Alert.alert(
+      `Delete ${ex.name}?`,
+      `It will be removed from ${DAY_LABEL[day]} permanently, along with any sets logged for it on this day.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            await deleteExercise(ex.id);
+            hapticTap();
+            await load();
+          },
+        },
+      ],
+    );
+  };
+
   const onSkipExercise = async (ex: Exercise) => {
     await skipCatchupItem(ex.id, sessionDate);
     setExercises((prev) => prev.filter((e) => e.id !== ex.id));
@@ -363,7 +383,11 @@ export default function SessionScreen() {
               {MUSCLE_LABEL[group]}
             </SectionLabel>
             {items.map((e) => (
-              <SwipeableExerciseRow key={e.id} onSkip={() => onSkipExercise(e)}>
+              <SwipeableExerciseRow
+                key={e.id}
+                onSkip={() => onSkipExercise(e)}
+                onDelete={() => onDeleteExercise(e)}
+              >
                 <ExerciseRow
                   name={e.name}
                   sets={e.sets}

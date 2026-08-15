@@ -345,6 +345,44 @@ export async function deleteExercisesByGroup(day: Day, muscleGroup: MuscleGroup)
   await db.runAsync(`DELETE FROM day_exercises WHERE id IN (${ph})`, ids);
 }
 
+/**
+ * Removes every exercise from a day, keeping the `day_plans` row itself so the
+ * day stays enabled with its focus name intact — it just becomes empty.
+ * Mirrors `deleteExercise`'s cleanup: unlinks supersets and drops set_logs
+ * recorded against sessions on this day.
+ */
+export async function clearDayExercises(day: Day): Promise<void> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<{ id: number; exercise_id: number }>(
+    'SELECT id, exercise_id FROM day_exercises WHERE day = ?',
+    [day],
+  );
+  if (rows.length === 0) return;
+
+  await db.withTransactionAsync(async () => {
+    // Clear partner pointers first: a partner may live on another day and would
+    // otherwise be left referencing a row that no longer exists.
+    const ids = rows.map((r) => r.id);
+    const ph = ids.map(() => '?').join(',');
+    await db.runAsync(
+      `UPDATE day_exercises SET type = 'normal', superset_partner_id = NULL
+        WHERE superset_partner_id IN (${ph})`,
+      ids,
+    );
+
+    const exIds = rows.map((r) => r.exercise_id);
+    const exPh = exIds.map(() => '?').join(',');
+    await db.runAsync(
+      `DELETE FROM set_logs WHERE exercise_id IN (${exPh}) AND session_id IN (
+         SELECT id FROM sessions WHERE day = ?
+       )`,
+      [...exIds, day],
+    );
+
+    await db.runAsync(`DELETE FROM day_exercises WHERE id IN (${ph})`, ids);
+  });
+}
+
 export async function deleteExercisesByName(name: string): Promise<void> {
   // Removes the library entry entirely — cascades to all day_exercises via FK
   const db = await getDb();

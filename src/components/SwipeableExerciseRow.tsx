@@ -41,6 +41,8 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
         onPress={handleSkip}
         style={({ pressed }) => [
           styles.action,
+          styles.roundLeft,
+          !onDelete && styles.roundRight,
           { backgroundColor: colors.gray },
           pressed && { opacity: 0.85 },
         ]}
@@ -53,6 +55,7 @@ export function SwipeableExerciseRow({ onDelete, onSkip, children }: Props) {
           onPress={handleDelete}
           style={({ pressed }) => [
             styles.action,
+            styles.roundRight,
             { backgroundColor: colors.red },
             pressed && { opacity: 0.85 },
           ]}
@@ -89,7 +92,16 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     justifyContent: 'center',
     gap: 4,
     paddingHorizontal: 6,
-    borderRadius: radius.card,
+  },
+  // Only the outer edges are rounded so Skip and Delete meet flush in the
+  // middle. When Skip renders alone it takes both sides instead.
+  roundLeft: {
+    borderTopLeftRadius: radius.card,
+    borderBottomLeftRadius: radius.card,
+  },
+  roundRight: {
+    borderTopRightRadius: radius.card,
+    borderBottomRightRadius: radius.card,
   },
   actionLabel: {
     color: '#FFFFFF',

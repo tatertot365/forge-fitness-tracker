@@ -1,4 +1,4 @@
-import { Copy, Plus } from "lucide-react-native";
+import { Copy, Plus, Trash2 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
   Pressable,
@@ -36,6 +36,7 @@ type DaySectionProps = {
   onAdd: () => void;
   onCopy: () => void;
   onDeleteGroup: (mg: MuscleGroup) => void;
+  onClearDay: () => void;
   onEditExercise: (ex: Exercise) => void;
 };
 
@@ -48,6 +49,7 @@ export function DaySection({
   onAdd,
   onCopy,
   onDeleteGroup,
+  onClearDay,
   onEditExercise,
 }: DaySectionProps) {
   const ds = useStyles(makeDs);
@@ -189,13 +191,24 @@ export function DaySection({
             <Text style={ds.addBtnText}>Add exercise</Text>
           </Pressable>
           {exercises.length > 0 && (
-            <Pressable
-              onPress={onCopy}
-              style={({ pressed }) => [ds.copyBtn, pressed && { opacity: 0.7 }]}
-            >
-              <Copy size={13} color={colors.textSecondary} strokeWidth={2} />
-              <Text style={ds.copyBtnText}>Copy to…</Text>
-            </Pressable>
+            <>
+              <Pressable
+                onPress={onCopy}
+                style={({ pressed }) => [ds.copyBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Copy size={13} color={colors.textSecondary} strokeWidth={2} />
+                <Text style={ds.copyBtnText}>Copy to…</Text>
+              </Pressable>
+              <Pressable
+                onPress={onClearDay}
+                style={({ pressed }) => [ds.copyBtn, pressed && { opacity: 0.7 }]}
+              >
+                <Trash2 size={13} color={colors.red} strokeWidth={2} />
+                <Text style={[ds.copyBtnText, { color: colors.red }]}>
+                  Clear day
+                </Text>
+              </Pressable>
+            </>
           )}
         </View>
       )}

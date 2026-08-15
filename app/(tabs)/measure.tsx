@@ -1,11 +1,8 @@
 import DateTimePicker from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "expo-router";
 import {
-  ArrowDown,
-  ArrowUp,
   ChevronDown,
   ChevronUp,
-  Minus,
   Pencil,
 } from "lucide-react-native";
 import React, { useCallback, useState } from "react";
@@ -23,9 +20,7 @@ import {
   Text,
   TextInput,
   View,
-  useWindowDimensions,
 } from "react-native";
-import Svg, { Circle, Line, Path } from "react-native-svg";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
@@ -51,6 +46,13 @@ import {
   type Sex,
   type UserProfile,
 } from "../../src/utils/tdee";
+import {
+  BodyGoalsSheet,
+  DeltaChip,
+  GoalProgressRow,
+  MeasurementLineChart,
+  StatCard,
+} from "../../src/features/measure";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
@@ -830,410 +832,6 @@ export default function MeasureScreen() {
   );
 }
 
-// ─── Stat card ─────────────────────────���──────────────────────────────
-
-function StatCard({
-  label,
-  value,
-  unit,
-  current,
-  prior,
-  goodOnIncrease,
-  neutral,
-}: {
-  label: string;
-  value: string;
-  unit: string;
-  current: number | null;
-  prior: number | null;
-  goodOnIncrease: boolean;
-  neutral?: boolean;
-}) {
-  const styles = useStyles(makeStyles);
-  return (
-    <View style={styles.statCard}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={styles.statValue}>{value}</Text>
-      <Text style={styles.statUnit}>{value !== "—" ? unit : ""}</Text>
-      <DeltaChip
-        current={current}
-        prior={prior}
-        goodOnIncrease={goodOnIncrease}
-        neutral={neutral}
-        unit={unit === "lbs" ? " lbs" : unit === "%" ? "%" : " lbs"}
-      />
-    </View>
-  );
-}
-
-// ─── Goal progress row ────────────────────────────────────────────────
-
-function GoalProgressRow({
-  label,
-  current,
-  start,
-  goal,
-  unit,
-}: {
-  label: string;
-  current: number | null;
-  start: number | null;
-  goal: number;
-  unit: string;
-}) {
-  const styles = useStyles(makeStyles);
-  const hasData = current != null;
-  // Direction is set by the user's starting measurement (when the goal was set)
-  // relative to the goal. Fall back to current if start is unavailable.
-  const reference = start ?? current;
-  const lowerIsBetter = reference != null ? reference > goal : false;
-
-  const diff = hasData ? Math.abs(current! - goal) : null;
-  const reached =
-    hasData && (lowerIsBetter ? current! <= goal : current! >= goal);
-
-  let progress = 0;
-  if (hasData) {
-    if (start != null && start !== goal) {
-      const total = Math.abs(goal - start);
-      const done = lowerIsBetter
-        ? Math.max(0, start - current!)
-        : Math.max(0, current! - start);
-      progress = Math.min(1, done / total);
-    } else {
-      progress = reached ? 1 : 0;
-    }
-  }
-
-  return (
-    <View style={styles.goalRow}>
-      <View style={styles.goalRowHeader}>
-        <Text style={styles.goalRowLabel}>{label}</Text>
-        <Text style={styles.goalRowValues}>
-          {hasData ? `${current}${unit}` : "—"}
-          <Text style={styles.goalRowTarget}>
-            {" "}
-            → {goal}
-            {unit}
-          </Text>
-        </Text>
-      </View>
-      <ProgressBar
-        value={progress}
-        max={1}
-        color={reached ? colors.green : colors.primary}
-      />
-      {hasData && (
-        <Text style={[styles.goalRowHint, reached && { color: colors.green }]}>
-          {reached ? `Goal reached!` : `${diff!.toFixed(1)}${unit} to go`}
-        </Text>
-      )}
-    </View>
-  );
-}
-
-// ─── Body goals sheet ──────────────────────────────────────────────────
-
-function BodyGoalsSheet({
-  visible,
-  current,
-  onClose,
-  onSave,
-}: {
-  visible: boolean;
-  current: BodyGoals;
-  onClose: () => void;
-  onSave: (goals: Partial<BodyGoals>) => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const [weightInput, setWeightInput] = useState("");
-  const [bfInput, setBfInput] = useState("");
-  const [showRatio, setShowRatio] = useState(false);
-
-  React.useEffect(() => {
-    if (!visible) return;
-    setWeightInput(
-      current.goal_weight_lb != null ? String(current.goal_weight_lb) : "",
-    );
-    setBfInput(
-      current.goal_body_fat_pct != null
-        ? String(current.goal_body_fat_pct)
-        : "",
-    );
-    setShowRatio(current.show_ratio_card);
-  }, [visible]);
-
-  const save = () => {
-    const w = parseField(weightInput);
-    const b = parseField(bfInput);
-    if (weightInput.trim() !== "" && w == null) {
-      Alert.alert("Enter a valid weight goal");
-      return;
-    }
-    if (w != null && (w < 50 || w > 700)) {
-      Alert.alert("Weight goal should be between 50 and 700 lb");
-      return;
-    }
-    if (bfInput.trim() !== "" && b == null) {
-      Alert.alert("Enter a valid body fat goal");
-      return;
-    }
-    if (b != null && (b < 1 || b > 50)) {
-      Alert.alert("Body fat goal should be between 1 and 50%");
-      return;
-    }
-    const goals: Partial<BodyGoals> = { show_ratio_card: showRatio };
-    if (w != null) goals.goal_weight_lb = w;
-    if (b != null) goals.goal_body_fat_pct = b;
-    onSave(goals);
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={styles.sheetBackdrop}
-      >
-        <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={styles.sheet}>
-          <View style={styles.sheetHeader}>
-            <Text style={styles.sheetTitle}>Body goals</Text>
-            <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
-              <Text style={styles.sheetClose}>✕</Text>
-            </Pressable>
-          </View>
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-          >
-            <Text style={styles.formLabel}>Target weight (lbs)</Text>
-            <TextInput
-              value={weightInput}
-              onChangeText={setWeightInput}
-              keyboardType="decimal-pad"
-              style={[styles.input, styles.sheetInput, { marginBottom: 14 }]}
-              placeholder="e.g. 185"
-              placeholderTextColor={colors.textMuted}
-            />
-            <Text style={styles.formLabel}>Target body fat (%)</Text>
-            <TextInput
-              value={bfInput}
-              onChangeText={setBfInput}
-              keyboardType="decimal-pad"
-              style={[styles.input, styles.sheetInput]}
-              placeholder="e.g. 5"
-              placeholderTextColor={colors.textMuted}
-            />
-            <Pressable
-              onPress={() => setShowRatio((v) => !v)}
-              style={styles.toggleRow}
-            >
-              <View style={{ flex: 1 }}>
-                <Text style={styles.toggleLabel}>Shoulder-to-waist ratio</Text>
-                <Text style={styles.toggleSub}>Show ratio card on Measurements tab</Text>
-              </View>
-              <View style={[styles.toggleTrack, showRatio && styles.toggleTrackOn]}>
-                <View style={[styles.toggleThumb, showRatio && styles.toggleThumbOn]} />
-              </View>
-            </Pressable>
-            <Pressable
-              onPress={save}
-              style={({ pressed }) => [
-                styles.saveBtn,
-                { marginTop: 16 },
-                pressed && { opacity: 0.85 },
-              ]}
-            >
-              <Text style={styles.saveBtnText}>Save goals</Text>
-            </Pressable>
-            <View style={{ height: 8 }} />
-          </ScrollView>
-        </View>
-      </KeyboardAvoidingView>
-    </Modal>
-  );
-}
-
-// ─── Chart ────────────────────────────────────────────────────────────
-
-function MeasurementLineChart({
-  data,
-  valueKey,
-  label,
-  unit,
-  color,
-}: {
-  data: Measurement[];
-  valueKey: "weight_lb" | "body_fat_pct";
-  label: string;
-  unit: string;
-  color: string;
-}) {
-  const styles = useStyles(makeStyles);
-  const { width } = useWindowDimensions();
-  const points = data
-    .map((m, i) => ({ i, value: m[valueKey] as number | null, date: m.date }))
-    .filter((p) => p.value != null) as {
-    i: number;
-    value: number;
-    date: string;
-  }[];
-
-  if (points.length < 2) {
-    return (
-      <View>
-        <Text style={[styles.chartLabel, { color: colors.textSecondary }]}>
-          {label}
-        </Text>
-        <Text style={styles.chartEmpty}>Not enough data yet</Text>
-      </View>
-    );
-  }
-
-  const chartWidth = width - 16 * 2 - 16 * 2;
-  const chartHeight = 100;
-  const padX = 8;
-  const padY = 12;
-  const innerW = chartWidth - padX * 2;
-  const innerH = chartHeight - padY * 2;
-
-  const values = points.map((p) => p.value);
-  const minVal = Math.min(...values);
-  const maxVal = Math.max(...values);
-  const range = maxVal - minVal || 1;
-  const totalSlots = data.length - 1 || 1;
-
-  const toX = (idx: number) => padX + (idx / totalSlots) * innerW;
-  const toY = (v: number) => padY + (1 - (v - minVal) / range) * innerH;
-
-  const pathD = points
-    .map(
-      (p, i) =>
-        `${i === 0 ? "M" : "L"} ${toX(p.i).toFixed(1)} ${toY(p.value).toFixed(1)}`,
-    )
-    .join(" ");
-
-  const first = points[0];
-  const last = points[points.length - 1];
-  const delta = last.value - first.value;
-  const deltaStr = `${delta >= 0 ? "+" : ""}${delta.toFixed(1)}${unit}`;
-  const deltaColor =
-    delta === 0
-      ? colors.textMuted
-      : valueKey === "weight_lb"
-        ? colors.textSecondary
-        : delta < 0
-          ? colors.green
-          : colors.red;
-
-  return (
-    <View>
-      <View style={styles.chartHeader}>
-        <Text style={styles.chartLabel}>{label}</Text>
-        <View style={styles.chartMeta}>
-          <Text style={[styles.chartDelta, { color: deltaColor }]}>
-            {deltaStr}
-          </Text>
-          <Text style={styles.chartRange}>
-            {last.value.toFixed(1)}
-            {unit}
-          </Text>
-        </View>
-      </View>
-      <Svg width={chartWidth} height={chartHeight}>
-        <Line
-          x1={padX}
-          x2={chartWidth - padX}
-          y1={chartHeight - padY}
-          y2={chartHeight - padY}
-          stroke={colors.border}
-          strokeWidth={1}
-        />
-        <Path
-          d={pathD}
-          stroke={color}
-          strokeWidth={2}
-          fill="none"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {points.map((p) => (
-          <Circle
-            key={p.date}
-            cx={toX(p.i)}
-            cy={toY(p.value)}
-            r={3}
-            fill={color}
-          />
-        ))}
-      </Svg>
-      <View
-        style={[styles.xAxis, { width: chartWidth, paddingHorizontal: padX }]}
-      >
-        <Text style={styles.xLabel}>{shortDate(first.date)}</Text>
-        <Text style={styles.xLabel}>{shortDate(last.date)}</Text>
-      </View>
-    </View>
-  );
-}
-
-// ─── Helpers ───────────────────────────��──────────────────────────────
-
-function shortDate(iso: string): string {
-  const [, m, d] = iso.split("-");
-  return `${Number(m)}/${Number(d)}`;
-}
-
-function DeltaChip({
-  current,
-  prior,
-  goodOnIncrease,
-  neutral,
-  unit,
-}: {
-  current: number | null;
-  prior: number | null;
-  goodOnIncrease: boolean;
-  neutral?: boolean;
-  unit: string;
-}) {
-  const styles = useStyles(makeStyles);
-  if (current == null || prior == null) return <View style={{ height: 18 }} />;
-  const d = current - prior;
-  if (Math.abs(d) < 0.05) {
-    return (
-      <View style={styles.deltaChip}>
-        <Minus size={11} color={colors.textMuted} strokeWidth={2.5} />
-        <Text style={[styles.deltaText, { color: colors.textMuted }]}>0</Text>
-      </View>
-    );
-  }
-  const up = d > 0;
-  const tint = neutral
-    ? colors.textSecondary
-    : (goodOnIncrease ? up : !up)
-      ? colors.green
-      : colors.red;
-  return (
-    <View style={styles.deltaChip}>
-      {up ? (
-        <ArrowUp size={11} color={tint} strokeWidth={2.5} />
-      ) : (
-        <ArrowDown size={11} color={tint} strokeWidth={2.5} />
-      )}
-      <Text style={[styles.deltaText, { color: tint }]}>
-        {Math.abs(d).toFixed(1)}
-        {unit}
-      </Text>
-    </View>
-  );
-}
-
 function toISODate(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -1317,27 +915,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     letterSpacing: 0.6,
     fontWeight: "600",
   },
-  goalRow: { gap: 4 },
-  goalRowHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "baseline",
-    marginBottom: 4,
-  },
-  goalRowLabel: { fontSize: s(13), fontWeight: "500", color: colors.text },
-  goalRowValues: {
-    fontSize: s(13),
-    fontWeight: "600",
-    color: colors.text,
-    fontVariant: ["tabular-nums"],
-  },
-  goalRowTarget: {
-    fontSize: s(12),
-    fontWeight: "400",
-    color: colors.textSecondary,
-  },
-  goalRowHint: { fontSize: s(11), color: colors.textSecondary, marginTop: 3 },
-
   // First-launch card
   firstCheckInCard: {
     backgroundColor: colors.card,
@@ -1367,30 +944,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
 
   // Stats grid
   statsGrid: { flexDirection: "row", gap: 8, marginBottom: 2 },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 12,
-    gap: 1,
-  },
-  statLabel: {
-    fontSize: s(10),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "600",
-  },
-  statValue: {
-    fontSize: s(20),
-    fontWeight: "600",
-    color: colors.text,
-    marginTop: 3,
-  },
-  statUnit: { fontSize: s(11), color: colors.textSecondary, marginBottom: 2 },
-
   // Ratio card
   ratioCard: {
     backgroundColor: colors.card,
@@ -1454,9 +1007,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     color: colors.text,
     fontVariant: ["tabular-nums"],
   },
-  deltaChip: { flexDirection: "row", alignItems: "center", gap: 2 },
-  deltaText: { fontSize: s(11), fontWeight: "600" },
-
   // Profile collapsible
   profileHeader: {
     flexDirection: "row",
@@ -1517,33 +1067,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   saveBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
 
-  toggleRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 14,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: colors.border,
-    marginTop: 14,
-    gap: 12,
-  },
-  toggleLabel: { fontSize: s(14), fontWeight: "500", color: colors.text },
-  toggleSub: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
-  toggleTrack: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    padding: 3,
-  },
-  toggleTrackOn: { backgroundColor: colors.primary },
-  toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-  },
-  toggleThumbOn: { transform: [{ translateX: 18 }] },
-
   pickerRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -1600,28 +1123,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     padding: 16,
     marginBottom: 8,
   },
-  chartHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  chartLabel: { fontSize: s(13), fontWeight: "600", color: colors.text },
-  chartMeta: { flexDirection: "row", alignItems: "center", gap: 10 },
-  chartDelta: { fontSize: s(12), fontWeight: "600" },
-  chartRange: {
-    fontSize: s(12),
-    color: colors.textSecondary,
-    fontVariant: ["tabular-nums"],
-  },
-  chartEmpty: { fontSize: s(13), color: colors.textMuted, paddingVertical: 8 },
-  xAxis: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 2,
-  },
-  xLabel: { fontSize: s(10), color: colors.textMuted },
-
   // Edit sheet
   sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
   sheet: {
@@ -1642,3 +1143,4 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   sheetClose: { fontSize: s(18), color: colors.textSecondary, padding: 4 },
 });
+

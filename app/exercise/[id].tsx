@@ -1,10 +1,8 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import {
   ChevronLeft,
-  Minus,
   Pencil,
   Plus,
-  Trash2,
   TrendingUp,
   X,
 } from "lucide-react-native";
@@ -12,7 +10,6 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   KeyboardAvoidingView,
-  Modal,
   Platform,
   Pressable,
   ScrollView,
@@ -25,13 +22,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Card } from "../../src/components/Card";
 import { HistorySheet } from "../../src/components/HistorySheet";
 import { HistorySparkline } from "../../src/components/HistorySparkline";
-import { HoldTimer } from "../../src/components/HoldTimer";
 import { RestTimer } from "../../src/components/RestTimer";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { SetCheckButton } from "../../src/components/SetCheckButton";
 import {
+  EditExerciseSheet,
+  StretchPanel,
+  type Row,
+  type WarmupRow,
+} from "../../src/features/exercise";
+import {
   bestSet,
-  deleteExercise,
   deleteSetLog,
   getExercise,
   getExerciseSessionHistory,
@@ -39,9 +40,6 @@ import {
   getLastCompletedSetsForExercise,
   getOrCreateSession,
   getSetLogsForSessionExercise,
-  linkSuperset,
-  unlinkSuperset,
-  updateExercise,
   upsertSetLog,
   type ExerciseSessionHistory,
 } from "../../src/db/queries";
@@ -49,28 +47,11 @@ import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
 import {
-  MUSCLE_LABEL,
   type Exercise,
-  type ExerciseType,
   type SetLog,
 } from "../../src/types";
 import { dayOfWeek, todayISO } from "../../src/utils/date";
-import { hapticTap, hapticSuccess } from "../../src/utils/haptics";
-
-type Row = {
-  setNumber: number;
-  weight: string;
-  reps: string;
-  dropWeight: string;
-  dropReps: string;
-  completed: boolean;
-};
-
-type WarmupRow = {
-  setNumber: number; // negative: -1 = W1, -2 = W2, etc.
-  weight: string;
-  reps: string;
-};
+import { hapticTap } from "../../src/utils/haptics";
 
 export default function ExerciseDetailScreen() {
   const styles = useStyles(makeStyles);
@@ -750,394 +731,8 @@ export default function ExerciseDetailScreen() {
   );
 }
 
-function StretchPanel({
-  rows,
-  holdSeconds,
-  onRoundComplete,
-}: {
-  rows: Row[];
-  holdSeconds: number;
-  onRoundComplete: (idx: number) => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const nextIdx = rows.findIndex((r) => !r.completed);
-  const allDone = nextIdx === -1;
-  const currentIdx = allDone ? rows.length - 1 : nextIdx;
-  const current = rows[currentIdx];
-  return (
-    <View style={styles.stretchPanel}>
-      <View style={styles.stretchHeader}>
-        <Text style={styles.stretchHeaderLabel}>
-          {allDone
-            ? `All ${rows.length} ${rows.length === 1 ? "round" : "rounds"} complete`
-            : `Round ${current?.setNumber ?? 1} of ${rows.length}`}
-        </Text>
-        <View style={styles.stretchDots}>
-          {rows.map((r) => (
-            <View
-              key={r.setNumber}
-              style={[
-                styles.stretchDot,
-                r.completed && styles.stretchDotDone,
-              ]}
-            />
-          ))}
-        </View>
-      </View>
-      {!allDone ? (
-        <View style={{ marginTop: 14 }}>
-          <HoldTimer
-            key={`${currentIdx}-${holdSeconds}`}
-            durationSeconds={holdSeconds}
-            autoStart
-            onComplete={() => onRoundComplete(currentIdx)}
-            onSkip={() => onRoundComplete(currentIdx)}
-          />
-        </View>
-      ) : null}
-    </View>
-  );
-}
-
-function EditExerciseSheet({
-  visible,
-  exercise,
-  dayExercises,
-  onClose,
-  onSaved,
-  onDeleted,
-}: {
-  visible: boolean;
-  exercise: Exercise;
-  dayExercises: Exercise[];
-  onClose: () => void;
-  onSaved: () => void | Promise<void>;
-  onDeleted: () => void;
-}) {
-  const styles = useStyles(makeStyles);
-  const [name, setName] = useState(exercise.name);
-  const [sets, setSets] = useState(exercise.sets);
-  const [warmupSets, setWarmupSets] = useState(exercise.warmup_sets);
-  const [repRange, setRepRange] = useState(exercise.rep_range);
-  const [notes, setNotes] = useState(exercise.notes ?? "");
-  const [type, setType] = useState<ExerciseType>(exercise.type);
-  const [partnerId, setPartnerId] = useState<number | null>(
-    exercise.superset_partner_id,
-  );
-  const [busy, setBusy] = useState(false);
-  const [allExercises, setAllExercises] = useState<Exercise[]>([]);
-
-  useEffect(() => {
-    if (type === "superset") {
-      getExercisesByDay(exercise.day).then((rows) =>
-        setAllExercises(rows.filter((e) => e.id !== exercise.id)),
-      );
-    }
-  }, [type, exercise.id, exercise.day]);
-
-  const partnerCandidates = allExercises;
-  const canSave =
-    name.trim().length > 0 && (type !== "superset" || partnerId !== null);
-
-  const onSave = async () => {
-    const trimmedName = name.trim();
-    if (!trimmedName) return;
-    setBusy(true);
-    try {
-      await updateExercise(exercise.id, {
-        name: trimmedName,
-        sets,
-        warmup_sets: warmupSets,
-        rep_range: repRange.trim() || exercise.rep_range,
-        notes: notes.trim() ? notes.trim() : null,
-        type,
-      });
-      if (type === "superset" && partnerId) {
-        await linkSuperset(exercise.id, partnerId);
-      } else if (exercise.type === "superset" && type !== "superset") {
-        await unlinkSuperset(exercise.id);
-      }
-      hapticSuccess();
-      await onSaved();
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const onDelete = () => {
-    Alert.alert(
-      "Delete exercise",
-      `Remove "${exercise.name}" from this day? All logged sets for this exercise will be deleted. This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            setBusy(true);
-            try {
-              await deleteExercise(exercise.id);
-            } catch {
-              setBusy(false);
-              return;
-            }
-            hapticSuccess();
-            onDeleted();
-          },
-        },
-      ],
-    );
-  };
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.sheetBackdrop}>
-        <Pressable style={styles.sheetDismiss} onPress={onClose} />
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-        >
-          <View style={styles.sheet}>
-            <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>Edit exercise</Text>
-              <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
-                <X size={20} color={colors.textSecondary} />
-              </Pressable>
-            </View>
-
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={styles.sheetScroll}
-            >
-              <Text style={styles.fieldLabel}>Name</Text>
-              <TextInput
-                value={name}
-                onChangeText={setName}
-                style={styles.fieldInput}
-                placeholder="Exercise name"
-                placeholderTextColor={colors.textMuted}
-                autoCapitalize="words"
-              />
-
-              <Text style={styles.fieldLabel}>Sets</Text>
-              <View style={styles.stepperRow}>
-                <Pressable
-                  onPress={() => setSets((s) => Math.max(1, s - 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Minus size={16} color={colors.text} />
-                </Pressable>
-                <Text style={styles.stepperValue}>{sets}</Text>
-                <Pressable
-                  onPress={() => setSets((s) => Math.min(10, s + 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Plus size={16} color={colors.text} />
-                </Pressable>
-              </View>
-
-              <Text style={styles.fieldLabel}>Warmup sets</Text>
-              <View style={styles.stepperRow}>
-                <Pressable
-                  onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Minus size={16} color={colors.text} />
-                </Pressable>
-                <Text style={styles.stepperValue}>{warmupSets}</Text>
-                <Pressable
-                  onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Plus size={16} color={colors.text} />
-                </Pressable>
-              </View>
-
-              <Text style={styles.fieldLabel}>Rep range</Text>
-              <TextInput
-                value={repRange}
-                onChangeText={setRepRange}
-                style={styles.fieldInput}
-                placeholder="e.g. 8–12"
-                placeholderTextColor={colors.textMuted}
-              />
-
-              <Text style={styles.fieldLabel}>Notes</Text>
-              <TextInput
-                value={notes}
-                onChangeText={setNotes}
-                style={[styles.fieldInput, { minHeight: 56 }]}
-                placeholder="Optional cue or instruction"
-                placeholderTextColor={colors.textMuted}
-                multiline
-              />
-
-              <Text style={styles.fieldLabel}>Type</Text>
-              <View style={styles.segmented}>
-                {(
-                  ["normal", "drop", "superset", "bodyweight"] as ExerciseType[]
-                ).map((t) => (
-                  <Pressable
-                    key={t}
-                    onPress={() => setType(t)}
-                    style={({ pressed }) => [
-                      styles.segment,
-                      type === t && styles.segmentActive,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        type === t && styles.segmentTextActive,
-                      ]}
-                    >
-                      {t === "normal"
-                        ? "Normal"
-                        : t === "drop"
-                          ? "Drop"
-                          : t === "superset"
-                            ? "Superset"
-                            : "Bodyweight"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
-
-              {type === "superset" ? (
-                <>
-                  <Text style={styles.fieldLabel}>Pair with</Text>
-                  {partnerCandidates.length === 0 ? (
-                    <Text style={styles.sheetHint}>
-                      No other exercises in your library yet. Add one first.
-                    </Text>
-                  ) : (
-                    <View style={{ gap: 6 }}>
-                      {partnerCandidates.map((c) => (
-                        <Pressable
-                          key={c.id}
-                          onPress={() => setPartnerId(c.id)}
-                          style={({ pressed }) => [
-                            styles.partnerOption,
-                            partnerId === c.id && styles.partnerOptionActive,
-                            pressed && { opacity: 0.7 },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.partnerOptionText,
-                              partnerId === c.id &&
-                                styles.partnerOptionTextActive,
-                            ]}
-                            numberOfLines={1}
-                          >
-                            {c.name}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.partnerOptionDay,
-                              partnerId === c.id && { color: colors.primary },
-                            ]}
-                          >
-                            {MUSCLE_LABEL[c.muscle_group]}
-                          </Text>
-                        </Pressable>
-                      ))}
-                    </View>
-                  )}
-                </>
-              ) : null}
-
-              <Text style={styles.sheetHint}>
-                Changes apply to this day in future sessions. Logged history
-                stays linked to this exercise.
-              </Text>
-
-              <Pressable
-                onPress={onSave}
-                disabled={busy || !canSave}
-                style={({ pressed }) => [
-                  styles.saveBtn,
-                  (busy || !canSave) && { opacity: 0.5 },
-                  pressed && { opacity: 0.85 },
-                ]}
-              >
-                <Text style={styles.saveBtnText}>Save changes</Text>
-              </Pressable>
-
-              <Pressable
-                onPress={onDelete}
-                disabled={busy}
-                style={({ pressed }) => [
-                  styles.deleteBtn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Trash2 size={14} color={colors.red} strokeWidth={2} />
-                <Text style={styles.deleteBtnText}>Delete exercise</Text>
-              </Pressable>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </View>
-    </Modal>
-  );
-}
 
 const makeStyles = (s: (n: number) => number) => StyleSheet.create({
-  stretchPanel: {
-    backgroundColor: colors.card,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    marginTop: 12,
-  },
-  stretchHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  stretchHeaderLabel: {
-    fontSize: s(14),
-    fontWeight: "600",
-    color: colors.text,
-    flex: 1,
-  },
-  stretchDots: {
-    flexDirection: "row",
-    gap: 6,
-  },
-  stretchDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-  },
-  stretchDotDone: {
-    backgroundColor: colors.green,
-    borderColor: colors.green,
-  },
   root: { flex: 1, backgroundColor: colors.background },
   headerBar: {
     flexDirection: "row",
@@ -1275,90 +870,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   saveBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
 
-  sheetBackdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.4)",
-    justifyContent: "flex-end",
-  },
-  sheetDismiss: { flex: 1 },
-  sheet: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingHorizontal: 20,
-    paddingTop: 16,
-    maxHeight: "88%",
-  },
-  sheetScroll: {
-    gap: 4,
-    paddingBottom: 28,
-  },
-  sheetHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 4,
-  },
-  sheetTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
-  fieldLabel: {
-    fontSize: s(11),
-    color: colors.textSecondary,
-    textTransform: "uppercase",
-    letterSpacing: 0.6,
-    fontWeight: "600",
-    marginTop: 14,
-    marginBottom: 6,
-  },
-  fieldInput: {
-    fontSize: s(15),
-    color: colors.text,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  stepperRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-  },
-  stepperBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  stepperValue: {
-    fontSize: s(18),
-    fontWeight: "600",
-    color: colors.text,
-    minWidth: 24,
-    textAlign: "center",
-    fontVariant: ["tabular-nums"],
-  },
-  sheetHint: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    marginTop: 14,
-    marginBottom: 4,
-  },
-  deleteBtn: {
-    marginTop: 2,
-    flexDirection: "row",
-    gap: 6,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-  },
-  deleteBtnText: { color: colors.red, fontSize: s(14), fontWeight: "600" },
-
   bwBadge: {
     alignItems: "center",
     justifyContent: "center",
@@ -1402,42 +913,5 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   partnerPillName: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
 
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-  segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
-  segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
-
-  partnerOption: {
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    backgroundColor: colors.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-  },
-  partnerOptionActive: {
-    backgroundColor: colors.primary + "15",
-    borderColor: colors.primary,
-  },
-  partnerOptionText: { fontSize: s(14), color: colors.text, flex: 1 },
-  partnerOptionTextActive: { color: colors.primary, fontWeight: "600" },
-  partnerOptionDay: {
-    fontSize: s(11),
-    color: colors.textMuted,
-    fontWeight: "500",
-  },
 });
+

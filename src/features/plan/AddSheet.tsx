@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import {
   createExercise,
+  createExerciseChecked,
   findExercisesByName,
   getAllStretches,
   getLibraryExercises,
@@ -25,6 +26,7 @@ import { radius } from "../../theme/spacing";
 import { useStyles } from "../../theme/useStyles";
 import {
   DAY_LABEL,
+  MUSCLE_GROUPS_ALPHA,
   MUSCLE_LABEL,
   type Day,
   type Exercise,
@@ -37,22 +39,6 @@ import { hapticSuccess } from "../../utils/haptics";
 import { type PartnerPickerValue } from "./PartnerPicker";
 import { makeSs } from "./sheetStyles";
 import { PartnerPicker } from "./PartnerPicker";
-
-const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
-  "chest",
-  "shoulders",
-  "triceps",
-  "back-width",
-  "back-thickness",
-  "biceps",
-  "grip",
-  "traps",
-  "quads",
-  "hamstrings",
-  "glutes",
-  "calves",
-  "core",
-];
 
 // ─── AddSheet ─────────────────────────────────────────────────────────────────
 
@@ -207,7 +193,7 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     setBusy(true);
     try {
       const isStretch = type === "stretch";
-      const newId = await createExercise({
+      const { id: newId, created } = await createExerciseChecked({
         day,
         muscle_group: pickedGroup,
         name: trimmed,
@@ -218,6 +204,14 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
         type,
         hold_seconds: isStretch ? holdSeconds : null,
       });
+      if (!created) {
+        // Already on this day — see createExerciseChecked.
+        Alert.alert(
+          "Already added",
+          `"${trimmed}" is already on ${DAY_LABEL[day]}. Edit the existing one to change its sets or reps.`,
+        );
+        return;
+      }
 
       // Handle superset partner
       if (type === "superset" && partnerValue) {
@@ -372,7 +366,7 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                         All
                       </Text>
                     </Pressable>
-                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => {
                       const active = filterGroup === mg;
                       const accent = muscleAccent[mg] ?? colors.primary;
                       return (
@@ -513,7 +507,7 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                         All
                       </Text>
                     </Pressable>
-                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => {
                       const active = filterGroup === mg;
                       const accent = muscleAccent[mg] ?? colors.primary;
                       return (
@@ -622,7 +616,7 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                   />
                   <Text style={ss.fieldLabel}>Muscle group</Text>
                   <View style={ss.pillRow}>
-                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => {
                       const active = pickedGroup === mg;
                       const accent = muscleAccent[mg] ?? colors.primary;
                       return (

@@ -13,11 +13,13 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { createExercise, findExercisesByName, getAllStretches, getLibraryExercises } from '../db/queries';
+import { createExerciseChecked, findExercisesByName, getAllStretches, getLibraryExercises } from '../db/queries';
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
 import {
+  DAY_LABEL,
+  MUSCLE_GROUPS_ALPHA,
   MUSCLE_LABEL,
   type Day,
   type ExerciseType,
@@ -40,8 +42,6 @@ type Props = {
 };
 
 type Mode = 'library' | 'stretches' | 'new';
-
-const ALL_MUSCLE_GROUPS: MuscleGroup[] = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
 
 const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight"];
 const TYPE_LABELS = ["Normal", "Drop", "Superset", "Bodyweight"];
@@ -175,7 +175,7 @@ export function AddExerciseSheet({
     setBusy(true);
     try {
       const isStretch = type === 'stretch';
-      const newId = await createExercise({
+      const { id: newId, created } = await createExerciseChecked({
         day,
         muscle_group: pickedGroup,
         name: trimmed,
@@ -186,6 +186,15 @@ export function AddExerciseSheet({
         type,
         hold_seconds: isStretch ? holdSeconds : null,
       });
+      if (!created) {
+        // Already on this day. Keep the sheet open so the picked sets/reps
+        // aren't lost and the user can choose a different exercise.
+        Alert.alert(
+          'Already added',
+          `"${trimmed}" is already on ${DAY_LABEL[day]}. Edit the existing one to change its sets or reps.`,
+        );
+        return;
+      }
       hapticSuccess();
       reset();
       await onCreated(newId);
@@ -286,7 +295,7 @@ export function AddExerciseSheet({
                       active={filterGroup === null}
                       onPress={() => setFilterGroup(null)}
                     />
-                    {ALL_MUSCLE_GROUPS.map((mg) => (
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => (
                       <Chip
                         key={mg}
                         label={MUSCLE_LABEL[mg]}
@@ -374,7 +383,7 @@ export function AddExerciseSheet({
                       active={filterGroup === null}
                       onPress={() => setFilterGroup(null)}
                     />
-                    {ALL_MUSCLE_GROUPS.map((mg) => (
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => (
                       <Chip
                         key={mg}
                         label={MUSCLE_LABEL[mg]}
@@ -454,7 +463,7 @@ export function AddExerciseSheet({
                   />
                   <Text style={styles.fieldLabel}>Muscle group</Text>
                   <View style={styles.pillRow}>
-                    {ALL_MUSCLE_GROUPS.map((mg) => {
+                    {MUSCLE_GROUPS_ALPHA.map((mg) => {
                       const active = pickedGroup === mg;
                       const accent = muscleAccent[mg] ?? colors.primary;
                       return (

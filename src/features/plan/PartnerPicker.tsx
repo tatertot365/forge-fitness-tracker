@@ -5,27 +5,12 @@ import { Pressable, Text, TextInput, View } from "react-native";
 import { colors, muscleAccent } from "../../theme/colors";
 import { useStyles } from "../../theme/useStyles";
 import {
+  MUSCLE_GROUPS_ALPHA,
   MUSCLE_LABEL,
   type Exercise,
   type MuscleGroup,
 } from "../../types";
 import { makeSs } from "./sheetStyles";
-
-const ALL_MUSCLE_GROUPS: MuscleGroup[] = [
-  "chest",
-  "shoulders",
-  "triceps",
-  "back-width",
-  "back-thickness",
-  "biceps",
-  "grip",
-  "traps",
-  "quads",
-  "hamstrings",
-  "glutes",
-  "calves",
-  "core",
-];
 
 // ─── PartnerPicker ────────────────────────────────────────────────────────────
 
@@ -195,7 +180,7 @@ export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerPr
 
           <Text style={ss.fieldLabel}>Muscle group</Text>
           <View style={ss.pillRow}>
-            {ALL_MUSCLE_GROUPS.map((mg) => {
+            {MUSCLE_GROUPS_ALPHA.map((mg) => {
               const active = npMg === mg;
               const accent = muscleAccent[mg] ?? colors.primary;
               return (

@@ -72,12 +72,43 @@ export async function createExercise(input: {
     notes: input.notes,
   });
 
-  // Get next sort_order for this day
-  const tail = await db.getFirstAsync<{ max_order: number | null }>(
-    'SELECT MAX(sort_order) as max_order FROM day_exercises WHERE day = ?',
-    [input.day],
+  // Place the new row at the end of its own muscle group, not the end of the
+  // day. The session screen groups by muscle and orders groups by their lowest
+  // sort_order, so a day-tail value would render the new exercise inside a
+  // group that may sit far up the page — it looks like the add silently failed.
+  const groupTail = await db.getFirstAsync<{ max_order: number | null }>(
+    `SELECT MAX(de.sort_order) as max_order
+       FROM day_exercises de
+       JOIN exercises e ON e.id = de.exercise_id
+      WHERE de.day = ? AND e.muscle_group = ?`,
+    [input.day, input.muscle_group],
   );
-  const sortOrder = (tail?.max_order ?? -1) + 1;
+
+  // Bail before shifting if this exercise is already on the day: the insert
+  // below would be ignored, leaving the shift as a permanent phantom gap.
+  const dupe = await db.getFirstAsync<{ id: number }>(
+    'SELECT id FROM day_exercises WHERE day = ? AND exercise_id = ?',
+    [input.day, libId],
+  );
+  if (dupe) return dupe.id;
+
+  let sortOrder: number;
+  if (groupTail?.max_order == null) {
+    // First exercise for this muscle group — append to the end of the day.
+    const dayTail = await db.getFirstAsync<{ max_order: number | null }>(
+      'SELECT MAX(sort_order) as max_order FROM day_exercises WHERE day = ?',
+      [input.day],
+    );
+    sortOrder = (dayTail?.max_order ?? -1) + 1;
+  } else {
+    // Insert directly after the group's last row, shifting everything at or
+    // beyond that slot to keep sort_order strictly ordered across the day.
+    sortOrder = groupTail.max_order + 1;
+    await db.runAsync(
+      'UPDATE day_exercises SET sort_order = sort_order + 1 WHERE day = ? AND sort_order >= ?',
+      [input.day, sortOrder],
+    );
+  }
 
   const result = await db.runAsync(
     `INSERT OR IGNORE INTO day_exercises (day, exercise_id, sets, warmup_sets, rep_range, sort_order, type, hold_seconds)
@@ -95,7 +126,8 @@ export async function createExercise(input: {
   );
 
   if (result.changes === 0) {
-    // Already on this day — return existing day_exercise id
+    // Racing insert beat us to it (the dupe pre-check above handles the common
+    // case). Fall back to the existing row.
     const existing = await db.getFirstAsync<{ id: number }>(
       'SELECT id FROM day_exercises WHERE day = ? AND exercise_id = ?',
       [input.day, libId],
@@ -103,6 +135,31 @@ export async function createExercise(input: {
     return existing!.id;
   }
   return result.lastInsertRowId as number;
+}
+
+/**
+ * Like `createExercise`, but reports whether a row was actually inserted.
+ *
+ * `day_exercises` has UNIQUE(day, exercise_id), so adding an exercise that is
+ * already on that day is a no-op that silently discards the sets/reps/notes the
+ * user just picked. Callers driven by a user tapping "Add" should use this and
+ * surface `created: false` instead of pretending it worked. Internal callers
+ * that only need an id (superset partners, day copies) can keep using
+ * `createExercise`.
+ */
+export async function createExerciseChecked(
+  input: Parameters<typeof createExercise>[0],
+): Promise<{ id: number; created: boolean }> {
+  const db = await getDb();
+  const before = await db.getFirstAsync<{ id: number }>(
+    `SELECT de.id FROM day_exercises de
+       JOIN exercises e ON e.id = de.exercise_id
+      WHERE de.day = ? AND LOWER(e.name) = LOWER(?)`,
+    [input.day, input.name.trim()],
+  );
+  if (before) return { id: before.id, created: false };
+  const id = await createExercise(input);
+  return { id, created: true };
 }
 
 export async function copyDayExercises(fromDay: Day, toDay: Day): Promise<void> {

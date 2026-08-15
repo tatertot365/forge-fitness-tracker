@@ -4,9 +4,7 @@ import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
-import { MUSCLE_LABEL, type MuscleGroup } from '../types';
-
-const GROUPS = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
+import { MUSCLE_GROUPS_ALPHA, MUSCLE_LABEL, type MuscleGroup } from '../types';
 
 type Props = {
   visible: boolean;
@@ -28,7 +26,7 @@ export function MuscleGroupPickerSheet({ visible, onClose, onSelect }: Props) {
             </Pressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
-            {GROUPS.map((g) => (
+            {MUSCLE_GROUPS_ALPHA.map((g) => (
               <Pressable
                 key={g}
                 onPress={() => { onSelect(g); onClose(); }}

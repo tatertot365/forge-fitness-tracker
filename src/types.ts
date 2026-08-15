@@ -204,3 +204,14 @@ export const MUSCLE_LABEL: Record<MuscleGroup, string> = {
   calves: 'Calves',
   core: 'Core',
 };
+
+/**
+ * Every muscle group, sorted A–Z by display label so pickers read predictably.
+ * `MUSCLE_LABEL`'s own key order is anatomical (push → pull → legs → core) and
+ * is kept that way deliberately — don't reorder it to change picker order.
+ * Sorted by label, not by key, so "Back — width" sorts under B rather than by
+ * its 'back-width' slug.
+ */
+export const MUSCLE_GROUPS_ALPHA: MuscleGroup[] = (
+  Object.keys(MUSCLE_LABEL) as MuscleGroup[]
+).sort((a, b) => MUSCLE_LABEL[a].localeCompare(MUSCLE_LABEL[b]));

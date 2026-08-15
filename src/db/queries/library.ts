@@ -40,8 +40,11 @@ export async function createLibraryExercise(input: {
     [input.name.trim(), input.muscle_group, input.notes ?? null],
   );
   if (result.changes === 0) {
+    // `exercises.name` is UNIQUE and case-SENSITIVE, so the row that blocked the
+    // insert is the exact-case match. Matching on LOWER() here could bind to a
+    // different-cased row than the one that actually conflicted.
     const existing = await db.getFirstAsync<{ id: number }>(
-      'SELECT id FROM exercises WHERE LOWER(name) = LOWER(?)',
+      'SELECT id FROM exercises WHERE name = ?',
       [input.name.trim()],
     );
     return existing!.id;

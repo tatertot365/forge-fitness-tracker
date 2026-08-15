@@ -100,14 +100,14 @@ export function BodyStatsCard({
       <Card style={{ marginTop: 10 }}>
         <View style={styles.glanceHeader}>
           <Text style={styles.glanceTitle}>Goal progress</Text>
-          <Text style={styles.glanceNav}>Measure →</Text>
+          <Text style={styles.glanceNav}>Body →</Text>
         </View>
 
         {!hasGoals || noMeasurements ? (
           <Text style={styles.goalsEmptyText}>
             {noMeasurements
-              ? "Log a check-in in Measure to start tracking progress →"
-              : "Set weight & body fat goals in Measure →"}
+              ? "Log a check-in in Body to start tracking progress →"
+              : "Set weight & body fat goals in Body →"}
           </Text>
         ) : (
           <View style={{ gap: 12 }}>

@@ -23,7 +23,7 @@ export default function TabsLayout() {
 
       <NativeTabs.Trigger name="session">
         <NativeTabs.Trigger.Icon sf="dumbbell.fill" />
-        <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Workout</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
 
       <NativeTabs.Trigger name="food">
@@ -33,7 +33,7 @@ export default function TabsLayout() {
 
       <NativeTabs.Trigger name="measure">
         <NativeTabs.Trigger.Icon sf="ruler.fill" />
-        <NativeTabs.Trigger.Label>Measure</NativeTabs.Trigger.Label>
+        <NativeTabs.Trigger.Label>Body</NativeTabs.Trigger.Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );

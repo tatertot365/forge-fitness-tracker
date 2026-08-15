@@ -303,6 +303,9 @@ export default function TodayScreen() {
   const cardioTarget = CARDIO_TARGET[phase];
   const todayPlan = dayPlans?.[today];
   const todayEnabled = !!todayPlan?.enabled;
+  // Focus name is optional; fall back to the day name for the card title.
+  // `hasFocus` lets the subtitle avoid rendering "Saturday — saturday".
+  const hasFocus = !!todayPlan?.name;
   const todayFocus = todayPlan?.name || DAY_LABEL[today];
   const sessionFinalized = !!weekSessions?.[today]?.completed_at;
   const sessionIsComplete =
@@ -338,8 +341,12 @@ export default function TodayScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.title}>Home</Text>
           <Text style={styles.subtitle}>
-            {DAY_LABEL[today]} —{" "}
-            {todayEnabled ? todayFocus.toLowerCase() : "rest day"}
+            {DAY_LABEL[today]}
+            {todayEnabled
+              ? hasFocus
+                ? ` — ${todayFocus.toLowerCase()}`
+                : ""
+              : " — rest day"}
           </Text>
         </View>
         <Pressable

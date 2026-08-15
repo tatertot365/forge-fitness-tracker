@@ -53,6 +53,7 @@ export default function MeasureScreen() {
   const {
     latest,
     prior,
+    comparisonDays,
     starting,
     history,
     bodyGoals,
@@ -120,6 +121,19 @@ export default function MeasureScreen() {
 
   const hasBfHistory = history.some((m) => m.body_fat_pct != null);
 
+  // Deltas compare against the previous check-in, whenever that was. Name the
+  // interval so an arrow spanning months is not read as a week of progress.
+  const comparisonLabel =
+    comparisonDays == null
+      ? null
+      : comparisonDays === 1
+        ? "vs yesterday"
+        : comparisonDays < 14
+          ? `vs ${comparisonDays} days ago`
+          : comparisonDays < 60
+            ? `vs ${Math.round(comparisonDays / 7)} weeks ago`
+            : `vs ${Math.round(comparisonDays / 30)} months ago`;
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -174,6 +188,9 @@ export default function MeasureScreen() {
         )}
 
         {/* Stats grid: weight, body fat, lean mass */}
+        {comparisonLabel ? (
+          <Text style={styles.comparisonNote}>{comparisonLabel}</Text>
+        ) : null}
         <View style={styles.statsGrid}>
           <StatCard
             label="Weight"

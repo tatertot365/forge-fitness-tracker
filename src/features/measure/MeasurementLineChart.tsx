@@ -4,6 +4,7 @@ import Svg, { Circle, Line, Path } from "react-native-svg";
 import { colors } from "../../theme/colors";
 import { type Measurement } from "../../types";
 import { useStyles } from "../../theme/useStyles";
+import { daysBetween } from "../../utils/date";
 import { shortDate } from "./helpers";
 
 // ─── Chart ────────────────────────────────────────────────────────────
@@ -24,9 +25,8 @@ export function MeasurementLineChart({
   const styles = useStyles(makeStyles);
   const { width } = useWindowDimensions();
   const points = data
-    .map((m, i) => ({ i, value: m[valueKey] as number | null, date: m.date }))
+    .map((m) => ({ value: m[valueKey] as number | null, date: m.date }))
     .filter((p) => p.value != null) as {
-    i: number;
     value: number;
     date: string;
   }[];
@@ -53,15 +53,21 @@ export function MeasurementLineChart({
   const minVal = Math.min(...values);
   const maxVal = Math.max(...values);
   const range = maxVal - minVal || 1;
-  const totalSlots = data.length - 1 || 1;
 
-  const toX = (idx: number) => padX + (idx / totalSlots) * innerW;
+  // Space points by elapsed days, not by array position. Indexing made three
+  // daily weigh-ins and a five-month gap render as four evenly spaced points,
+  // so the slope of the line said nothing about the rate of change.
+  const firstDate = points[0].date;
+  const spanDays = daysBetween(firstDate, points[points.length - 1].date) || 1;
+
+  const toX = (date: string) =>
+    padX + (daysBetween(firstDate, date) / spanDays) * innerW;
   const toY = (v: number) => padY + (1 - (v - minVal) / range) * innerH;
 
   const pathD = points
     .map(
       (p, i) =>
-        `${i === 0 ? "M" : "L"} ${toX(p.i).toFixed(1)} ${toY(p.value).toFixed(1)}`,
+        `${i === 0 ? "M" : "L"} ${toX(p.date).toFixed(1)} ${toY(p.value).toFixed(1)}`,
     )
     .join(" ");
 
@@ -112,7 +118,7 @@ export function MeasurementLineChart({
         {points.map((p) => (
           <Circle
             key={p.date}
-            cx={toX(p.i)}
+            cx={toX(p.date)}
             cy={toY(p.value)}
             r={3}
             fill={color}

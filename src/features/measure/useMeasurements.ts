@@ -6,12 +6,13 @@ import {
   getMeasurementHistory,
   getUserProfile,
   latestMeasurement,
-  measurementOneWeekAgo,
+  comparisonMeasurement,
   setUserProfile,
   startingMeasurement,
   type BodyGoals,
 } from "../../db/queries";
 import { type Measurement } from "../../types";
+import { daysBetween } from "../../utils/date";
 import { type UserProfile } from "../../utils/tdee";
 
 type StartingMeasurement = {
@@ -50,7 +51,7 @@ export function useMeasurements() {
     await backfillBodyGoalStarts();
     const [l, p, h, prof, bg, st] = await Promise.all([
       latestMeasurement(),
-      measurementOneWeekAgo(),
+      comparisonMeasurement(),
       getMeasurementHistory(),
       getUserProfile(),
       getBodyGoals(),
@@ -77,9 +78,16 @@ export function useMeasurements() {
     setProfile((p) => ({ ...p, ...patch }));
   }, []);
 
+  // How far back `prior` actually sits. Null when there is nothing to compare
+  // against, so the UI can label the delta with a real interval instead of
+  // implying a week that may not exist.
+  const comparisonDays =
+    latest && prior ? daysBetween(prior.date, latest.date) : null;
+
   return {
     latest,
     prior,
+    comparisonDays,
     starting,
     history,
     bodyGoals,

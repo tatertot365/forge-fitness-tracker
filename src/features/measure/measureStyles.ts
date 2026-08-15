@@ -89,6 +89,11 @@ export const makeStyles = (s: (n: number) => number) => StyleSheet.create({
 
   // Stats grid
   statsGrid: { flexDirection: "row", gap: 8, marginBottom: 2 },
+  comparisonNote: {
+    fontSize: s(11),
+    color: colors.textMuted,
+    marginBottom: 6,
+  },
   // Ratio card
   ratioCard: {
     backgroundColor: colors.card,

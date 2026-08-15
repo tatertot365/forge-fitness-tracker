@@ -1,4 +1,5 @@
 import { Minus, Plus, Trash2, X } from "lucide-react-native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -28,6 +29,9 @@ import {
   type ExerciseType,
 } from "../../types";
 import { hapticSuccess } from "../../utils/haptics";
+
+const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight"];
+const TYPE_LABELS = ["Normal", "Drop", "Superset", "Bodyweight"];
 
 export function EditExerciseSheet({
   visible,
@@ -220,36 +224,19 @@ export function EditExerciseSheet({
               />
 
               <Text style={styles.fieldLabel}>Type</Text>
-              <View style={styles.segmented}>
-                {(
-                  ["normal", "drop", "superset", "bodyweight"] as ExerciseType[]
-                ).map((t) => (
-                  <Pressable
-                    key={t}
-                    onPress={() => setType(t)}
-                    style={({ pressed }) => [
-                      styles.segment,
-                      type === t && styles.segmentActive,
-                      pressed && { opacity: 0.7 },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.segmentText,
-                        type === t && styles.segmentTextActive,
-                      ]}
-                    >
-                      {t === "normal"
-                        ? "Normal"
-                        : t === "drop"
-                          ? "Drop"
-                          : t === "superset"
-                            ? "Superset"
-                            : "Bodyweight"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <SegmentedControl
+                values={TYPE_LABELS}
+                selectedIndex={TYPE_ORDER.indexOf(type)}
+                onChange={(e) =>
+                  setType(TYPE_ORDER[e.nativeEvent.selectedSegmentIndex])
+                }
+                appearance="dark"
+                tintColor={colors.primary}
+                backgroundColor={colors.card}
+                fontStyle={{ color: colors.textSecondary }}
+                activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+                style={styles.segmentedNative}
+              />
 
               {type === "superset" ? (
                 <>
@@ -424,24 +411,7 @@ const makeStyles = (s: (n: number) => number) =>
     paddingVertical: 10,
   },
     deleteBtnText: { color: colors.red, fontSize: s(14), fontWeight: "600" },
-    segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-  },
-    segment: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-    segmentActive: { backgroundColor: colors.primary },
-    segmentText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
-    segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
+    segmentedNative: { marginBottom: 4 },
     partnerOption: {
     paddingVertical: 10,
     paddingHorizontal: 12,

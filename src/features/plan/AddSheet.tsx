@@ -1,4 +1,5 @@
 import { Minus, Plus, X } from "lucide-react-native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
@@ -63,6 +64,12 @@ type AddSheetProps = {
 };
 
 type AddMode = "library" | "stretches" | "new";
+
+const TYPE_ORDER: ExerciseType[] = ["normal", "superset", "drop", "bodyweight"];
+const TYPE_LABELS = ["Normal", "Superset", "Drop", "Bodyweight"];
+
+const MODE_ORDER = ["library", "stretches", "new"] as const;
+const MODE_LABELS = ["Library", "Stretches", "New"];
 
 export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
   const ss = useStyles(makeSs);
@@ -303,28 +310,19 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
               contentContainerStyle={{ paddingBottom: 4 }}
             >
               {/* Mode toggle */}
-              <View style={ss.modeToggle}>
-                {(["library", "stretches", "new"] as AddMode[]).map((m) => (
-                  <Pressable
-                    key={m}
-                    onPress={() => switchMode(m)}
-                    style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
-                  >
-                    <Text
-                      style={[
-                        ss.modeBtnText,
-                        mode === m && ss.modeBtnTextActive,
-                      ]}
-                    >
-                      {m === "library"
-                        ? "Library"
-                        : m === "stretches"
-                          ? "Stretches"
-                          : "New"}
-                    </Text>
-                  </Pressable>
-                ))}
-              </View>
+              <SegmentedControl
+                values={MODE_LABELS}
+                selectedIndex={MODE_ORDER.indexOf(mode)}
+                onChange={(e) =>
+                  switchMode(MODE_ORDER[e.nativeEvent.selectedSegmentIndex])
+                }
+                appearance="dark"
+                tintColor={colors.primary}
+                backgroundColor={colors.card}
+                fontStyle={{ color: colors.textSecondary }}
+                activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+                style={ss.modeToggleNative}
+              />
 
               {/* Library mode: search all + filter chips + list */}
               {mode === "library" && (
@@ -791,41 +789,19 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
                   {type !== "stretch" && (
                     <>
                       <Text style={ss.fieldLabel}>Type</Text>
-                      <View style={ss.segmented}>
-                        {(
-                          [
-                            "normal",
-                            "superset",
-                            "drop",
-                            "bodyweight",
-                          ] as ExerciseType[]
-                        ).map((t) => (
-                          <Pressable
-                            key={t}
-                            onPress={() => setType(t)}
-                            style={({ pressed }) => [
-                              ss.segment,
-                              type === t && ss.segmentActive,
-                              pressed && { opacity: 0.7 },
-                            ]}
-                          >
-                            <Text
-                              style={[
-                                ss.segmentText,
-                                type === t && ss.segmentTextActive,
-                              ]}
-                            >
-                              {t === "normal"
-                                ? "Normal"
-                                : t === "superset"
-                                  ? "Superset"
-                                  : t === "drop"
-                                    ? "Drop"
-                                    : "Bodyweight"}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
+                      <SegmentedControl
+                        values={TYPE_LABELS}
+                        selectedIndex={TYPE_ORDER.indexOf(type)}
+                        onChange={(e) =>
+                          setType(TYPE_ORDER[e.nativeEvent.selectedSegmentIndex])
+                        }
+                        appearance="dark"
+                        tintColor={colors.primary}
+                        backgroundColor={colors.card}
+                        fontStyle={{ color: colors.textSecondary }}
+                        activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+                        style={ss.segmentedNative}
+                      />
                     </>
                   )}
 

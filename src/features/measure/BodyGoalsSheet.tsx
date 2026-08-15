@@ -7,6 +7,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Switch,
   Text,
   TextInput,
   View,
@@ -114,18 +115,19 @@ export function BodyGoalsSheet({
               placeholder="e.g. 5"
               placeholderTextColor={colors.textMuted}
             />
-            <Pressable
-              onPress={() => setShowRatio((v) => !v)}
-              style={styles.toggleRow}
-            >
+            <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleLabel}>Shoulder-to-waist ratio</Text>
                 <Text style={styles.toggleSub}>Show ratio card on Measurements tab</Text>
               </View>
-              <View style={[styles.toggleTrack, showRatio && styles.toggleTrackOn]}>
-                <View style={[styles.toggleThumb, showRatio && styles.toggleThumbOn]} />
-              </View>
-            </Pressable>
+              <Switch
+                value={showRatio}
+                onValueChange={setShowRatio}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+                ios_backgroundColor={colors.card}
+              />
+            </View>
             <Pressable
               onPress={save}
               style={({ pressed }) => [
@@ -185,21 +187,6 @@ const makeStyles = (s: (n: number) => number) =>
   },
     toggleLabel: { fontSize: s(14), fontWeight: "500", color: colors.text },
     toggleSub: { fontSize: s(12), color: colors.textSecondary, marginTop: 2 },
-    toggleTrack: {
-    width: 44,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: colors.border,
-    padding: 3,
-  },
-    toggleTrackOn: { backgroundColor: colors.primary },
-    toggleThumb: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#FFFFFF",
-  },
-    toggleThumbOn: { transform: [{ translateX: 18 }] },
     sheetBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
     sheet: {
     backgroundColor: colors.background,

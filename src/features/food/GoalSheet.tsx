@@ -1,4 +1,5 @@
 import { X } from "lucide-react-native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useState } from "react";
 import {
   ActionSheetIOS,
@@ -38,6 +39,9 @@ const ACTIVITY_LEVELS: ActivityLevel[] = [
   "active",
   "very_active",
 ];
+
+const MODE_ORDER = ["calculated", "manual"] as const;
+const MODE_LABELS = ["Calculated", "Manual"];
 
 export function GoalSheet({
   visible,
@@ -206,24 +210,19 @@ export function GoalSheet({
           </View>
 
           {/* Mode toggle */}
-          <View style={styles.modeToggle}>
-            {(["calculated", "manual"] as const).map((m) => (
-              <Pressable
-                key={m}
-                onPress={() => switchMode(m)}
-                style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-              >
-                <Text
-                  style={[
-                    styles.modeBtnText,
-                    mode === m && styles.modeBtnTextActive,
-                  ]}
-                >
-                  {m === "calculated" ? "Calculated" : "Manual"}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
+          <SegmentedControl
+            values={MODE_LABELS}
+            selectedIndex={MODE_ORDER.indexOf(mode)}
+            onChange={(e) =>
+              switchMode(MODE_ORDER[e.nativeEvent.selectedSegmentIndex])
+            }
+            appearance="dark"
+            tintColor={colors.primary}
+            backgroundColor={colors.card}
+            fontStyle={{ color: colors.textSecondary }}
+            activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+            style={styles.modeToggleNative}
+          />
 
           <ScrollView
             showsVerticalScrollIndicator={false}
@@ -391,25 +390,7 @@ const makeStyles = (s: (n: number) => number) =>
     color: colors.textSecondary,
     lineHeight: 18,
   },
-    modeBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-    modeBtnActive: { backgroundColor: colors.primary },
-    modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
-    modeBtnTextActive: { color: "#FFFFFF", fontWeight: "600" },
-    modeToggle: {
-    flexDirection: "row",
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-    marginBottom: 16,
-  },
+    modeToggleNative: { marginBottom: 16 },
     pickerPlaceholder: { fontSize: s(15), color: colors.textMuted, flex: 1 },
     pickerRow: {
     flexDirection: "row",

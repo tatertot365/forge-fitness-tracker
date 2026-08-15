@@ -1,4 +1,5 @@
 import { Minus, Plus, X } from 'lucide-react-native';
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   Alert,
@@ -41,6 +42,12 @@ type Props = {
 type Mode = 'library' | 'stretches' | 'new';
 
 const ALL_MUSCLE_GROUPS: MuscleGroup[] = Object.keys(MUSCLE_LABEL) as MuscleGroup[];
+
+const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight"];
+const TYPE_LABELS = ["Normal", "Drop", "Superset", "Bodyweight"];
+
+const MODE_ORDER = ["library", "stretches", "new"] as const;
+const MODE_LABELS = ["Library", "Stretches", "New"];
 
 export function AddExerciseSheet({
   visible,
@@ -236,23 +243,19 @@ export function AddExerciseSheet({
             </View>
 
             {/* Mode toggle */}
-            <View style={styles.modeToggle}>
-              {(['library', 'stretches', 'new'] as Mode[]).map((m) => (
-                <Pressable
-                  key={m}
-                  onPress={() => switchMode(m)}
-                  style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-                >
-                  <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>
-                    {m === 'library'
-                      ? 'Library'
-                      : m === 'stretches'
-                        ? 'Stretches'
-                        : 'New'}
-                  </Text>
-                </Pressable>
-              ))}
-            </View>
+            <SegmentedControl
+              values={MODE_LABELS}
+              selectedIndex={MODE_ORDER.indexOf(mode)}
+              onChange={(e) =>
+                switchMode(MODE_ORDER[e.nativeEvent.selectedSegmentIndex])
+              }
+              appearance="dark"
+              tintColor={colors.primary}
+              backgroundColor={colors.card}
+              fontStyle={{ color: colors.textSecondary }}
+              activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+              style={styles.modeToggleNative}
+            />
 
             <ScrollView
               keyboardShouldPersistTaps="handled"
@@ -593,23 +596,19 @@ export function AddExerciseSheet({
                   {type !== 'stretch' && (
                     <>
                       <Text style={styles.fieldLabel}>Type</Text>
-                      <View style={styles.segmented}>
-                        {(['normal', 'drop', 'superset', 'bodyweight'] as ExerciseType[]).map((t) => (
-                          <Pressable
-                            key={t}
-                            onPress={() => setType(t)}
-                            style={({ pressed }) => [
-                              styles.segment,
-                              type === t && styles.segmentActive,
-                              pressed && { opacity: 0.7 },
-                            ]}
-                          >
-                            <Text style={[styles.segmentText, type === t && styles.segmentTextActive]}>
-                              {t === 'normal' ? 'Normal' : t === 'drop' ? 'Drop' : t === 'superset' ? 'Superset' : 'Bodyweight'}
-                            </Text>
-                          </Pressable>
-                        ))}
-                      </View>
+                      <SegmentedControl
+                        values={TYPE_LABELS}
+                        selectedIndex={TYPE_ORDER.indexOf(type)}
+                        onChange={(e) =>
+                          setType(TYPE_ORDER[e.nativeEvent.selectedSegmentIndex])
+                        }
+                        appearance="dark"
+                        tintColor={colors.primary}
+                        backgroundColor={colors.card}
+                        fontStyle={{ color: colors.textSecondary }}
+                        activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+                        style={styles.segmentedNative}
+                      />
                     </>
                   )}
                 </>
@@ -693,26 +692,7 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   title: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
 
-  modeToggle: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-    marginBottom: 14,
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: '500' },
-  modeBtnTextActive: { color: '#FFFFFF', fontWeight: '600' },
-
+  modeToggleNative: { marginBottom: 16 },
   chipRow: {
     flexDirection: 'row',
     gap: 6,
@@ -845,25 +825,7 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
-  segmented: {
-    flexDirection: 'row',
-    backgroundColor: colors.card,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: 'center',
-    borderRadius: 8,
-  },
-  segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: s(12), color: colors.textSecondary, fontWeight: '500' },
-  segmentTextActive: { color: '#FFFFFF', fontWeight: '600' },
-
+  segmentedNative: { marginBottom: 4 },
   saveBtn: {
     marginTop: 20,
     backgroundColor: colors.primary,

@@ -1,4 +1,5 @@
 import { Minus, Plus } from "lucide-react-native";
+import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useState } from "react";
 import { Pressable, Text, TextInput, View } from "react-native";
 import { colors, muscleAccent } from "../../theme/colors";
@@ -43,6 +44,9 @@ export type PartnerPickerProps = {
   value: PartnerPickerValue | null;
   onChange: (v: PartnerPickerValue | null) => void;
 };
+
+const MODE_ORDER = ["library", "new"] as const;
+const MODE_LABELS = ["From this day", "Create new"];
 
 export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
   const ss = useStyles(makeSs);
@@ -105,19 +109,19 @@ export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerPr
 
   return (
     <View>
-      <View style={[ss.modeToggle, { marginTop: 6 }]}>
-        {(["library", "new"] as const).map((m) => (
-          <Pressable
-            key={m}
-            onPress={() => switchMode(m)}
-            style={[ss.modeBtn, mode === m && ss.modeBtnActive]}
-          >
-            <Text style={[ss.modeBtnText, mode === m && ss.modeBtnTextActive]}>
-              {m === "library" ? "From this day" : "Create new"}
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+      <SegmentedControl
+        values={MODE_LABELS}
+        selectedIndex={MODE_ORDER.indexOf(mode)}
+        onChange={(e) =>
+          switchMode(MODE_ORDER[e.nativeEvent.selectedSegmentIndex])
+        }
+        appearance="dark"
+        tintColor={colors.primary}
+        backgroundColor={colors.card}
+        fontStyle={{ color: colors.textSecondary }}
+        activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
+        style={[ss.modeToggleNative, { marginTop: 6 }]}
+      />
 
       {mode === "library" && (
         <>

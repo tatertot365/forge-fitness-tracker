@@ -67,25 +67,7 @@ export const makeSs = (s: (n: number) => number) => StyleSheet.create({
     textAlign: "center",
     fontVariant: ["tabular-nums"],
   },
-  segmented: {
-    flexDirection: "row",
-    backgroundColor: colors.background,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-  },
-  segment: {
-    flex: 1,
-    paddingVertical: 8,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-  segmentActive: { backgroundColor: colors.primary },
-  segmentText: { fontSize: s(11), color: colors.textSecondary, fontWeight: "500" },
-  segmentTextActive: { color: "#FFFFFF", fontWeight: "600" },
-
+  segmentedNative: { marginBottom: 4 },
   saveBtn: {
     marginTop: 20,
     backgroundColor: colors.primary,
@@ -124,26 +106,7 @@ export const makeSs = (s: (n: number) => number) => StyleSheet.create({
   },
   pillText: { fontSize: s(12), color: colors.textSecondary, fontWeight: "500" },
 
-  modeToggle: {
-    flexDirection: "row",
-    backgroundColor: colors.background,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    padding: 3,
-    gap: 3,
-    marginBottom: 14,
-  },
-  modeBtn: {
-    flex: 1,
-    paddingVertical: 9,
-    alignItems: "center",
-    borderRadius: 8,
-  },
-  modeBtnActive: { backgroundColor: colors.primary },
-  modeBtnText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
-  modeBtnTextActive: { color: "#FFFFFF", fontWeight: "600" },
-
+  modeToggleNative: { marginBottom: 16 },
   listContainer: {
     borderRadius: 12,
     borderWidth: StyleSheet.hairlineWidth,

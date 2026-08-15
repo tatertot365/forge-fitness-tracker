@@ -12,6 +12,7 @@
   "dependencies": {
     "@kingstinct/react-native-healthkit": "^14.0.0",
     "@react-native-community/datetimepicker": "8.4.4",
+    "@react-native-segmented-control/segmented-control": "2.5.7",
     "expo": "~54.0.36",
     "expo-camera": "~17.0.10",
     "expo-constants": "~18.0.13",

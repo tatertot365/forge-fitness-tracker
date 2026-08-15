@@ -1,69 +1,40 @@
-import { Tabs } from "expo-router";
-import { Apple, Dumbbell, House, Ruler } from "lucide-react-native";
-import { StyleSheet, type ColorValue } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { NativeTabs } from "expo-router/unstable-native-tabs";
 import { colors } from "../../src/theme/colors";
 
-const ICON_SIZE = 22;
-const STROKE = 1.75;
-const BAR_CHROME = 56;
-
+// Native UITabBarController rather than the JS tab bar, so the bar picks up
+// the system Liquid Glass material on iOS 26. Icons must be SF Symbols —
+// a native tab item takes a symbol or an image, not a React component, so
+// the Lucide icons used elsewhere in the app can't be reused here.
+//
+// `systemChromeMaterialDark` matches the app's fixed dark theme; without an
+// explicit dark variant the bar would follow the system appearance and go
+// light on a light-mode device.
 export default function TabsLayout() {
-  const insets = useSafeAreaInsets();
-
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textSecondary,
-        tabBarStyle: {
-          height: BAR_CHROME + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: Math.max(insets.bottom, 8),
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: colors.border,
-          backgroundColor: colors.card,
-        },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: "500" },
-      }}
+    <NativeTabs
+      blurEffect="systemChromeMaterialDark"
+      tintColor={colors.primary}
+      minimizeBehavior="onScrollDown"
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Home",
-          tabBarIcon: ({ color }: { color: ColorValue }) => (
-            <House color={color} size={ICON_SIZE} strokeWidth={STROKE} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="session"
-        options={{
-          title: "Today",
-          tabBarIcon: ({ color }: { color: ColorValue }) => (
-            <Dumbbell color={color} size={ICON_SIZE} strokeWidth={STROKE} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="food"
-        options={{
-          title: "Food",
-          tabBarIcon: ({ color }: { color: ColorValue }) => (
-            <Apple color={color} size={ICON_SIZE} strokeWidth={STROKE} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="measure"
-        options={{
-          title: "Measure",
-          tabBarIcon: ({ color }: { color: ColorValue }) => (
-            <Ruler color={color} size={ICON_SIZE} strokeWidth={STROKE} />
-          ),
-        }}
-      />
-    </Tabs>
+      <NativeTabs.Trigger name="index">
+        <NativeTabs.Trigger.Icon sf="house.fill" />
+        <NativeTabs.Trigger.Label>Home</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="session">
+        <NativeTabs.Trigger.Icon sf="dumbbell.fill" />
+        <NativeTabs.Trigger.Label>Today</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="food">
+        <NativeTabs.Trigger.Icon sf="fork.knife" />
+        <NativeTabs.Trigger.Label>Food</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+
+      <NativeTabs.Trigger name="measure">
+        <NativeTabs.Trigger.Icon sf="ruler.fill" />
+        <NativeTabs.Trigger.Label>Measure</NativeTabs.Trigger.Label>
+      </NativeTabs.Trigger>
+    </NativeTabs>
   );
 }

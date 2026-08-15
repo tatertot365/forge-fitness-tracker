@@ -79,27 +79,38 @@ A personal training companion built with React Native and Expo. Forge runs entir
 
 | Layer | Technology |
 |---|---|
-| Framework | React Native 0.81.5 + Expo 54 |
-| Navigation | Expo Router (file-based, tab layout) |
+| Framework | React Native 0.86.2 + Expo SDK 57 |
+| Navigation | Expo Router 57 (file-based); native tabs via `unstable-native-tabs` |
 | Database | expo-sqlite (local SQLite, no backend) |
-| Animations | React Native Reanimated 4 |
-| Gestures | React Native Gesture Handler |
-| Health | react-native-health (HealthKit, iOS only) |
+| Animations | React Native Reanimated 4.5 + react-native-worklets |
+| Gestures | React Native Gesture Handler 2.32 |
+| Health | @kingstinct/react-native-healthkit (iOS only) |
 | Icons | lucide-react-native |
-| Date picker | @react-native-community/datetimepicker |
+| Native controls | @react-native-segmented-control/segmented-control, @react-native-community/datetimepicker |
 | Charts | react-native-svg (custom) |
-| Language | TypeScript |
-| Architecture | React Native New Architecture (enabled) |
+| Language | TypeScript 6 |
+| Architecture | React Native New Architecture (SDK 57 default) |
 
-All data is stored locally in a SQLite database. There is no server, no authentication, and no network requests.
+All personal data is stored locally in a SQLite database. There is no server, no
+authentication, and no account. The only outbound request in the app is the optional
+barcode lookup to the public [Open Food Facts](https://world.openfoodfacts.org) API,
+which sends a scanned barcode and nothing else — no personal data ever leaves the device.
+
+The tab bar uses `NativeTabs`, which renders a real `UITabBarController`. On iOS 26 that
+picks up Liquid Glass automatically; on earlier versions it falls back to the standard
+system tab bar.
 
 ---
 
 ## Project Structure
 
+Route files stay thin — they own screen state and composition, while the UI they render
+lives in `src/features/<domain>/`.
+
 ```
 app/
   (tabs)/
+    _layout.tsx      # NativeTabs (Liquid Glass on iOS 26)
     index.tsx        # Home screen
     session.tsx      # Session tab (today's workout)
     food.tsx         # Food log
@@ -107,32 +118,58 @@ app/
   day-session.tsx    # Day workout view (opened from weekly split)
   exercise/[id].tsx  # Exercise detail + set logging
   plan.tsx           # Weekly plan editor
+  settings.tsx       # App settings
 
 src/
-  components/        # Shared UI components
+  components/        # Shared UI used across features
+  features/          # Feature-scoped components, one folder per domain
+    session/         #   SummaryModal, CatchupRow, ...
+    food/            #   entry sheets, barcode scanner, macro rings
+    plan/            #   day editor sheets
+    measure/         #   body goals, profile, trend charts
+    exercise/        #   exercise edit sheets
+    home/            #   dashboard cards
   db/
     client.ts        # SQLite connection
     schema.ts        # Table definitions + migrations
-    queries.ts       # All database queries
+    queries/         # Queries split by domain, re-exported from index.ts
     seed.ts          # Default exercise library data
-  theme/             # Colors, spacing, typography
+  theme/
+    colors.ts        # Palette
+    spacing.ts       # Radius + typography scales
+    sheets.ts        # Shared bottom-sheet style primitives
+    useStyles.ts     # Responsive StyleSheet factory
   types.ts           # Shared TypeScript types
   utils/
     date.ts          # ISO date helpers, weekDates()
     tdee.ts          # BMR / TDEE / macro calculations
     haptics.ts       # Haptic feedback wrappers
+    openFoodFacts.ts # Barcode lookup
+    notifications.ts # Local notification scheduling
   health.ts          # HealthKit integration
 ```
+
+Everything in `src/db/queries/` is re-exported from its `index.ts`, so call sites import
+from `../db/queries` regardless of which module a query lives in.
+
+Styles use a responsive factory: `useStyles(makeStyles)`, where `makeStyles` takes a
+scale function `s` and returns a `StyleSheet.create({...})`. When composing shared
+primitives from `theme/sheets.ts`, spread an already-created sheet — spreading a plain
+object widens every key to a `ViewStyle | TextStyle | ImageStyle` union and breaks
+type-checking at the call site.
 
 ---
 
 ## Prerequisites
 
-- **Node.js** 18 or later
+- **Node.js** 20 or later (some build-time dependencies no longer support Node 18)
 - **npm** 9 or later
-- **Xcode** 15 or later (for iOS builds) — available from the Mac App Store
+- **Xcode** 16 or later (for iOS builds) — available from the Mac App Store
 - An **Apple Developer account** (free tier works for personal device installs)
 - A physical iOS device (recommended; simulator does not support HealthKit)
+
+The app targets **iOS 16.4 or later** (the Expo SDK 57 default). To see the Liquid Glass
+tab bar you need an iOS 26 device or simulator; older versions render the standard tab bar.
 
 ---
 
@@ -225,7 +262,8 @@ The SQLite database is created automatically on first launch. Migrations run on 
 
 ## Notes
 
-- **iOS only** in practice — HealthKit (`react-native-health`) is an iOS-only library. The app will build for Android but the health integration will be unavailable.
-- The app uses the **React Native New Architecture** (`newArchEnabled: true`). Ensure any third-party native libraries you add support it.
+- **iOS only** in practice — HealthKit (`@kingstinct/react-native-healthkit`) is an iOS-only library. The app will build for Android but the health integration will be unavailable.
+- The app runs on the **React Native New Architecture**, which is the default from Expo SDK 57 onward, so no `newArchEnabled` flag is set in `app.json`. Ensure any third-party native libraries you add support it.
+- `app.json` sets `userInterfaceStyle: "dark"`. This is load-bearing: it writes `UIUserInterfaceStyle` into `Info.plist`, and system UI (tab bar glass, action sheets, date pickers, context menus) renders in that mode. Setting it to `"light"` makes native chrome render light against the dark app.
 - `expo-dev-client` is required for local development because the app uses custom native modules (HealthKit, Reanimated, Gesture Handler). The standard Expo Go app will not work.
 - Age for TDEE calculations is derived at runtime from the stored date of birth, so it stays current across birthdays without requiring any data updates.

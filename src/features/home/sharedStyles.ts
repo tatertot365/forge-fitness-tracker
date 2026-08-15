@@ -3,7 +3,7 @@ import { colors } from "../../theme/colors";
 import { radius, typography } from "../../theme/spacing";
 
 // Home-screen chrome shared by more than one card or sheet: the bottom-sheet
-// frame (EditCardioSheet, ExportSheet) and the "glance" card header with its
+// frame (EditCardioSheet) and the "glance" card header with its
 // prev/next nav (MacroRingCard, BodyStatsCard).
 export const makeSharedStyles = (s: (n: number) => number) =>
   StyleSheet.create({

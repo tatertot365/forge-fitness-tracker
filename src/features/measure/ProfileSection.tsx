@@ -45,17 +45,27 @@ export function ProfileSection({
   heightInput,
   setHeightInput,
   commitHeight,
+  embedded = false,
 }: {
   profile: UserProfile;
   onSave: (patch: Partial<UserProfile>) => Promise<void>;
   heightInput: string;
   setHeightInput: (v: string) => void;
   commitHeight: () => void;
+  /**
+   * Hides the built-in "Profile" header and keeps the form open. Set this when
+   * the host screen already labels the section — otherwise the collapsible
+   * header stacks under a second heading saying the same thing.
+   */
+  embedded?: boolean;
 }) {
   const styles = useStyles(makeStyles);
   const [dobDate, setDobDate] = useState<Date | null>(null);
   const [showDobPicker, setShowDobPicker] = useState(false);
-  const [profileExpanded, setProfileExpanded] = useState(false);
+  const [collapsedOpen, setCollapsedOpen] = useState(false);
+  // In embedded mode the form is always open — there's no header to toggle it,
+  // so deriving this rather than seeding state avoids it getting stuck closed.
+  const profileExpanded = embedded || collapsedOpen;
 
   // Mirror the persisted date of birth into the local draft field.
   useEffect(() => {
@@ -77,8 +87,9 @@ export function ProfileSection({
 
   return (
     <>
+    {!embedded && (
     <Pressable
-      onPress={() => setProfileExpanded((v) => !v)}
+      onPress={() => setCollapsedOpen((v) => !v)}
       style={styles.profileHeader}
     >
       <Text style={styles.profileHeaderText}>Profile</Text>
@@ -101,6 +112,7 @@ export function ProfileSection({
         )}
       </View>
     </Pressable>
+    )}
     {profileExpanded && (
       <View style={styles.formCard}>
         <View style={styles.formRow}>

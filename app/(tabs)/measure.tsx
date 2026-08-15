@@ -31,9 +31,6 @@ import {
   makeStyles,
   MeasurementLineChart,
   StatCard,
-  HeightInputAccessory,
-  ProfileSection,
-  useHeightField,
   useMeasurements,
   type ParsedMeasurement,
 } from "../../src/features/measure";
@@ -60,14 +57,8 @@ export default function MeasureScreen() {
     history,
     bodyGoals,
     setBodyGoalsState,
-    profile,
-    saveProfile,
     reload,
   } = useMeasurements();
-  const { heightInput, setHeightInput, commitHeight } = useHeightField(
-    profile,
-    saveProfile,
-  );
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
 
@@ -213,14 +204,6 @@ export default function MeasureScreen() {
           />
         </View>
 
-        {/* Profile — collapsible */}
-        <ProfileSection
-          profile={profile}
-          onSave={saveProfile}
-          heightInput={heightInput}
-          setHeightInput={setHeightInput}
-          commitHeight={commitHeight}
-        />
         {/* Body goals */}
         {(bodyGoals.goal_weight_lb != null ||
           bodyGoals.goal_body_fat_pct != null) && (
@@ -357,8 +340,6 @@ export default function MeasureScreen() {
           </>
         ) : null}
       </Screen>
-
-      <HeightInputAccessory onDone={commitHeight} />
 
       {/* Edit modal */}
       <EditMeasurementSheet

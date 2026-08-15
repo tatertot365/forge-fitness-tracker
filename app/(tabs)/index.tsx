@@ -1,11 +1,10 @@
 import { useFocusEffect, useRouter } from "expo-router";
 import {
-  Download,
   Heart,
   Pencil,
   Plus,
-  Settings as SettingsIcon,
   SkipForward,
+  User as UserIcon,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
 import {
@@ -23,7 +22,6 @@ import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   BodyStatsCard,
   EditCardioSheet,
-  ExportSheet,
   MacroRingCard,
   MuscleGroupGrid,
   WeekStrip,
@@ -127,7 +125,6 @@ export default function TodayScreen() {
     description: "12° / 3 mph / 20–30 min",
   });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
-  const [exportModalOpen, setExportModalOpen] = useState(false);
   const [todayNutrition, setTodayNutrition] =
     useState<DailyNutritionTotal | null>(null);
   const [nutritionGoalSet, setNutritionGoalSet] = useState(false);
@@ -340,20 +337,12 @@ export default function TodayScreen() {
           <Text style={styles.title}>Home</Text>
         </View>
         <Pressable
-          onPress={() => setExportModalOpen(true)}
+          onPress={() => router.push("/profile" as any)}
           hitSlop={10}
-          style={({ pressed }) => [styles.exportBtn, pressed && { opacity: 0.6 }]}
+          accessibilityLabel="Profile"
+          style={({ pressed }) => [styles.profileBtn, pressed && { opacity: 0.6 }]}
         >
-          <Download size={12} color={colors.primary} strokeWidth={2} />
-          <Text style={styles.exportBtnText}>Export</Text>
-        </Pressable>
-        <Pressable
-          onPress={() => router.push("/settings")}
-          hitSlop={10}
-          accessibilityLabel="Settings"
-          style={({ pressed }) => [styles.settingsBtn, pressed && { opacity: 0.6 }]}
-        >
-          <SettingsIcon size={16} color={colors.text} strokeWidth={2} />
+          <UserIcon size={16} color={colors.text} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -569,10 +558,6 @@ export default function TodayScreen() {
           setEditCardioOpen(false);
         }}
       />
-      <ExportSheet
-        visible={exportModalOpen}
-        onClose={() => setExportModalOpen(false)}
-      />
     </Screen>
   );
 }
@@ -693,19 +678,7 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   editPlanText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
 
-  exportBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  exportBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
-  settingsBtn: {
+  profileBtn: {
     width: 32,
     height: 32,
     alignItems: "center",

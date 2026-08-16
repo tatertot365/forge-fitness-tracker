@@ -68,6 +68,7 @@ import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
 import {
   DAY_LABEL,
+  DAYS,
   type CatchupItem,
   type DailyNutritionTotal,
   type Day,
@@ -297,6 +298,23 @@ export default function TodayScreen() {
     if (verified) hapticSuccess();
   };
 
+  // Week totals reduce from maps already loaded for the strip -- no extra query.
+  // Completed is clamped per-day against that day's plan so a day whose
+  // exercises were deleted mid-week can't push the total past the denominator.
+  const weekCompletedSets = DAYS.reduce(
+    (sum, d) =>
+      sum + Math.min(weekLogCounts?.[d] ?? 0, weekTotalSetCounts?.[d] ?? 0),
+    0,
+  );
+  const weekPlannedSets = DAYS.reduce(
+    (sum, d) => sum + (weekTotalSetCounts?.[d] ?? 0),
+    0,
+  );
+  const weekTrainingDays = DAYS.filter((d) => dayPlans?.[d]?.enabled).length;
+  const weekDaysTrained = DAYS.filter(
+    (d) => (weekLogCounts?.[d] ?? 0) > 0,
+  ).length;
+
   const cardioTarget = CARDIO_TARGET[phase];
   const todayPlan = dayPlans?.[today];
   const todayEnabled = !!todayPlan?.enabled;
@@ -350,7 +368,9 @@ export default function TodayScreen() {
       <Pressable
         onPress={() =>
           todayEnabled && todayExerciseCount > 0
-            ? router.push(`/session?day=${today}`)
+            ? // The Workout tab derives its own day from dayOfWeek(); it takes
+              // no route params, so passing ?day= here only looked meaningful.
+              router.push("/session" as any)
             : router.push("/plan")
         }
         style={({ pressed }) => [
@@ -469,6 +489,37 @@ export default function TodayScreen() {
       >
         Weekly split
       </SectionLabel>
+      {weekPlannedSets > 0 ? (
+        <Card style={styles.weekSummaryCard}>
+          <View style={styles.weekSummaryRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.weekSummaryValue}>
+                {weekCompletedSets}
+                <Text style={styles.weekSummaryDenom}>
+                  {" / "}
+                  {weekPlannedSets} sets
+                </Text>
+              </Text>
+              <Text style={styles.weekSummaryMeta}>
+                {weekDaysTrained} of {weekTrainingDays} training day
+                {weekTrainingDays === 1 ? "" : "s"}
+              </Text>
+            </View>
+          </View>
+          <View style={{ marginTop: 10 }}>
+            <ProgressBar
+              value={weekCompletedSets}
+              max={weekPlannedSets}
+              color={
+                weekCompletedSets >= weekPlannedSets
+                  ? colors.green
+                  : colors.primary
+              }
+            />
+          </View>
+        </Card>
+      ) : null}
+
       <WeekStrip
         today={today}
         todayDate={todayDate}
@@ -612,6 +663,24 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
 
   // Week strip
   // Cardio
+  weekSummaryCard: { marginBottom: 8 },
+  weekSummaryRow: { flexDirection: "row", alignItems: "center" },
+  weekSummaryValue: {
+    ...typography.metricValue,
+    fontSize: s(22),
+    color: colors.text,
+    fontVariant: ["tabular-nums"],
+  },
+  weekSummaryDenom: {
+    fontSize: s(14),
+    color: colors.textSecondary,
+    fontWeight: "500",
+  },
+  weekSummaryMeta: {
+    fontSize: s(12),
+    color: colors.textSecondary,
+    marginTop: 2,
+  },
   cardioTitle: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
   cardioMeta: {
     ...typography.caption,

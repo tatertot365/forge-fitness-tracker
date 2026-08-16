@@ -103,10 +103,17 @@ export async function getWeekTotalSetCounts(reference?: Date): Promise<Record<Da
   // Sets for exercises that were skipped during this week. We attribute the
   // skip to the exercise's plan day via day_exercises.day so the subtraction
   // lands on the same day-of-week the home dot represents.
+  //
+  // catchup_skips.exercise_id holds a *day_exercises.id* (see skipCatchupItem,
+  // which is called with `ex.id`), so it joins to de.id -- NOT de.exercise_id,
+  // which is the library exercises.id. Matching the wrong column silently
+  // subtracted another exercise's sets from the wrong day: a skip of
+  // day_exercises 9101 matched the unrelated row whose exercise_id happened to
+  // be 9101, deflating that day's denominator.
   const skipRows = await db.getAllAsync<{ day: Day; total: number }>(
     `SELECT de.day, SUM(de.sets) AS total
      FROM catchup_skips cs
-     JOIN day_exercises de ON de.exercise_id = cs.exercise_id
+     JOIN day_exercises de ON de.id = cs.exercise_id
      WHERE cs.date_missed IN (${dates.map(() => '?').join(',')})
      GROUP BY de.day`,
     dates,

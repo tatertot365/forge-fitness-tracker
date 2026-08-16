@@ -360,7 +360,7 @@ export default function TodayScreen() {
           accessibilityLabel="Profile"
           style={({ pressed }) => [styles.profileBtn, pressed && { opacity: 0.6 }]}
         >
-          <UserIcon size={16} color={colors.text} strokeWidth={2} />
+          <UserIcon size={19} color={colors.text} strokeWidth={2} />
         </Pressable>
       </View>
 
@@ -748,8 +748,8 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   editPlanText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
 
   profileBtn: {
-    width: 32,
-    height: 32,
+    width: 36,
+    height: 36,
     alignItems: "center",
     justifyContent: "center",
     borderRadius: radius.pill,

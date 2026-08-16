@@ -83,7 +83,7 @@ export function calculateTdee(input: TdeeInput): TdeeResult {
       if (!profile.sex) missing.push('sex');
       return {
         ok: false,
-        reason: `To calculate without body fat %, please add your ${missing.join(', ')} in the Measurements tab.`,
+        reason: `To calculate without body fat %, please add your ${missing.join(', ')} in the Body tab.`,
       };
     }
     const age = ageFromDob(profile.dob);

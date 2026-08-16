@@ -161,7 +161,7 @@ export default function MeasureScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>Measurements</Text>
+            <Text style={styles.title}>Body</Text>
           </View>
           {/* Logging is the frequent action, so it is the only thing in the
               header and reads as primary. Goals are edited from the card that

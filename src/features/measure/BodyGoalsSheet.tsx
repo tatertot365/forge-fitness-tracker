@@ -118,7 +118,7 @@ export function BodyGoalsSheet({
             <View style={styles.toggleRow}>
               <View style={{ flex: 1 }}>
                 <Text style={styles.toggleLabel}>Shoulder-to-waist ratio</Text>
-                <Text style={styles.toggleSub}>Show ratio card on Measurements tab</Text>
+                <Text style={styles.toggleSub}>Show ratio card on Body tab</Text>
               </View>
               <Switch
                 value={showRatio}

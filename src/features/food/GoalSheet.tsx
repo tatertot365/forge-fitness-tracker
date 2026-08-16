@@ -95,7 +95,7 @@ export function GoalSheet({
       ]);
       if (!measurement?.weight_lb) {
         setCalcError(
-          "No weight logged yet. Add an entry in the Measurements tab first.",
+          "No weight logged yet. Add an entry in the Body tab first.",
         );
         setCalculated(null);
         return;

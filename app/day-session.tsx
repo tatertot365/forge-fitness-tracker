@@ -161,8 +161,12 @@ export default function DaySessionScreen() {
   }, [exercises]);
 
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
-  const completedTotal = Object.values(completedByExercise).reduce(
-    (a, b) => a + b,
+  // Count only sets belonging to exercises still on screen, capped at what each
+  // one calls for. Skipping an exercise removes it from `exercises` while its
+  // logs stay in `setLogs`, which would otherwise inflate this past totalSets
+  // and suppress the "finish early" confirmation.
+  const completedTotal = exercises.reduce(
+    (sum, e) => sum + Math.min(completedByExercise[e.exercise_id] ?? 0, e.sets),
     0,
   );
   const volume = setLogs.reduce(

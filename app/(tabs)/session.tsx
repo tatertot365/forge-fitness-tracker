@@ -9,12 +9,14 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { Card } from "../../src/components/Card";
+import { ProgressBar } from "../../src/components/ProgressBar";
 import { CooldownSheet } from "../../src/components/CooldownSheet";
 import { ExerciseRow } from "../../src/components/ExerciseRow";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../../src/components/SwipeableExerciseRow";
 import {
+  SessionClock,
   SummaryModal,
   SwipeableCatchupRow,
 } from "../../src/features/session";
@@ -28,6 +30,7 @@ import {
   getExercisesByDay,
   getLastCompletedSetsForExercise,
   getOrCreateSession,
+  getSessionStartedAt,
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
@@ -68,6 +71,7 @@ export default function SessionScreen() {
   const [lastBestMap, setLastBestMap] = useState<Record<number, string | null>>(
     {},
   );
+  const [startedAt, setStartedAt] = useState<string | null>(null);
   const [dayPlan, setDayPlan] = useState<DayPlan | null>(null);
   const [catchup, setCatchup] = useState<CatchupItem[]>([]);
   const [catchupOpen, setCatchupOpen] = useState(false);
@@ -106,14 +110,17 @@ export default function SessionScreen() {
       setSessionId(null);
       setSetLogs([]);
       setLastBestMap({});
+      setStartedAt(null);
       return;
     }
     const sid = await getOrCreateSession(currentDay, currentDate);
-    const [ex, logs, skippedIds] = await Promise.all([
+    const [ex, logs, skippedIds, startedIso] = await Promise.all([
       getExercisesByDay(currentDay),
       getSetLogsForSession(sid),
       getSkippedExerciseIds(currentDate),
+      getSessionStartedAt(sid),
     ]);
+    setStartedAt(startedIso);
     const filtered = ex.filter((e) => !skippedIds.has(e.id));
     const lastMap: Record<number, string | null> = {};
     await Promise.all(
@@ -204,8 +211,6 @@ export default function SessionScreen() {
       s + (l.completed && l.weight_lb && l.reps ? l.weight_lb * l.reps : 0),
     0,
   );
-  const progressPct =
-    totalSets > 0 ? Math.min(1, completedTotal / totalSets) : 0;
   const hasProgress = completedTotal > 0;
   const allSetsDone = totalSets > 0 && completedTotal >= totalSets;
 
@@ -382,18 +387,17 @@ export default function SessionScreen() {
 
         {totalSets > 0 ? (
           <View style={styles.progressWrap}>
-            <View style={styles.progressBarTrack}>
-              <View
-                style={[
-                  styles.progressBarFill,
-                  { width: `${Math.round(progressPct * 100)}%` },
-                  allSetsDone && { backgroundColor: colors.green },
-                ]}
+            <View style={{ flex: 1 }}>
+              <ProgressBar
+                value={completedTotal}
+                max={totalSets}
+                color={allSetsDone ? colors.green : colors.primary}
               />
             </View>
             <Text style={styles.progressText}>
               {completedTotal}/{totalSets} sets
             </Text>
+            <SessionClock startedAt={startedAt} />
           </View>
         ) : null}
 
@@ -629,18 +633,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     gap: 10,
     marginTop: 2,
     marginBottom: 4,
-  },
-  progressBarTrack: {
-    flex: 1,
-    height: 4,
-    borderRadius: 2,
-    backgroundColor: colors.border,
-    overflow: "hidden",
-  },
-  progressBarFill: {
-    height: "100%",
-    borderRadius: 2,
-    backgroundColor: colors.primary,
   },
   progressText: {
     fontSize: s(12),

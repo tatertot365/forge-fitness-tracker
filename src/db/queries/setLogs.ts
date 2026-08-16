@@ -117,6 +117,17 @@ export async function upsertSetLog(
       ],
     );
   }
+
+  // Start the session clock on the first *completed* set. Typing a weight into
+  // a row is not the same as having done the work -- the value is often
+  // pre-filled from last session -- so only the check-off counts. No-ops once
+  // started_at is set.
+  if (patch.completed === 1) {
+    await db.runAsync(
+      'UPDATE sessions SET started_at = ? WHERE id = ? AND started_at IS NULL',
+      [new Date().toISOString(), sessionId],
+    );
+  }
 }
 
 async function getLibraryIdForDayExercise(

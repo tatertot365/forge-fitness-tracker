@@ -46,6 +46,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       day TEXT NOT NULL,
       date TEXT NOT NULL,
       completed_at TEXT,
+      started_at TEXT,
       hk_duration_minutes INTEGER,
       hk_avg_hr INTEGER,
       hk_calories INTEGER,
@@ -160,6 +161,9 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
   // Add the hold_seconds column for existing installs created before schema_v3.
   await migrateAddHoldSeconds(db);
 
+  // Add the started_at column for existing installs created before schema_v4.
+  await migrateAddSessionStartedAt(db);
+
   // Insert default day_plan rows for all 7 days if not present
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   for (const day of days) {
@@ -197,6 +201,31 @@ async function migrateAddHoldSeconds(db: SQLiteDatabase): Promise<void> {
 
   await db.runAsync(
     `INSERT INTO settings (key, value) VALUES ('schema_v3', '3')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+}
+
+// started_at records when the first set of a session was logged, which is what
+// the elapsed-time display counts from. It is deliberately NOT set when the
+// sessions row is created: getOrCreateSession runs on every visit to the
+// Workout tab and from the exercise screen, so a row exists long before any
+// work happens. Stamping at creation would show "47 min" for a workout the
+// user has not started.
+async function migrateAddSessionStartedAt(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v4'`,
+  );
+  if (done?.value === '4') return;
+
+  const cols = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(sessions)`,
+  );
+  if (!cols.some((c) => c.name === 'started_at')) {
+    await db.execAsync(`ALTER TABLE sessions ADD COLUMN started_at TEXT`);
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v4', '4')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }
@@ -254,6 +283,7 @@ async function migrateToLibrarySchema(db: SQLiteDatabase): Promise<void> {
       day TEXT NOT NULL,
       date TEXT NOT NULL,
       completed_at TEXT,
+      started_at TEXT,
       hk_duration_minutes INTEGER,
       hk_avg_hr INTEGER,
       hk_calories INTEGER,

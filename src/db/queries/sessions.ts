@@ -22,6 +22,22 @@ export async function getOrCreateSession(day: Day, date: string): Promise<number
   return result.lastInsertRowId as number;
 }
 
+/**
+ * When the session's first set was completed, or null if it has not started.
+ * Separate from getOrCreateSession so that merely opening the Workout tab
+ * never implies the workout has begun.
+ */
+export async function getSessionStartedAt(
+  sessionId: number,
+): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ started_at: string | null }>(
+    'SELECT started_at FROM sessions WHERE id = ?',
+    [sessionId],
+  );
+  return row?.started_at ?? null;
+}
+
 export async function getSession(id: number): Promise<Session | null> {
   const db = await getDb();
   return (await db.getFirstAsync<Session>(

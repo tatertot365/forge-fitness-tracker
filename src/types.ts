@@ -59,6 +59,8 @@ export type Session = {
   day: Day;
   date: string;
   completed_at: string | null;
+  /** When the first set was logged. Null until the session is actually begun. */
+  started_at: string | null;
   hk_duration_minutes: number | null;
   hk_avg_hr: number | null;
   hk_calories: number | null;

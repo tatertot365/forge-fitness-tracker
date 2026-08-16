@@ -4,6 +4,8 @@ import {
   Pencil,
   Plus,
   TrendingUp,
+  Trophy,
+  Wand2,
   X,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -27,7 +29,10 @@ import { SectionLabel } from "../../src/components/SectionLabel";
 import { SetCheckButton } from "../../src/components/SetCheckButton";
 import {
   EditExerciseSheet,
+  PlateSheet,
   StretchPanel,
+  estimateOneRepMax,
+  warmupRamp,
   type Row,
   type WarmupRow,
 } from "../../src/features/exercise";
@@ -74,6 +79,7 @@ export default function ExerciseDetailScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restKey, setRestKey] = useState<number | null>(null);
+  const [plateTarget, setPlateTarget] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     if (!exerciseId || Number.isNaN(exerciseId)) return;
@@ -179,6 +185,44 @@ export default function ExerciseDetailScreen() {
       load();
     }, [load]),
   );
+
+  // Estimated 1RM comparison. Using e1RM rather than raw weight makes sets at
+  // different rep counts comparable: 185x8 beating 225x1 is a real improvement
+  // that a weight-only check would miss.
+  //
+  // `history` excludes the current session for `beatThis` purposes but does
+  // include it here, so the best prior is taken from sessions strictly before
+  // the one on screen.
+  const isBodyweight = exercise?.type === "bodyweight";
+
+  const priorBestE1rm = React.useMemo(() => {
+    if (isBodyweight) return null;
+    let best: number | null = null;
+    for (const h of history) {
+      if (h.session_id === sessionId) continue;
+      if (h.best_weight_lb == null) continue;
+      const e = estimateOneRepMax(h.best_weight_lb, h.best_reps);
+      if (e != null && (best == null || e > best)) best = e;
+    }
+    return best;
+  }, [history, sessionId, isBodyweight]);
+
+  const currentBestE1rm = React.useMemo(() => {
+    if (isBodyweight) return null;
+    let best: number | null = null;
+    for (const r of rows) {
+      if (!r.completed) continue;
+      const w = Number(r.weight);
+      const reps = Number(r.reps);
+      const e = estimateOneRepMax(w, reps);
+      if (e != null && (best == null || e > best)) best = e;
+    }
+    return best;
+  }, [rows, isBodyweight]);
+
+  const isPR =
+    currentBestE1rm != null &&
+    (priorBestE1rm == null || currentBestE1rm > priorBestE1rm);
 
   const updateRow = (idx: number, patch: Partial<Row>) => {
     setRows((prev) => {
@@ -326,6 +370,47 @@ export default function ExerciseDetailScreen() {
     });
   };
 
+  // Fill warmup weights from the first working set's weight. Uses whatever is
+  // in the row now -- typed this session or carried over from last -- because
+  // that is the load the ramp should build toward.
+  const autoFillWarmup = async () => {
+    const working = Number(rows[0]?.weight);
+    if (!Number.isFinite(working) || working <= 0) {
+      Alert.alert(
+        "No working weight yet",
+        "Enter the weight for your first set and the warmup will ramp up to it.",
+      );
+      return;
+    }
+    const count = warmupRows.length > 0 ? warmupRows.length : 3;
+    const ramp = warmupRamp(working, count);
+    if (ramp.length === 0) return;
+
+    hapticTap();
+    // The ramp can be shorter than the row count when weights collapse after
+    // rounding, so rebuild the rows to match rather than leaving stale ones.
+    const next: WarmupRow[] = ramp.map((w, i) => ({
+      setNumber: -(i + 1),
+      weight: String(w),
+      reps: warmupRows[i]?.reps ?? "",
+    }));
+    setWarmupRows(next);
+
+    if (!sessionId || !exercise) return;
+    // Drop any rows the shorter ramp no longer covers, then persist the rest.
+    for (let i = ramp.length; i < warmupRows.length; i++) {
+      await deleteSetLog(sessionId, exercise.id, warmupRows[i].setNumber);
+    }
+    const toNum = (v: string) => (v.trim() === "" ? null : Number(v));
+    for (const r of next) {
+      await upsertSetLog(sessionId, exercise.id, r.setNumber, {
+        weight_lb: toNum(r.weight),
+        reps: toNum(r.reps),
+        completed: 0,
+      });
+    }
+  };
+
   const addWarmupRow = () => {
     const minNum =
       warmupRows.length > 0
@@ -432,6 +517,22 @@ export default function ExerciseDetailScreen() {
                   <Text style={styles.beatValue}>
                     {beatThis ?? "No previous data"}
                   </Text>
+                  {currentBestE1rm != null || priorBestE1rm != null ? (
+                    <View style={styles.oneRmRow}>
+                      <Text style={styles.oneRmText}>
+                        Est. 1RM{" "}
+                        <Text style={styles.oneRmValue}>
+                          {currentBestE1rm ?? priorBestE1rm} lb
+                        </Text>
+                      </Text>
+                      {isPR ? (
+                        <View style={styles.prBadge}>
+                          <Trophy size={9} color={colors.amber} strokeWidth={2.5} />
+                          <Text style={styles.prBadgeText}>PR</Text>
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
                   {history.length > 0 ? (
                     <Text style={styles.beatCta}>Tap to see history →</Text>
                   ) : null}
@@ -482,7 +583,24 @@ export default function ExerciseDetailScreen() {
 
           {exercise?.type !== "stretch" ? (
             <>
-          <SectionLabel>Warmup</SectionLabel>
+          <SectionLabel
+            trailing={
+              <Pressable
+                onPress={autoFillWarmup}
+                hitSlop={8}
+                accessibilityLabel="Auto-fill warmup weights"
+                style={({ pressed }) => [
+                  styles.autoFillBtn,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Wand2 size={12} color={colors.primary} strokeWidth={2} />
+                <Text style={styles.autoFillText}>Auto-fill</Text>
+              </Pressable>
+            }
+          >
+            Warmup
+          </SectionLabel>
 
           <View style={styles.tableHeader}>
             <Text style={[styles.headCell, { width: 32 }]}>Set</Text>
@@ -501,14 +619,25 @@ export default function ExerciseDetailScreen() {
               return (
                 <View key={r.setNumber} style={!isLast && styles.rowDivider}>
                   <View style={styles.tableRow}>
-                    <Text
-                      style={[
-                        styles.setNum,
-                        { width: 32, color: colors.primary },
+                    <Pressable
+                      onPress={() => {
+                        const w = Number(r.weight);
+                        if (Number.isFinite(w) && w > 0) {
+                          hapticTap();
+                          setPlateTarget(w);
+                        }
+                      }}
+                      hitSlop={8}
+                      accessibilityLabel={`Plate loading for warmup set ${idx + 1}`}
+                      style={({ pressed }) => [
+                        { width: 32 },
+                        pressed && { opacity: 0.5 },
                       ]}
                     >
-                      W{idx + 1}
-                    </Text>
+                      <Text style={[styles.setNum, { color: colors.primary }]}>
+                        W{idx + 1}
+                      </Text>
+                    </Pressable>
                     {exercise?.type === "bodyweight" ? (
                       <View style={[styles.bwBadge, { flex: 1 }]}>
                         <Text style={styles.bwBadgeText}>Bodyweight</Text>
@@ -593,9 +722,23 @@ export default function ExerciseDetailScreen() {
               return (
                 <View key={r.setNumber} style={!isLast && styles.rowDivider}>
                   <View style={styles.tableRow}>
-                    <Text style={[styles.setNum, { width: 32 }]}>
-                      {r.setNumber}
-                    </Text>
+                    <Pressable
+                      onPress={() => {
+                        const w = Number(r.weight);
+                        if (Number.isFinite(w) && w > 0) {
+                          hapticTap();
+                          setPlateTarget(w);
+                        }
+                      }}
+                      hitSlop={8}
+                      accessibilityLabel={`Plate loading for set ${r.setNumber}`}
+                      style={({ pressed }) => [
+                        { width: 32 },
+                        pressed && { opacity: 0.5 },
+                      ]}
+                    >
+                      <Text style={styles.setNum}>{r.setNumber}</Text>
+                    </Pressable>
                     {exercise?.type === "bodyweight" ? (
                       <View style={[styles.bwBadge, { flex: 1 }]}>
                         <Text style={styles.bwBadgeText}>Bodyweight</Text>
@@ -700,6 +843,12 @@ export default function ExerciseDetailScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
+      <PlateSheet
+        visible={plateTarget !== null}
+        targetLb={plateTarget}
+        onClose={() => setPlateTarget(null)}
+      />
+
       {exercise ? (
         <HistorySheet
           visible={historyOpen}
@@ -785,6 +934,21 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     fontWeight: "600",
   },
   beatValue: { ...typography.metricValue, fontSize: s(22), color: colors.text, marginTop: 2 },
+  autoFillBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  autoFillText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
+  oneRmRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 4 },
+  oneRmText: { fontSize: s(12), color: colors.textSecondary },
+  oneRmValue: { fontWeight: "700", color: colors.text },
+  prBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.amber + "1F",
+  },
+  prBadgeText: { fontSize: s(10), fontWeight: "700", color: colors.amber, letterSpacing: 0.3 },
   beatCta: {
     fontSize: s(11),
     color: colors.primary,

@@ -427,7 +427,7 @@ export default function FoodScreen() {
         ]}
       >
         <Search size={16} color={colors.primary} strokeWidth={2} />
-        <Text style={styles.quickAddText}>Search your foods</Text>
+        <Text style={styles.quickAddText}>Search foods</Text>
       </Pressable>
 
       {recents.length > 0 ? (
@@ -472,7 +472,7 @@ export default function FoodScreen() {
       <Card padded={false}>
         {entries.length === 0 ? (
           <Text style={styles.emptyText}>
-            No entries yet — scan, tap a recent, or enter one below.
+            No entries yet — scan, search, or enter one manually.
           </Text>
         ) : (
           entries.map((e, i) => (

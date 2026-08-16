@@ -129,7 +129,7 @@ export function FoodLibrarySheet({
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={styles.sheet}>
           <View style={styles.header}>
-            <Text style={styles.title}>Your foods</Text>
+            <Text style={styles.title}>Find a food</Text>
             <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} strokeWidth={2} />
             </Pressable>
@@ -140,7 +140,11 @@ export function FoodLibrarySheet({
             <TextInput
               value={query}
               onChangeText={setQuery}
-              placeholder="Search foods you've logged"
+              placeholder={
+                scope === "mine"
+                  ? "Search foods you've logged"
+                  : "Search Open Food Facts"
+              }
               placeholderTextColor={colors.textMuted}
               style={styles.searchInput}
               autoCorrect={false}

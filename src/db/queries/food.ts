@@ -150,6 +150,34 @@ export async function toggleFoodFavorite(name: string): Promise<boolean> {
   return true;
 }
 
+// Copy every entry from one day onto another. Returns how many were added.
+//
+// Appends rather than replacing: the target day may already have entries, and
+// silently dropping them to mirror another day would destroy data the user
+// typed. Each copy gets a fresh created_at so today's log keeps a sensible
+// order.
+export async function copyFoodEntriesToDate(
+  fromDate: string,
+  toDate: string,
+): Promise<number> {
+  const db = await getDb();
+  const rows = await db.getAllAsync<FoodEntry>(
+    'SELECT * FROM food_entries WHERE date = ? ORDER BY created_at ASC, id ASC',
+    [fromDate],
+  );
+  if (rows.length === 0) return 0;
+  await db.withTransactionAsync(async () => {
+    for (const r of rows) {
+      await db.runAsync(
+        `INSERT INTO food_entries (date, name, calories, protein_g, fat_g, carbs_g, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [toDate, r.name, r.calories, r.protein_g, r.fat_g, r.carbs_g, new Date().toISOString()],
+      );
+    }
+  });
+  return rows.length;
+}
+
 export async function getNutritionGoalForDate(date: string): Promise<NutritionGoal> {
   const db = await getDb();
   const row = await db.getFirstAsync<NutritionGoal>(

@@ -1,6 +1,7 @@
-import { X } from "lucide-react-native";
+import { CopyPlus, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Modal,
   Pressable,
   ScrollView,
@@ -8,8 +9,13 @@ import {
   Text,
   View,
 } from "react-native";
-import { getFoodEntriesForDate, getNutritionGoalForDate } from "../../db/queries";
+import {
+  copyFoodEntriesToDate,
+  getFoodEntriesForDate,
+  getNutritionGoalForDate,
+} from "../../db/queries";
 import { formatHeaderDate } from "./helpers";
+import { todayISO } from "../../utils/date";
 import { colors } from "../../theme/colors";
 import { makeSheetStyles, makeEntryRowStyles } from "../../theme/sheets";
 import { useStyles } from "../../theme/useStyles";
@@ -21,9 +27,12 @@ import {
 export function DayHistorySheet({
   date,
   onClose,
+  onCopied,
 }: {
   date: string | null;
   onClose: () => void;
+  /** Called after entries are copied onto today, so the log can reload. */
+  onCopied?: () => void;
 }) {
   const styles = useStyles(makeStyles);
   const [entries, setEntries] = useState<FoodEntry[]>([]);
@@ -44,6 +53,39 @@ export function DayHistorySheet({
       setGoal(g);
     })();
   }, [date]);
+
+  const [copying, setCopying] = useState(false);
+  const today = todayISO();
+  const isToday = date === today;
+
+  const onCopy = () => {
+    if (!date || entries.length === 0 || copying) return;
+    const n = entries.length;
+    Alert.alert(
+      "Copy to today?",
+      `Adds ${n} ${n === 1 ? "entry" : "entries"} from ${formatHeaderDate(
+        date,
+      )} to today's log. Anything already logged today stays.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Copy",
+          onPress: async () => {
+            setCopying(true);
+            try {
+              await copyFoodEntriesToDate(date, today);
+              onCopied?.();
+              onClose();
+            } catch {
+              Alert.alert("Copy failed", "Could not copy those entries.");
+            } finally {
+              setCopying(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   const totalCals = entries.reduce((s, e) => s + e.calories, 0);
   const totalProtein = entries.reduce((s, e) => s + e.protein_g, 0);
@@ -112,6 +154,24 @@ export function DayHistorySheet({
               ))
             )}
           </ScrollView>
+          {/* Hidden when viewing today: copying a day onto itself would just
+              duplicate every entry. */}
+          {entries.length > 0 && !isToday ? (
+            <Pressable
+              onPress={onCopy}
+              disabled={copying}
+              style={({ pressed }) => [
+                styles.copyBtn,
+                copying && { opacity: 0.5 },
+                pressed && !copying && { opacity: 0.85 },
+              ]}
+            >
+              <CopyPlus size={16} color="#FFFFFF" strokeWidth={2} />
+              <Text style={styles.copyBtnText}>
+                {copying ? "Copying…" : "Copy to today"}
+              </Text>
+            </Pressable>
+          ) : null}
         </View>
       </View>
     </Modal>
@@ -122,4 +182,16 @@ const makeStyles = (s: (n: number) => number) =>
   StyleSheet.create({
   ...makeSheetStyles(s),
   ...makeEntryRowStyles(s),
+  copyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 12,
+    marginBottom: 4,
+  },
+  copyBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
   });

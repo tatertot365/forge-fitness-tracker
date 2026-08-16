@@ -623,6 +623,11 @@ export default function FoodScreen() {
       <DayHistorySheet
         date={historyDate}
         onClose={() => setHistoryDate(null)}
+        onCopied={() => {
+          hapticSuccess();
+          showToast("Copied to today's log");
+          load();
+        }}
       />
 
       <MacroCalculatorSheet

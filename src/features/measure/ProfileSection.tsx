@@ -14,13 +14,18 @@ import {
 } from "react-native";
 import { colors } from "../../theme/colors";
 import { useStyles } from "../../theme/useStyles";
-import { type UserProfile } from "../../utils/tdee";
+import { getActivityLevel, setActivityLevel } from "../../db/queries";
+import {
+  ACTIVITY_LABEL,
+  type ActivityLevel,
+  type UserProfile,
+} from "../../utils/tdee";
 import { makeStyles } from "./measureStyles";
 import { AGE_RANGE, HEIGHT_INPUT_ID } from "./types";
 
 // ─── Profile section ───────────────────────────────────────────────────
 //
-// Collapsible height / date-of-birth / sex form. Owns its own draft state
+// Collapsible height / date-of-birth / sex / activity form. Owns its own draft state
 // for the height field and the picker visibility; committed values are
 // pushed up through onSave, which persists them.
 
@@ -43,6 +48,14 @@ function parseISODate(s: string): Date | null {
 
 // Shared by the spinner and the Done handler so both agree on what is shown.
 const DOB_DEFAULT = new Date(2000, 0, 1);
+
+const ACTIVITY_LEVELS: ActivityLevel[] = [
+  "sedentary",
+  "light",
+  "moderate",
+  "active",
+  "very_active",
+];
 
 function inAgeRange(d: Date): boolean {
   const age = Math.floor(
@@ -82,6 +95,7 @@ export function ProfileSection({
   const styles = useStyles(makeStyles);
   const [dobDate, setDobDate] = useState<Date | null>(null);
   const [showDobPicker, setShowDobPicker] = useState(false);
+  const [activity, setActivity] = useState<ActivityLevel | null>(null);
   const [collapsedOpen, setCollapsedOpen] = useState(false);
   // In embedded mode the form is always open — there's no header to toggle it,
   // so deriving this rather than seeding state avoids it getting stuck closed.
@@ -91,6 +105,28 @@ export function ProfileSection({
   useEffect(() => {
     setDobDate(profile.dob ? parseISODate(profile.dob) : null);
   }, [profile.dob]);
+
+  // Activity level lives under its own settings key, not in UserProfile, so it
+  // is not delivered by the `profile` prop and has to be loaded directly.
+  useEffect(() => {
+    (async () => setActivity(await getActivityLevel()))();
+  }, []);
+
+  const pickActivity = () => {
+    ActionSheetIOS.showActionSheetWithOptions(
+      {
+        options: [...ACTIVITY_LEVELS.map((a) => ACTIVITY_LABEL[a]), "Cancel"],
+        cancelButtonIndex: ACTIVITY_LEVELS.length,
+        title: "Activity level",
+      },
+      async (idx) => {
+        if (idx >= ACTIVITY_LEVELS.length) return;
+        const chosen = ACTIVITY_LEVELS[idx];
+        setActivity(chosen);
+        await setActivityLevel(chosen);
+      },
+    );
+  };
 
   const profileComplete =
     profile.height_in != null && profile.dob != null && profile.sex != null;
@@ -233,7 +269,7 @@ export function ProfileSection({
             </>
           )}
         </View>
-        <View style={[styles.formRow, { marginBottom: 0 }]}>
+        <View style={styles.formRow}>
           <Text style={styles.formLabel}>Sex</Text>
           <Pressable
             onPress={pickSex}
@@ -253,6 +289,25 @@ export function ProfileSection({
                 : profile.sex === "female"
                   ? "Female"
                   : "Select…"}
+            </Text>
+            <Text style={styles.pickerChevron}>›</Text>
+          </Pressable>
+        </View>
+        <View style={[styles.formRow, { marginBottom: 0 }]}>
+          <Text style={styles.formLabel}>Activity level</Text>
+          <Pressable
+            onPress={pickActivity}
+            style={({ pressed }) => [
+              styles.input,
+              styles.pickerRow,
+              pressed && { opacity: 0.7 },
+            ]}
+          >
+            <Text
+              style={activity ? styles.pickerText : styles.pickerPlaceholder}
+              numberOfLines={1}
+            >
+              {activity ? ACTIVITY_LABEL[activity] : "Select…"}
             </Text>
             <Text style={styles.pickerChevron}>›</Text>
           </Pressable>

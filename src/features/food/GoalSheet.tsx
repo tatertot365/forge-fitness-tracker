@@ -2,7 +2,6 @@ import { X } from "lucide-react-native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useState } from "react";
 import {
-  ActionSheetIOS,
   Alert,
   KeyboardAvoidingView,
   Modal,
@@ -20,7 +19,6 @@ import {
   getPhase,
   getUserProfile,
   latestMeasurement,
-  setActivityLevel,
   setGoalsMode,
 } from "../../db/queries";
 import { colors } from "../../theme/colors";
@@ -30,15 +28,7 @@ import { useStyles } from "../../theme/useStyles";
 import {
   type NutritionGoal,
 } from "../../types";
-import { ACTIVITY_LABEL, calculateTdee, type ActivityLevel, type MacroGoals } from "../../utils/tdee";
-
-const ACTIVITY_LEVELS: ActivityLevel[] = [
-  "sedentary",
-  "light",
-  "moderate",
-  "active",
-  "very_active",
-];
+import { calculateTdee, type ActivityLevel, type MacroGoals } from "../../utils/tdee";
 
 const MODE_ORDER = ["calculated", "manual"] as const;
 const MODE_LABELS = ["Calculated", "Manual"];
@@ -85,9 +75,16 @@ export function GoalSheet({
 
   // Recalculate whenever activity, mode, or visibility changes
   React.useEffect(() => {
-    if (!visible || mode !== "calculated" || !activity) {
+    if (!visible || mode !== "calculated") {
       setCalculated(null);
       setCalcError(null);
+      return;
+    }
+    // The picker lives in Profile now, so an unset level would otherwise
+    // render an empty sheet with nothing explaining why.
+    if (!activity) {
+      setCalculated(null);
+      setCalcError("Set your activity level in Profile to calculate goals.");
       return;
     }
     (async () => {
@@ -131,23 +128,6 @@ export function GoalSheet({
     }
     setMode(m);
     await setGoalsMode(m);
-  };
-
-  const onPickActivity = () => {
-    ActionSheetIOS.showActionSheetWithOptions(
-      {
-        options: [...ACTIVITY_LEVELS.map((a) => ACTIVITY_LABEL[a]), "Cancel"],
-        cancelButtonIndex: ACTIVITY_LEVELS.length,
-        title: "Activity level",
-      },
-      async (idx) => {
-        if (idx < ACTIVITY_LEVELS.length) {
-          const chosen = ACTIVITY_LEVELS[idx];
-          setActivity(chosen);
-          await setActivityLevel(chosen);
-        }
-      },
-    );
   };
 
   const save = async () => {
@@ -230,29 +210,6 @@ export function GoalSheet({
           >
             {mode === "calculated" ? (
               <>
-                <Text style={styles.formLabel}>Activity level</Text>
-                <Pressable
-                  onPress={onPickActivity}
-                  style={({ pressed }) => [
-                    styles.input,
-                    styles.sheetInput,
-                    styles.pickerRow,
-                    pressed && { opacity: 0.7 },
-                  ]}
-                >
-                  <Text
-                    style={
-                      activity ? styles.pickerText : styles.pickerPlaceholder
-                    }
-                    numberOfLines={1}
-                  >
-                    {activity
-                      ? ACTIVITY_LABEL[activity]
-                      : "Select activity level…"}
-                  </Text>
-                  <Text style={styles.unitPickerChevron}>›</Text>
-                </Pressable>
-
                 {calcError ? (
                   <View style={styles.calcWarning}>
                     <Text style={styles.calcWarningText}>{calcError}</Text>
@@ -391,16 +348,4 @@ const makeStyles = (s: (n: number) => number) =>
     lineHeight: 18,
   },
     modeToggleNative: { marginBottom: 16 },
-    pickerPlaceholder: { fontSize: s(15), color: colors.textMuted, flex: 1 },
-    pickerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-    pickerText: { fontSize: s(15), color: colors.text, flex: 1 },
-    unitPickerChevron: {
-    fontSize: s(18),
-    color: colors.textSecondary,
-    lineHeight: 20,
-  },
   });

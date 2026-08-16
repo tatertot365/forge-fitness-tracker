@@ -1,4 +1,4 @@
-import { useRootNavigation, useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import {
   AlertTriangle,
   ChevronDown,
@@ -6,7 +6,7 @@ import {
   Trash2,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { Card } from "../../src/components/Card";
 import { CooldownSheet } from "../../src/components/CooldownSheet";
@@ -43,6 +43,7 @@ import {
   DAY_LABEL,
   MUSCLE_LABEL,
   type CatchupItem,
+  type Day,
   type DayPlan,
   type Exercise,
   type MuscleGroup,
@@ -56,9 +57,10 @@ type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 export default function SessionScreen() {
   const styles = useStyles(makeStyles);
   const router = useRouter();
-  const rootNavigation = useRootNavigation();
-  const day = dayOfWeek();
-  const sessionDate = weekDates()[day];
+  const [day, setDay] = useState<Day>(() => dayOfWeek());
+  const [sessionDate, setSessionDate] = useState<string>(
+    () => weekDates()[dayOfWeek()],
+  );
 
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
@@ -85,12 +87,19 @@ export default function SessionScreen() {
   }>(null);
 
   const load = useCallback(async () => {
+    // Recompute the day up-front so a session left open across midnight moves
+    // to the new day instead of logging into yesterday. Mirrors the Home tab.
+    const currentDay = dayOfWeek();
+    const currentDate = weekDates()[currentDay];
+    setDay(currentDay);
+    setSessionDate(currentDate);
+
     const [plans, catchupItems] = await Promise.all([
       getDayPlans(),
       getCatchupItems(),
     ]);
     setCatchup(catchupItems);
-    const plan = plans[day];
+    const plan = plans[currentDay];
     setDayPlan(plan);
     if (!plan.enabled) {
       setExercises([]);
@@ -99,11 +108,11 @@ export default function SessionScreen() {
       setLastBestMap({});
       return;
     }
-    const sid = await getOrCreateSession(day, sessionDate);
+    const sid = await getOrCreateSession(currentDay, currentDate);
     const [ex, logs, skippedIds] = await Promise.all([
-      getExercisesByDay(day),
+      getExercisesByDay(currentDay),
       getSetLogsForSession(sid),
-      getSkippedExerciseIds(sessionDate),
+      getSkippedExerciseIds(currentDate),
     ]);
     const filtered = ex.filter((e) => !skippedIds.has(e.id));
     const lastMap: Record<number, string | null> = {};
@@ -125,13 +134,25 @@ export default function SessionScreen() {
     setExercises(filtered);
     setSetLogs(logs);
     setLastBestMap(lastMap);
-  }, [day, sessionDate]);
+  }, []);
 
+  // Reload when this tab is focused. Previously this subscribed to the root
+  // navigator's "state" event, which fires on every navigation change anywhere
+  // in the app -- re-running ~4+N queries when the user merely switched tabs or
+  // opened a sheet.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load]),
+  );
+
+  // Catch a midnight rollover while the app sat in the background.
   useEffect(() => {
-    load();
-    if (!rootNavigation) return;
-    return rootNavigation.addListener("state", load);
-  }, [load, rootNavigation]);
+    const sub = AppState.addEventListener("change", (state) => {
+      if (state === "active") load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   const grouped: GroupedExercises = useMemo(() => {
     const groupOrder = new Map<MuscleGroup, number>();
@@ -170,8 +191,12 @@ export default function SessionScreen() {
   }, [exercises]);
 
   const totalSets = exercises.reduce((s, e) => s + e.sets, 0);
-  const completedTotal = Object.values(completedByExercise).reduce(
-    (a, b) => a + b,
+  // Count only sets belonging to exercises still on screen, and never more than
+  // the exercise actually calls for. Skipping an exercise drops it from
+  // `exercises` while its logs stay in `setLogs`, so summing the whole map
+  // would report totals like "12/9" against a shrinking denominator.
+  const completedTotal = exercises.reduce(
+    (sum, e) => sum + Math.min(completedByExercise[e.exercise_id] ?? 0, e.sets),
     0,
   );
   const volume = setLogs.reduce(
@@ -179,6 +204,10 @@ export default function SessionScreen() {
       s + (l.completed && l.weight_lb && l.reps ? l.weight_lb * l.reps : 0),
     0,
   );
+  const progressPct =
+    totalSets > 0 ? Math.min(1, completedTotal / totalSets) : 0;
+  const hasProgress = completedTotal > 0;
+  const allSetsDone = totalSets > 0 && completedTotal >= totalSets;
 
   const onDeleteGroup = (group: MuscleGroup) => {
     const count = exercises.filter((e) => e.muscle_group === group).length;
@@ -351,6 +380,23 @@ export default function SessionScreen() {
           </Pressable>
         </View>
 
+        {totalSets > 0 ? (
+          <View style={styles.progressWrap}>
+            <View style={styles.progressBarTrack}>
+              <View
+                style={[
+                  styles.progressBarFill,
+                  { width: `${Math.round(progressPct * 100)}%` },
+                  allSetsDone && { backgroundColor: colors.green },
+                ]}
+              />
+            </View>
+            <Text style={styles.progressText}>
+              {completedTotal}/{totalSets} sets
+            </Text>
+          </View>
+        ) : null}
+
         {catchupSection}
 
         {grouped.map(({ group, items }) => (
@@ -421,15 +467,26 @@ export default function SessionScreen() {
           <Text style={styles.addGroupText}>Add exercise</Text>
         </Pressable>
 
+        {/* Until a set is logged there is nothing to finish, so the button
+            stays visibly secondary rather than presenting the screen's
+            strongest affordance before the workout has started. */}
         <Pressable
           onPress={onFinish}
           style={({ pressed }) => [
             styles.finishBtn,
+            !hasProgress && styles.finishBtnIdle,
             pressed && { opacity: 0.85 },
           ]}
           disabled={!sessionId}
         >
-          <Text style={styles.finishBtnText}>Finish session</Text>
+          <Text
+            style={[
+              styles.finishBtnText,
+              !hasProgress && styles.finishBtnTextIdle,
+            ]}
+          >
+            {allSetsDone ? "Finish session" : "Finish session early"}
+          </Text>
         </Pressable>
       </Screen>
 
@@ -559,6 +616,38 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     alignItems: "center",
   },
   finishBtnText: { color: "#FFFFFF", fontSize: s(15), fontWeight: "600" },
+  finishBtnIdle: {
+    backgroundColor: "transparent",
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+  },
+  finishBtnTextIdle: { color: colors.textSecondary },
+
+  progressWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  progressBarTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: colors.border,
+    overflow: "hidden",
+  },
+  progressBarFill: {
+    height: "100%",
+    borderRadius: 2,
+    backgroundColor: colors.primary,
+  },
+  progressText: {
+    fontSize: s(12),
+    color: colors.textSecondary,
+    fontWeight: "600",
+    fontVariant: ["tabular-nums"],
+  },
 
   catchupWrap: {
     marginTop: 12,

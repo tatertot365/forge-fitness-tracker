@@ -31,6 +31,26 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+// `new Date("1990-01-15")` parses a bare YYYY-MM-DD as UTC midnight, which is
+// the *previous day* in any timezone behind UTC. That turned the round-trip
+// through onSave into a visible one-day-back jump in the spinner on every
+// scroll. Build the Date from local fields so it matches what toISODate wrote.
+function parseISODate(s: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return null;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+}
+
+// Shared by the spinner and the Done handler so both agree on what is shown.
+const DOB_DEFAULT = new Date(2000, 0, 1);
+
+function inAgeRange(d: Date): boolean {
+  const age = Math.floor(
+    (Date.now() - d.getTime()) / (365.25 * 24 * 3600 * 1000),
+  );
+  return age >= AGE_RANGE.min && age <= AGE_RANGE.max;
+}
+
 function formatDob(d: Date): string {
   return d.toLocaleDateString(undefined, {
     year: "numeric",
@@ -69,7 +89,7 @@ export function ProfileSection({
 
   // Mirror the persisted date of birth into the local draft field.
   useEffect(() => {
-    setDobDate(profile.dob ? new Date(profile.dob) : null);
+    setDobDate(profile.dob ? parseISODate(profile.dob) : null);
   }, [profile.dob]);
 
   const profileComplete =
@@ -158,7 +178,7 @@ export function ProfileSection({
           {showDobPicker && (
             <>
               <DateTimePicker
-                value={dobDate ?? new Date(2000, 0, 1)}
+                value={dobDate ?? DOB_DEFAULT}
                 mode="date"
                 display={Platform.OS === "ios" ? "spinner" : "default"}
                 maximumDate={new Date()}
@@ -172,23 +192,36 @@ export function ProfileSection({
                   } else if (!date) {
                     return;
                   }
-                  const age = Math.floor(
-                    (Date.now() - date.getTime()) /
-                      (365.25 * 24 * 3600 * 1000),
-                  );
-                  if (age < AGE_RANGE.min || age > AGE_RANGE.max) {
-                    Alert.alert(AGE_RANGE.label);
-                    return;
-                  }
+                  // The iOS spinner reports every value it passes through, so
+                  // validating here fired the alert mid-scroll -- while the
+                  // user was still on their way to a valid year -- and the
+                  // early return left the wheel showing a date that was never
+                  // saved. Track freely; the range is enforced on Done.
                   setDobDate(date);
-                  const iso = toISODate(date);
-                  await onSave({ dob: iso });
+                  if (Platform.OS !== "ios") {
+                    if (!inAgeRange(date)) {
+                      Alert.alert(AGE_RANGE.label);
+                      return;
+                    }
+                    await onSave({ dob: toISODate(date) });
+                  }
                 }}
                 style={{ marginTop: 4 }}
               />
               {Platform.OS === "ios" && (
                 <Pressable
-                  onPress={() => setShowDobPicker(false)}
+                  onPress={async () => {
+                    // Done with no scroll leaves dobDate null while the wheel
+                    // shows the default, so commit what is actually displayed.
+                    const picked = dobDate ?? DOB_DEFAULT;
+                    if (!inAgeRange(picked)) {
+                      Alert.alert(AGE_RANGE.label);
+                      return;
+                    }
+                    setShowDobPicker(false);
+                    setDobDate(picked);
+                    await onSave({ dob: toISODate(picked) });
+                  }}
                   style={({ pressed }) => [
                     styles.dobDoneBtn,
                     pressed && { opacity: 0.85 },

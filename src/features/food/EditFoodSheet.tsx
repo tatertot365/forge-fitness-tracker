@@ -12,6 +12,7 @@ import {
   View,
 } from "react-native";
 import { colors } from "../../theme/colors";
+import { parseOptional, parseRequired } from "./helpers";
 import { makeSheetStyles } from "../../theme/sheets";
 import { useStyles } from "../../theme/useStyles";
 import {
@@ -55,27 +56,28 @@ export function EditFoodSheet({
 
   const save = () => {
     if (!entry) return;
-    const c = Number(calInput);
-    const p = Number(proteinInput);
-    const f = fatInput.trim() === "" ? 0 : Number(fatInput);
-    const cb = carbsInput.trim() === "" ? 0 : Number(carbsInput);
+    // Clearing the calories box on an existing entry must not silently save 0.
+    const c = parseRequired(calInput);
+    const p = parseRequired(proteinInput);
+    const f = parseOptional(fatInput);
+    const cb = parseOptional(carbsInput);
     if (name.trim() === "") {
       Alert.alert("Enter a name");
       return;
     }
-    if (!Number.isFinite(c) || c < 0) {
+    if (c == null) {
       Alert.alert("Enter valid calories");
       return;
     }
-    if (!Number.isFinite(p) || p < 0) {
+    if (p == null) {
       Alert.alert("Enter valid protein");
       return;
     }
-    if (!Number.isFinite(f) || f < 0) {
+    if (f == null) {
       Alert.alert("Enter valid fat");
       return;
     }
-    if (!Number.isFinite(cb) || cb < 0) {
+    if (cb == null) {
       Alert.alert("Enter valid carbs");
       return;
     }

@@ -33,6 +33,8 @@ import {
   GoalSheet,
   MacroCalculatorSheet,
   NutritionTrendChart,
+  parseOptional,
+  parseRequired,
   SwipeableFoodRow,
 } from "../../src/features/food";
 import {
@@ -151,27 +153,29 @@ export default function FoodScreen() {
   };
 
   const onAdd = async () => {
-    const cal = Number(calInput);
-    const prot = Number(proteinInput);
-    const fat = fatInput.trim() === "" ? 0 : Number(fatInput);
-    const carbs = carbsInput.trim() === "" ? 0 : Number(carbsInput);
+    // parseRequired rejects a blank field; parseOptional treats blank as 0.
+    // Calories and protein are required, so an empty box must not become 0.
+    const cal = parseRequired(calInput);
+    const prot = parseRequired(proteinInput);
+    const fat = parseOptional(fatInput);
+    const carbs = parseOptional(carbsInput);
     if (name.trim() === "") {
       Alert.alert("Enter a food name");
       return;
     }
-    if (!Number.isFinite(cal) || cal < 0) {
+    if (cal == null) {
       Alert.alert("Enter valid calories");
       return;
     }
-    if (!Number.isFinite(prot) || prot < 0) {
+    if (prot == null) {
       Alert.alert("Enter valid protein");
       return;
     }
-    if (!Number.isFinite(fat) || fat < 0) {
+    if (fat == null) {
       Alert.alert("Enter valid fat");
       return;
     }
-    if (!Number.isFinite(carbs) || carbs < 0) {
+    if (carbs == null) {
       Alert.alert("Enter valid carbs");
       return;
     }
@@ -394,7 +398,10 @@ export default function FoodScreen() {
           >
             {recents.map((r) => (
               <Pressable
-                key={r.name}
+                // Keyed on the lowercased name: the recents query dedupes with
+                // LOWER() but returns whatever casing was stored, so raw name
+                // is not guaranteed unique across rows.
+                key={r.name.toLowerCase()}
                 onPress={() => onTapRecent(r)}
                 style={({ pressed }) => [
                   styles.recentChip,

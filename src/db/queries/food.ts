@@ -153,9 +153,9 @@ export async function getDailyNutritionTotals(
               COALESCE(SUM(fat_g), 0) AS fat_g,
               COALESCE(SUM(carbs_g), 0) AS carbs_g
        FROM food_entries
-       WHERE date >= ?
+       WHERE date >= ? AND date <= ?
        GROUP BY date`,
-      [earliest],
+      [earliest, latest],
     ),
     db.getAllAsync<NutritionGoal>(
       'SELECT * FROM nutrition_goals WHERE date <= ? ORDER BY date DESC',

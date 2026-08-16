@@ -7,3 +7,4 @@ export { GoalSheet } from "./GoalSheet";
 export { MacroCalculatorSheet } from "./MacroCalculatorSheet";
 export { NutritionTrendChart } from "./NutritionTrendChart";
 export { SwipeableFoodRow } from "./SwipeableFoodRow";
+export { parseOptional, parseRequired } from "./helpers";

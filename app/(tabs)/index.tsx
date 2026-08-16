@@ -483,7 +483,7 @@ export default function TodayScreen() {
             ]}
           >
             <Pencil size={12} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.editPlanText}>Edit split</Text>
+            <Text style={styles.editPlanText}>Edit</Text>
           </Pressable>
         }
       >

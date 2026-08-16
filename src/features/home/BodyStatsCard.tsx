@@ -99,7 +99,7 @@ export function BodyStatsCard({
     >
       <Card style={{ marginTop: 10 }}>
         <View style={styles.glanceHeader}>
-          <Text style={styles.glanceTitle}>Goal progress</Text>
+          <Text style={styles.glanceTitle}>Body goals</Text>
           <Text style={styles.glanceNav}>Body →</Text>
         </View>
 

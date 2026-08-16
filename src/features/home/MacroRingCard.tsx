@@ -35,7 +35,7 @@ export function MacroRingCard({
         <Card style={{ marginTop: 12 }}>
           <View style={styles.glanceHeader}>
             <Text style={styles.glanceTitle}>Today's nutrition</Text>
-            <Text style={styles.glanceNav}>Set goals →</Text>
+            <Text style={styles.glanceNav}>Food →</Text>
           </View>
           <Text style={styles.macroEmptyText}>
             Set your nutrition goals to start tracking macros against real

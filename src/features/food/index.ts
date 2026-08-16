@@ -2,6 +2,7 @@ export { BarcodeResultSheet } from "./BarcodeResultSheet";
 export { BarcodeScannerModal } from "./BarcodeScannerModal";
 export { DayHistorySheet } from "./DayHistorySheet";
 export { EditFoodSheet } from "./EditFoodSheet";
+export { FoodLibrarySheet } from "./FoodLibrarySheet";
 export { GoalRow } from "./GoalRow";
 export { GoalSheet } from "./GoalSheet";
 export { MacroCalculatorSheet } from "./MacroCalculatorSheet";

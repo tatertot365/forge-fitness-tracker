@@ -142,6 +142,14 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       completed_at TEXT NOT NULL
     );
 
+    -- Favourite foods, keyed by lowercased name so casing differences in the
+    -- log collapse to one entry (matching how getFoodRecents dedupes).
+    CREATE TABLE IF NOT EXISTS food_favorites (
+      name_key TEXT PRIMARY KEY,
+      display_name TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
+
     CREATE INDEX IF NOT EXISTS idx_cooldown_session ON cooldown_logs(session_id);
     CREATE INDEX IF NOT EXISTS idx_cooldown_completed ON cooldown_logs(completed_at);
   `);

@@ -2,6 +2,7 @@ import { getDb } from '../client';
 import type {
   DailyNutritionTotal,
   FoodEntry,
+  FoodLibraryItem,
   FoodRecent,
   NutritionGoal,
 } from '../../types';
@@ -87,6 +88,66 @@ export async function getFoodRecents(limit: number = 8): Promise<FoodRecent[]> {
      LIMIT ?`,
     [limit],
   );
+}
+
+// ─── Food library ─────────────────────────────────────────────────────
+//
+// Every distinct food ever logged, newest use first, with its most recent
+// macros. The recents strip shows only the first handful; this backs the
+// searchable list where the rest is actually reachable.
+
+export async function searchFoodHistory(
+  query: string = '',
+  limit: number = 200,
+): Promise<FoodLibraryItem[]> {
+  const db = await getDb();
+  const q = query.trim();
+  // Match anywhere in the name, not just the prefix: people search "chicken"
+  // to find "Grilled chicken breast".
+  const like = `%${q.replace(/[%_]/g, (c) => '\\' + c)}%`;
+  const rows = await db.getAllAsync<FoodLibraryItem>(
+    `SELECT fe.name,
+            fe.calories,
+            fe.protein_g,
+            fe.fat_g,
+            fe.carbs_g,
+            fe.created_at AS last_used_at,
+            (SELECT COUNT(*) FROM food_entries c
+              WHERE LOWER(c.name) = LOWER(fe.name)) AS use_count,
+            (ff.name_key IS NOT NULL) AS is_favorite
+       FROM food_entries fe
+       LEFT JOIN food_favorites ff ON ff.name_key = LOWER(fe.name)
+      WHERE fe.id = (
+        SELECT id FROM food_entries
+         WHERE LOWER(name) = LOWER(fe.name)
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1
+      )
+        ${q === '' ? '' : "AND fe.name LIKE ? ESCAPE '\\'"}
+      ORDER BY is_favorite DESC, last_used_at DESC
+      LIMIT ?`,
+    q === '' ? [limit] : [like, limit],
+  );
+  // SQLite returns 0/1 for the boolean expressions above.
+  return rows.map((r) => ({ ...r, is_favorite: !!r.is_favorite }));
+}
+
+export async function toggleFoodFavorite(name: string): Promise<boolean> {
+  const db = await getDb();
+  const key = name.trim().toLowerCase();
+  const existing = await db.getFirstAsync<{ name_key: string }>(
+    'SELECT name_key FROM food_favorites WHERE name_key = ?',
+    [key],
+  );
+  if (existing) {
+    await db.runAsync('DELETE FROM food_favorites WHERE name_key = ?', [key]);
+    return false;
+  }
+  await db.runAsync(
+    `INSERT INTO food_favorites (name_key, display_name, created_at) VALUES (?, ?, ?)`,
+    [key, name.trim(), new Date().toISOString()],
+  );
+  return true;
 }
 
 export async function getNutritionGoalForDate(date: string): Promise<NutritionGoal> {

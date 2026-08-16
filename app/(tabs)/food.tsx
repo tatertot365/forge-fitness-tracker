@@ -8,6 +8,7 @@ import {
   Layers,
   Plus,
   ScanLine,
+  Search,
   Zap,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -34,6 +35,7 @@ import {
   GoalRow,
   GoalSheet,
   MacroCalculatorSheet,
+  FoodLibrarySheet,
   formatMultiplier,
   NutritionTrendChart,
   parseOptional,
@@ -64,6 +66,7 @@ import { useStyles } from "../../src/theme/useStyles";
 import {
   type DailyNutritionTotal,
   type FoodEntry,
+  type FoodLibraryItem,
   type FoodRecent,
   type NutritionGoal,
   type Phase,
@@ -99,6 +102,7 @@ export default function FoodScreen() {
   const [calcSheet, setCalcSheet] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [portionRecent, setPortionRecent] = useState<FoodRecent | null>(null);
+  const [librarySheet, setLibrarySheet] = useState(false);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
   const [scanLookupBusy, setScanLookupBusy] = useState(false);
@@ -198,6 +202,17 @@ export default function FoodScreen() {
     clearForm();
     load();
   };
+
+  // The library returns richer rows than the recents strip; the add path only
+  // needs the macro fields they share.
+  const toRecent = (i: FoodLibraryItem): FoodRecent => ({
+    name: i.name,
+    calories: i.calories,
+    protein_g: i.protein_g,
+    fat_g: i.fat_g,
+    carbs_g: i.carbs_g,
+    last_used_at: i.last_used_at,
+  });
 
   const onTapRecent = async (r: FoodRecent, multiplier = 1) => {
     hapticTap();
@@ -395,6 +410,22 @@ export default function FoodScreen() {
           <Text style={styles.quickAddText}>Calculator</Text>
         </Pressable>
       </View>
+      {/* Sits outside the recents block on purpose: the strip only renders once
+          something has been logged, which would leave the full history
+          unreachable on a fresh install. */}
+      <Pressable
+        onPress={() => {
+          hapticTap();
+          setLibrarySheet(true);
+        }}
+        style={({ pressed }) => [
+          styles.libraryBtn,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        <Search size={16} color={colors.primary} strokeWidth={2} />
+        <Text style={styles.quickAddText}>Search your foods</Text>
+      </Pressable>
 
       {recents.length > 0 ? (
         <>
@@ -555,6 +586,20 @@ export default function FoodScreen() {
           }}
         />
       </Card>
+
+      <FoodLibrarySheet
+        visible={librarySheet}
+        onClose={() => setLibrarySheet(false)}
+        onPick={(item) => {
+          setLibrarySheet(false);
+          onTapRecent(toRecent(item));
+        }}
+        onLongPick={(item) => {
+          hapticSelect();
+          setLibrarySheet(false);
+          setPortionRecent(toRecent(item));
+        }}
+      />
 
       <PortionSheet
         recent={portionRecent}
@@ -721,6 +766,18 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     backgroundColor: colors.card,
   },
   manualToggleText: { fontSize: s(14), fontWeight: "500", color: colors.text },
+  libraryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginTop: 8,
+    paddingVertical: 12,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
 
   recentsRow: {
     gap: 8,

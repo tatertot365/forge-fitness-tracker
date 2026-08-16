@@ -104,6 +104,18 @@ export type FoodRecent = {
   last_used_at: string;
 };
 
+/** A distinct food from the log history, with how often it has been used. */
+export type FoodLibraryItem = {
+  name: string;
+  calories: number;
+  protein_g: number;
+  fat_g: number;
+  carbs_g: number;
+  last_used_at: string;
+  use_count: number;
+  is_favorite: boolean;
+};
+
 export type DailyNutritionTotal = {
   date: string;
   calories: number;

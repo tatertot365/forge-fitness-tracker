@@ -2,6 +2,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import {
   AlertTriangle,
   ChevronDown,
+  Leaf,
   Plus,
   Trash2,
 } from "lucide-react-native";
@@ -30,6 +31,7 @@ import {
   getExercisesByDay,
   getLastCompletedSetsForExercise,
   getOrCreateSession,
+  getRecentlyTrainedMuscleGroups,
   getSessionStartedAt,
   getSetLogsForSession,
   getSkippedExerciseIds,
@@ -77,6 +79,7 @@ export default function SessionScreen() {
   const [catchupOpen, setCatchupOpen] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [cooldownOpen, setCooldownOpen] = useState(false);
+  const [restGroups, setRestGroups] = useState<MuscleGroup[] | undefined>();
   const [pendingSummary, setPendingSummary] = useState<null | {
     completed: number;
     total: number;
@@ -285,6 +288,20 @@ export default function SessionScreen() {
     setCooldownOpen(true);
   };
 
+  // Rest-day stretching. The session row is created here rather than in load()
+  // so that merely opening the tab on a rest day never writes one -- but the
+  // holds still need a session_id, because getMobilityMinutesThisWeek joins
+  // cooldown_logs to sessions. Without this the stretches would silently not
+  // count toward the weekly total.
+  const onStartRestStretch = async () => {
+    hapticTap();
+    const groups = await getRecentlyTrainedMuscleGroups();
+    const sid = await getOrCreateSession(day, sessionDate);
+    setRestGroups(groups);
+    setSessionId(sid);
+    setCooldownOpen(true);
+  };
+
   const onCloseCooldown = () => {
     setCooldownOpen(false);
     if (pendingSummary) {
@@ -336,6 +353,7 @@ export default function SessionScreen() {
 
   if (dayPlan && !dayPlan.enabled) {
     return (
+      <>
       <Screen>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
@@ -360,8 +378,31 @@ export default function SessionScreen() {
           <Text style={styles.restText}>
             Take it easy. Recovery is where the growth happens.
           </Text>
+          <Pressable
+            onPress={onStartRestStretch}
+            style={({ pressed }) => [
+              styles.restCtaBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Leaf size={16} color="#FFFFFF" strokeWidth={2} />
+            <Text style={styles.restCtaText}>Stretch & mobility</Text>
+          </Pressable>
+          <Text style={styles.restCtaMeta}>
+            Guided holds for what you trained recently.
+          </Text>
         </Card>
       </Screen>
+
+      {/* Rendered inside the rest-day branch too -- this return happens before
+          the main screen's copy of the sheet, so it would be unreachable. */}
+      <CooldownSheet
+        visible={cooldownOpen}
+        sessionId={sessionId}
+        muscleGroupsHint={restGroups}
+        onClose={onCloseCooldown}
+      />
+      </>
     );
   }
 
@@ -595,6 +636,23 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   fullPlanBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
   restCard: { marginTop: 14 },
   restText: { color: colors.textSecondary, fontSize: s(14), lineHeight: 20 },
+  restCtaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 7,
+    backgroundColor: colors.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    marginTop: 14,
+  },
+  restCtaText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
+  restCtaMeta: {
+    color: colors.textMuted,
+    fontSize: s(12),
+    textAlign: "center",
+    marginTop: 8,
+  },
 
   groupTrailing: {
     flexDirection: "row",

@@ -354,7 +354,9 @@ export default function SessionScreen() {
           </Pressable>
         </View>
         {catchupSection}
-        <Card>
+        {/* This screen's header uses paddingBottom: 4, so without a margin the
+            card sits almost flush against the title. */}
+        <Card style={styles.restCard}>
           <Text style={styles.restText}>
             Take it easy. Recovery is where the growth happens.
           </Text>
@@ -591,6 +593,7 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     backgroundColor: colors.card,
   },
   fullPlanBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
+  restCard: { marginTop: 14 },
   restText: { color: colors.textSecondary, fontSize: s(14), lineHeight: 20 },
 
   groupTrailing: {

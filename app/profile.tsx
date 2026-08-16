@@ -1,6 +1,7 @@
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import {
+  Apple,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -8,7 +9,6 @@ import {
   Mail,
   Ruler,
   ShieldCheck,
-  Target,
   Trash2,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useState } from "react";
@@ -204,7 +204,7 @@ export default function ProfileScreen() {
         <SectionLabel>Goals</SectionLabel>
         <View style={styles.card}>
           <RowButton
-            icon={<Target size={16} color={colors.primary} strokeWidth={2} />}
+            icon={<Apple size={16} color={colors.primary} strokeWidth={2} />}
             label="Nutrition goals"
             sub={goalSummary}
             trailing={

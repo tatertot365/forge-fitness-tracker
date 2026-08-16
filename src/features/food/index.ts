@@ -6,5 +6,6 @@ export { GoalRow } from "./GoalRow";
 export { GoalSheet } from "./GoalSheet";
 export { MacroCalculatorSheet } from "./MacroCalculatorSheet";
 export { NutritionTrendChart } from "./NutritionTrendChart";
+export { PortionSheet } from "./PortionSheet";
 export { SwipeableFoodRow } from "./SwipeableFoodRow";
-export { parseOptional, parseRequired } from "./helpers";
+export { formatMultiplier, parseOptional, parseRequired } from "./helpers";

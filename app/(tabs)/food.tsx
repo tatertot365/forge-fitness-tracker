@@ -1,6 +1,8 @@
 import { useFocusEffect } from "expo-router";
 import {
   Calculator,
+  ChevronDown,
+  ChevronUp,
   Droplets,
   Flame,
   Layers,
@@ -32,8 +34,10 @@ import {
   GoalRow,
   GoalSheet,
   MacroCalculatorSheet,
+  formatMultiplier,
   NutritionTrendChart,
   parseOptional,
+  PortionSheet,
   parseRequired,
   SwipeableFoodRow,
 } from "../../src/features/food";
@@ -93,6 +97,8 @@ export default function FoodScreen() {
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
   const [calcSheet, setCalcSheet] = useState(false);
+  const [manualOpen, setManualOpen] = useState(false);
+  const [portionRecent, setPortionRecent] = useState<FoodRecent | null>(null);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
   const [scanLookupBusy, setScanLookupBusy] = useState(false);
@@ -193,16 +199,18 @@ export default function FoodScreen() {
     load();
   };
 
-  const onTapRecent = async (r: FoodRecent) => {
+  const onTapRecent = async (r: FoodRecent, multiplier = 1) => {
     hapticTap();
     await addFoodEntry({
       date: today,
-      name: r.name,
-      calories: r.calories,
-      protein_g: r.protein_g,
-      fat_g: r.fat_g,
-      carbs_g: r.carbs_g,
+      name:
+        multiplier === 1 ? r.name : `${r.name} (${formatMultiplier(multiplier)})`,
+      calories: Math.round(r.calories * multiplier),
+      protein_g: Math.round(r.protein_g * multiplier * 10) / 10,
+      fat_g: Math.round(r.fat_g * multiplier * 10) / 10,
+      carbs_g: Math.round(r.carbs_g * multiplier * 10) / 10,
     });
+    setPortionRecent(null);
     load();
   };
 
@@ -390,7 +398,7 @@ export default function FoodScreen() {
 
       {recents.length > 0 ? (
         <>
-          <SectionLabel>Recent — tap to re-add</SectionLabel>
+          <SectionLabel>Recent — tap to add, hold for portion</SectionLabel>
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -403,6 +411,11 @@ export default function FoodScreen() {
                 // is not guaranteed unique across rows.
                 key={r.name.toLowerCase()}
                 onPress={() => onTapRecent(r)}
+                onLongPress={() => {
+                  hapticSelect();
+                  setPortionRecent(r);
+                }}
+                delayLongPress={300}
                 style={({ pressed }) => [
                   styles.recentChip,
                   pressed && { opacity: 0.7 },
@@ -421,7 +434,50 @@ export default function FoodScreen() {
         </>
       ) : null}
 
-      <SectionLabel>Or enter manually</SectionLabel>
+      <SectionLabel>Today&apos;s log</SectionLabel>
+      <Card padded={false}>
+        {entries.length === 0 ? (
+          <Text style={styles.emptyText}>
+            No entries yet — scan, tap a recent, or enter one below.
+          </Text>
+        ) : (
+          entries.map((e, i) => (
+            <SwipeableFoodRow
+              key={e.id}
+              entry={e}
+              isLast={i === entries.length - 1}
+              onDelete={() => onDelete(e.id)}
+              onEdit={() => {
+                hapticTap();
+                setEditEntry(e);
+              }}
+            />
+          ))
+        )}
+      </Card>
+
+
+      {/* Collapsed by default: it is the slowest path (six fields) and the
+          least used once recents exist, but it was occupying the most space
+          and pushing today's log below the fold. */}
+      <Pressable
+        onPress={() => {
+          hapticTap();
+          setManualOpen((v) => !v);
+        }}
+        style={({ pressed }) => [
+          styles.manualToggle,
+          pressed && { opacity: 0.7 },
+        ]}
+      >
+        <Text style={styles.manualToggleText}>Enter manually</Text>
+        {manualOpen ? (
+          <ChevronUp size={16} color={colors.textSecondary} strokeWidth={2} />
+        ) : (
+          <ChevronDown size={16} color={colors.textSecondary} strokeWidth={2} />
+        )}
+      </Pressable>
+      {manualOpen ? (
       <Card>
         <Text style={styles.formLabel}>Name</Text>
         <TextInput
@@ -488,28 +544,7 @@ export default function FoodScreen() {
         </Pressable>
       </Card>
 
-      <SectionLabel>Today&apos;s log</SectionLabel>
-      <Card padded={false}>
-        {entries.length === 0 ? (
-          <Text style={styles.emptyText}>
-            No entries yet — add a food above.
-          </Text>
-        ) : (
-          entries.map((e, i) => (
-            <SwipeableFoodRow
-              key={e.id}
-              entry={e}
-              isLast={i === entries.length - 1}
-              onDelete={() => onDelete(e.id)}
-              onEdit={() => {
-                hapticTap();
-                setEditEntry(e);
-              }}
-            />
-          ))
-        )}
-      </Card>
-
+      ) : null}
       <SectionLabel>Last 14 days</SectionLabel>
       <Card>
         <NutritionTrendChart
@@ -520,6 +555,12 @@ export default function FoodScreen() {
           }}
         />
       </Card>
+
+      <PortionSheet
+        recent={portionRecent}
+        onClose={() => setPortionRecent(null)}
+        onAdd={onTapRecent}
+      />
 
       <GoalSheet
         visible={goalSheet}
@@ -667,6 +708,19 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     borderRadius: radius.card,
   },
   addBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
+  manualToggle: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 13,
+    paddingHorizontal: 14,
+    marginTop: 12,
+    borderRadius: radius.card,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.card,
+  },
+  manualToggleText: { fontSize: s(14), fontWeight: "500", color: colors.text },
 
   recentsRow: {
     gap: 8,

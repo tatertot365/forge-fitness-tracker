@@ -42,3 +42,12 @@ export function parseOptional(v: string): number | null {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
+
+/**
+ * Render a portion multiplier for an entry name: "1.5x", not "1.5000000002x".
+ * Whole numbers lose the decimal so a doubled item reads "Bagel (2x)".
+ */
+export function formatMultiplier(m: number): string {
+  const rounded = Math.round(m * 100) / 100;
+  return `${Number.isInteger(rounded) ? rounded : rounded.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}x`;
+}

@@ -1,20 +1,23 @@
 import { useFocusEffect } from "expo-router";
 import {
   Calculator,
-  ChevronDown,
-  ChevronUp,
   Droplets,
   Flame,
   Layers,
   Plus,
+  Pencil,
   ScanLine,
   Search,
+  X,
   Zap,
 } from "lucide-react-native";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   AppState,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
   Keyboard,
   Pressable,
   ScrollView,
@@ -203,6 +206,7 @@ export default function FoodScreen() {
     hapticSuccess();
     Keyboard.dismiss();
     clearForm();
+    setManualOpen(false);
     load();
   };
 
@@ -328,15 +332,17 @@ export default function FoodScreen() {
         <Pressable
           onPress={() => {
             hapticTap();
-            setGoalSheet(true);
+            setManualOpen(true);
           }}
           hitSlop={10}
+          accessibilityLabel="Log food manually"
           style={({ pressed }) => [
-            styles.editGoalBtn,
-            pressed && { opacity: 0.6 },
+            styles.logBtn,
+            pressed && { opacity: 0.85 },
           ]}
         >
-          <Text style={styles.editGoalText}>Goals</Text>
+          <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
+          <Text style={styles.logBtnText}>Log</Text>
         </Pressable>
       </View>
 
@@ -345,6 +351,21 @@ export default function FoodScreen() {
       </View>
 
       <Card style={{ marginTop: 12 }}>
+        <Pressable
+          onPress={() => {
+            hapticTap();
+            setGoalSheet(true);
+          }}
+          hitSlop={6}
+          accessibilityLabel="Edit nutrition goals"
+          style={({ pressed }) => [
+            styles.goalCardHeader,
+            pressed && { opacity: 0.6 },
+          ]}
+        >
+          <Text style={styles.goalCardTitle}>Today</Text>
+          <Pencil size={13} color={colors.textSecondary} strokeWidth={2} />
+        </Pressable>
         <GoalRow
           icon={<Flame size={14} color={colors.red} strokeWidth={2} />}
           label="Calories"
@@ -491,27 +512,47 @@ export default function FoodScreen() {
       </Card>
 
 
-      {/* Collapsed by default: it is the slowest path (six fields) and the
-          least used once recents exist, but it was occupying the most space
-          and pushing today's log below the fold. */}
-      <Pressable
-        onPress={() => {
-          hapticTap();
-          setManualOpen((v) => !v);
-        }}
-        style={({ pressed }) => [
-          styles.manualToggle,
-          pressed && { opacity: 0.7 },
-        ]}
+
+      <SectionLabel>Last 14 days</SectionLabel>
+      <Card>
+        <NutritionTrendChart
+          data={totals}
+          onTapDay={(date) => {
+            hapticSelect();
+            setHistoryDate(date);
+          }}
+        />
+      </Card>
+
+      {/* The manual form is the slowest path and the least used once recents
+          exist, so it lives behind the header Log button rather than taking
+          space above today's log. */}
+      <Modal
+        visible={manualOpen}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setManualOpen(false)}
       >
-        <Text style={styles.manualToggleText}>Enter manually</Text>
-        {manualOpen ? (
-          <ChevronUp size={16} color={colors.textSecondary} strokeWidth={2} />
-        ) : (
-          <ChevronDown size={16} color={colors.textSecondary} strokeWidth={2} />
-        )}
-      </Pressable>
-      {manualOpen ? (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : undefined}
+          style={styles.manualBackdrop}
+        >
+          <Pressable style={{ flex: 1 }} onPress={() => setManualOpen(false)} />
+          <View style={styles.manualSheet}>
+            <View style={styles.manualHeader}>
+              <Text style={styles.manualTitle}>Log food</Text>
+              <Pressable
+                onPress={() => setManualOpen(false)}
+                hitSlop={10}
+                accessibilityLabel="Close"
+              >
+                <X size={20} color={colors.textSecondary} strokeWidth={2} />
+              </Pressable>
+            </View>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+            >
       <Card>
         <Text style={styles.formLabel}>Name</Text>
         <TextInput
@@ -577,18 +618,11 @@ export default function FoodScreen() {
           <Text style={styles.addBtnText}>Add</Text>
         </Pressable>
       </Card>
-
-      ) : null}
-      <SectionLabel>Last 14 days</SectionLabel>
-      <Card>
-        <NutritionTrendChart
-          data={totals}
-          onTapDay={(date) => {
-            hapticSelect();
-            setHistoryDate(date);
-          }}
-        />
-      </Card>
+              <View style={{ height: 12 }} />
+            </ScrollView>
+          </View>
+        </KeyboardAvoidingView>
+      </Modal>
 
       <FoodLibrarySheet
         visible={librarySheet}
@@ -728,22 +762,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   title: { ...typography.screenTitle, fontSize: s(22), color: colors.text },
 
-  editGoalBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: radius.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  editGoalText: {
-    fontSize: s(12),
-    fontWeight: "600",
-    color: colors.primary,
-  },
 
   formLabel: {
     fontSize: s(11),
@@ -777,19 +795,23 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     borderRadius: radius.card,
   },
   addBtnText: { color: "#FFFFFF", fontSize: s(14), fontWeight: "600" },
-  manualToggle: {
+  manualBackdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.4)" },
+  manualSheet: {
+    backgroundColor: colors.background,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingHorizontal: 16,
+    paddingTop: 14,
+    paddingBottom: 24,
+    maxHeight: "88%",
+  },
+  manualHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingVertical: 13,
-    paddingHorizontal: 14,
-    marginTop: 12,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
+    marginBottom: 12,
   },
-  manualToggleText: { fontSize: s(14), fontWeight: "500", color: colors.text },
+  manualTitle: { ...typography.screenTitle, fontSize: s(18), color: colors.text },
   libraryBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -854,6 +876,29 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     borderColor: colors.primary + "40",
   },
   quickAddText: { color: colors.primary, fontSize: s(14), fontWeight: "600" },
+  logBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  logBtnText: { fontSize: s(13), fontWeight: "600", color: "#FFFFFF" },
+  goalCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  goalCardTitle: {
+    fontSize: s(11),
+    color: colors.textSecondary,
+    textTransform: "uppercase",
+    letterSpacing: 0.6,
+    fontWeight: "600",
+  },
 
   toastWrap: {
     position: "absolute",

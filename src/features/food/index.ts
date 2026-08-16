@@ -1,5 +1,6 @@
 export { BarcodeResultSheet } from "./BarcodeResultSheet";
 export { BarcodeScannerModal } from "./BarcodeScannerModal";
+export { DatabaseResultSheet } from "./DatabaseResultSheet";
 export { DayHistorySheet } from "./DayHistorySheet";
 export { EditFoodSheet } from "./EditFoodSheet";
 export { FoodLibrarySheet } from "./FoodLibrarySheet";

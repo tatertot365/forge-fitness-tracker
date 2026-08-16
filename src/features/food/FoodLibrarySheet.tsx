@@ -13,6 +13,10 @@ import {
   View,
 } from "react-native";
 import { searchFoodHistory, toggleFoodFavorite } from "../../db/queries";
+import {
+  searchFoodDatabase,
+  type FoodSearchItem,
+} from "../../utils/openFoodFacts";
 import { colors } from "../../theme/colors";
 import { radius, typography } from "../../theme/spacing";
 import { useStyles } from "../../theme/useStyles";
@@ -29,16 +33,24 @@ export function FoodLibrarySheet({
   onClose,
   onPick,
   onLongPick,
+  onPickRemote,
 }: {
   visible: boolean;
   onClose: () => void;
   onPick: (item: FoodLibraryItem) => void;
   onLongPick: (item: FoodLibraryItem) => void;
+  onPickRemote: (item: FoodSearchItem) => void;
 }) {
   const styles = useStyles(makeStyles);
   const [query, setQuery] = useState("");
   const [items, setItems] = useState<FoodLibraryItem[]>([]);
   const [loading, setLoading] = useState(false);
+  // Local history and the global database stay separate scopes. Blending 10k
+  // branded hits into the handful of foods someone actually eats buries the
+  // useful ones.
+  const [scope, setScope] = useState<"mine" | "database">("mine");
+  const [remote, setRemote] = useState<FoodSearchItem[]>([]);
+  const [remoteError, setRemoteError] = useState<string | null>(null);
 
   const run = useCallback(async (q: string) => {
     setLoading(true);
@@ -49,18 +61,46 @@ export function FoodLibrarySheet({
     }
   }, []);
 
+  const runRemote = useCallback(async (q: string) => {
+    if (q.trim().length < 2) {
+      setRemote([]);
+      setRemoteError(null);
+      return;
+    }
+    setLoading(true);
+    setRemoteError(null);
+    try {
+      setRemote(await searchFoodDatabase(q));
+    } catch (e) {
+      setRemote([]);
+      setRemoteError(
+        e instanceof Error ? e.message : "Could not reach the food database.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!visible) return;
     setQuery("");
+    setScope("mine");
+    setRemote([]);
+    setRemoteError(null);
     run("");
   }, [visible, run]);
 
-  // Debounced so typing does not fire a query per keystroke.
+  // Debounced so typing does not fire a query per keystroke. The remote search
+  // waits longer -- it is a network round trip, not a local table scan.
   useEffect(() => {
     if (!visible) return;
-    const t = setTimeout(() => run(query), 180);
+    if (scope === "mine") {
+      const t = setTimeout(() => run(query), 180);
+      return () => clearTimeout(t);
+    }
+    const t = setTimeout(() => runRemote(query), 400);
     return () => clearTimeout(t);
-  }, [query, visible, run]);
+  }, [query, visible, scope, run, runRemote]);
 
   const onToggleFav = async (item: FoodLibraryItem) => {
     const next = await toggleFoodFavorite(item.name);
@@ -113,12 +153,76 @@ export function FoodLibrarySheet({
             ) : null}
           </View>
 
+          <View style={styles.scopeRow}>
+            {(["mine", "database"] as const).map((sc) => (
+              <Pressable
+                key={sc}
+                onPress={() => setScope(sc)}
+                style={({ pressed }) => [
+                  styles.scopeBtn,
+                  scope === sc && styles.scopeBtnActive,
+                  pressed && { opacity: 0.7 },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.scopeText,
+                    scope === sc && styles.scopeTextActive,
+                  ]}
+                >
+                  {sc === "mine" ? "My foods" : "Food database"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           <ScrollView
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
             style={styles.list}
           >
-            {loading && items.length === 0 ? (
+            {scope === "database" ? (
+              remoteError ? (
+                <Text style={styles.empty}>{remoteError}</Text>
+              ) : loading ? (
+                <ActivityIndicator
+                  color={colors.textMuted}
+                  style={{ marginTop: 24 }}
+                />
+              ) : query.trim().length < 2 ? (
+                <Text style={styles.empty}>
+                  Search millions of products from Open Food Facts.
+                </Text>
+              ) : remote.length === 0 ? (
+                <Text style={styles.empty}>
+                  No products with nutrition data for &quot;{query.trim()}&quot;
+                </Text>
+              ) : (
+                remote.map((r, i) => (
+                  <Pressable
+                    key={`${r.code}-${i}`}
+                    onPress={() => onPickRemote(r)}
+                    style={({ pressed }) => [
+                      styles.row,
+                      styles.rowMain,
+                      pressed && { opacity: 0.6 },
+                    ]}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.rowName} numberOfLines={2}>
+                        {r.brand && !r.name.toLowerCase().includes(r.brand.toLowerCase())
+                          ? `${r.brand} ${r.name}`
+                          : r.name}
+                      </Text>
+                      <Text style={styles.per100}>
+                        {r.caloriesPer100g} cal · P {r.proteinPer100g}g · F{" "}
+                        {r.fatPer100g}g · C {r.carbsPer100g}g{"  "}per 100 g
+                      </Text>
+                    </View>
+                  </Pressable>
+                ))
+              )
+            ) : loading && items.length === 0 ? (
               <ActivityIndicator
                 color={colors.textMuted}
                 style={{ marginTop: 24 }}
@@ -209,6 +313,27 @@ const makeStyles = (s: (n: number) => number) =>
       paddingVertical: 9,
     },
     searchInput: { flex: 1, fontSize: s(15), color: colors.text, padding: 0 },
+    scopeRow: {
+      flexDirection: "row",
+      gap: 6,
+      marginTop: 10,
+    },
+    scopeBtn: {
+      flex: 1,
+      paddingVertical: 8,
+      borderRadius: radius.pill,
+      borderWidth: StyleSheet.hairlineWidth,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      alignItems: "center",
+    },
+    scopeBtnActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    scopeText: { fontSize: s(12), fontWeight: "600", color: colors.textSecondary },
+    scopeTextActive: { color: "#FFFFFF" },
+    per100: { fontSize: s(11), color: colors.textMuted, marginTop: 2 },
     list: { marginTop: 12 },
     row: {
       flexDirection: "row",

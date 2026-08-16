@@ -30,6 +30,7 @@ import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   BarcodeResultSheet,
   BarcodeScannerModal,
+  DatabaseResultSheet,
   DayHistorySheet,
   EditFoodSheet,
   GoalRow,
@@ -80,6 +81,7 @@ import {
 import {
   lookupBarcode,
   type FoodFactsResult,
+  type FoodSearchItem,
 } from "../../src/utils/openFoodFacts";
 
 export default function FoodScreen() {
@@ -103,6 +105,7 @@ export default function FoodScreen() {
   const [manualOpen, setManualOpen] = useState(false);
   const [portionRecent, setPortionRecent] = useState<FoodRecent | null>(null);
   const [librarySheet, setLibrarySheet] = useState(false);
+  const [dbResult, setDbResult] = useState<FoodSearchItem | null>(null);
   const [scannerVisible, setScannerVisible] = useState(false);
   const [scanResult, setScanResult] = useState<FoodFactsResult | null>(null);
   const [scanLookupBusy, setScanLookupBusy] = useState(false);
@@ -598,6 +601,22 @@ export default function FoodScreen() {
           hapticSelect();
           setLibrarySheet(false);
           setPortionRecent(toRecent(item));
+        }}
+        onPickRemote={(item) => {
+          hapticSelect();
+          setLibrarySheet(false);
+          setDbResult(item);
+        }}
+      />
+
+      <DatabaseResultSheet
+        item={dbResult}
+        onClose={() => setDbResult(null)}
+        onAdd={async (entry) => {
+          await addFoodEntry({ date: today, ...entry });
+          hapticSuccess();
+          setDbResult(null);
+          load();
         }}
       />
 

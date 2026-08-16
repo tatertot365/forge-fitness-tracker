@@ -38,6 +38,25 @@ export const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   },
   editBtnText: { fontSize: s(12), fontWeight: "600", color: colors.primary },
 
+  // Filled rather than outlined: logging is the screen's primary action and
+  // now the only control in the header.
+  logBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: radius.pill,
+    backgroundColor: colors.primary,
+  },
+  logBtnText: { fontSize: s(13), fontWeight: "600", color: "#FFFFFF" },
+
+  goalsEmpty: {
+    fontSize: s(13),
+    color: colors.textSecondary,
+    lineHeight: 18,
+  },
+
   // Goals card
   goalsCard: {
     backgroundColor: colors.card,

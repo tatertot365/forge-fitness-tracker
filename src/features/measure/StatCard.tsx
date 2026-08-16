@@ -1,5 +1,5 @@
 import React from "react";
-import { StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import { colors } from "../../theme/colors";
 import { radius } from "../../theme/spacing";
 import { useStyles } from "../../theme/useStyles";
@@ -15,6 +15,7 @@ export function StatCard({
   prior,
   goodOnIncrease,
   neutral,
+  onPress,
 }: {
   label: string;
   value: string;
@@ -23,10 +24,25 @@ export function StatCard({
   prior: number | null;
   goodOnIncrease: boolean;
   neutral?: boolean;
+  onPress?: () => void;
 }) {
   const styles = useStyles(makeStyles);
+  // Lean mass is derived rather than stored, so it has no history to open --
+  // those cards stay inert views.
+  const Wrapper: any = onPress ? Pressable : View;
   return (
-    <View style={styles.statCard}>
+    <Wrapper
+      style={
+        onPress
+          ? ({ pressed }: { pressed: boolean }) => [
+              styles.statCard,
+              pressed && { opacity: 0.6 },
+            ]
+          : styles.statCard
+      }
+      onPress={onPress}
+      accessibilityLabel={onPress ? `${label} history` : undefined}
+    >
       <Text style={styles.statLabel}>{label}</Text>
       <Text style={styles.statValue}>{value}</Text>
       <Text style={styles.statUnit}>{value !== "—" ? unit : ""}</Text>
@@ -37,7 +53,7 @@ export function StatCard({
         neutral={neutral}
         unit={unit === "lbs" ? " lbs" : unit === "%" ? "%" : " lbs"}
       />
-    </View>
+    </Wrapper>
   );
 }
 

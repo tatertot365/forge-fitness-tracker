@@ -3,6 +3,7 @@ import { StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import Svg, { Circle, Line, Path } from "react-native-svg";
 import { colors } from "../../theme/colors";
 import { type Measurement } from "../../types";
+import { type MeasurementKey } from "./types";
 import { useStyles } from "../../theme/useStyles";
 import { daysBetween } from "../../utils/date";
 import { shortDate } from "./helpers";
@@ -15,12 +16,16 @@ export function MeasurementLineChart({
   label,
   unit,
   color,
+  goodOnIncrease = null,
 }: {
   data: Measurement[];
-  valueKey: "weight_lb" | "body_fat_pct";
+  valueKey: MeasurementKey;
   label: string;
   unit: string;
   color: string;
+  // Which direction counts as progress. Null keeps the delta neutral -- weight
+  // has no universally "good" direction without knowing the user's goal.
+  goodOnIncrease?: boolean | null;
 }) {
   const styles = useStyles(makeStyles);
   const { width } = useWindowDimensions();
@@ -78,9 +83,9 @@ export function MeasurementLineChart({
   const deltaColor =
     delta === 0
       ? colors.textMuted
-      : valueKey === "weight_lb"
+      : goodOnIncrease == null
         ? colors.textSecondary
-        : delta < 0
+        : (delta > 0) === goodOnIncrease
           ? colors.green
           : colors.red;
 

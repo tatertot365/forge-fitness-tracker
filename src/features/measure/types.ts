@@ -1,5 +1,8 @@
 import { type Measurement } from "../../types";
 
+// Every numeric column on a measurement -- anything the chart can plot.
+export type MeasurementKey = keyof Omit<Measurement, "id" | "date">;
+
 export type CircField = {
   key: keyof Pick<
     Measurement,

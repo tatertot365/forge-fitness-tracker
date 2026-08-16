@@ -1,4 +1,4 @@
-import { Pencil } from "lucide-react-native";
+import { ChevronRight, Pencil, Plus } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   Keyboard,
@@ -30,8 +30,14 @@ import {
   GoalProgressRow,
   makeStyles,
   MeasurementLineChart,
+  MetricDetailSheet,
+  ratePerWeek,
+  seriesFor,
   StatCard,
+  TrendHeroCard,
+  emaAt,
   useMeasurements,
+  type MeasurementKey,
   type ParsedMeasurement,
 } from "../../src/features/measure";
 import { colors } from "../../src/theme/colors";
@@ -62,6 +68,12 @@ export default function MeasureScreen() {
   } = useMeasurements();
   const [editModalVisible, setEditModalVisible] = useState(false);
   const [goalsModalVisible, setGoalsModalVisible] = useState(false);
+  const [detail, setDetail] = useState<{
+    key: MeasurementKey;
+    label: string;
+    unit: string;
+    goodOnIncrease: boolean | null;
+  } | null>(null);
 
   const openEdit = () => setEditModalVisible(true);
 
@@ -121,6 +133,12 @@ export default function MeasureScreen() {
 
   const hasBfHistory = history.some((m) => m.body_fat_pct != null);
 
+  // Smoothed weight and its rate of change. The raw reading swings with water
+  // and glycogen, so the trend leads and the last weigh-in sits beneath it.
+  const weightSeries = seriesFor(history, "weight_lb");
+  const weightTrend = emaAt(weightSeries);
+  const weightRate = ratePerWeek(weightSeries);
+
   // Deltas compare against the previous check-in, whenever that was. Name the
   // interval so an arrow spanning months is not read as a week of progress.
   const comparisonLabel =
@@ -145,29 +163,22 @@ export default function MeasureScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Measurements</Text>
           </View>
-          <View style={styles.headerBtns}>
-            <Pressable
-              onPress={() => setGoalsModalVisible(true)}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.editBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Text style={styles.editBtnText}>Goals</Text>
-            </Pressable>
-            <Pressable
-              onPress={openEdit}
-              hitSlop={10}
-              style={({ pressed }) => [
-                styles.editBtn,
-                pressed && { opacity: 0.6 },
-              ]}
-            >
-              <Pencil size={12} color={colors.primary} strokeWidth={2} />
-              <Text style={styles.editBtnText}>Log</Text>
-            </Pressable>
-          </View>
+          {/* Logging is the frequent action, so it is the only thing in the
+              header and reads as primary. Goals are edited from the card that
+              displays them -- the old header button opened the same sheet as
+              that card's pencil. */}
+          <Pressable
+            onPress={openEdit}
+            hitSlop={10}
+            accessibilityLabel="Log check-in"
+            style={({ pressed }) => [
+              styles.logBtn,
+              pressed && { opacity: 0.85 },
+            ]}
+          >
+            <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
+            <Text style={styles.logBtnText}>Log</Text>
+          </Pressable>
         </View>
 
         {/* First-launch onboarding prompt */}
@@ -187,6 +198,18 @@ export default function MeasureScreen() {
           </Pressable>
         )}
 
+        {/* Smoothed weight leads; raw reading is context. Hidden before the
+            first check-in, where the onboarding card already fills this slot. */}
+        {latest !== null && (
+        <TrendHeroCard
+          trend={weightTrend}
+          raw={latest?.weight_lb ?? null}
+          rawDate={latest?.date ?? null}
+          ratePerWeek={weightRate}
+          goalWeight={bodyGoals.goal_weight_lb ?? null}
+        />
+        )}
+
         {/* Stats grid: weight, body fat, lean mass */}
         {comparisonLabel ? (
           <Text style={styles.comparisonNote}>{comparisonLabel}</Text>
@@ -200,6 +223,14 @@ export default function MeasureScreen() {
             prior={prior?.weight_lb ?? null}
             goodOnIncrease={false}
             neutral
+            onPress={() =>
+              setDetail({
+                key: "weight_lb",
+                label: "Weight",
+                unit: " lbs",
+                goodOnIncrease: null,
+              })
+            }
           />
           <StatCard
             label="Body fat"
@@ -210,6 +241,14 @@ export default function MeasureScreen() {
             current={latest?.body_fat_pct ?? null}
             prior={prior?.body_fat_pct ?? null}
             goodOnIncrease={false}
+            onPress={() =>
+              setDetail({
+                key: "body_fat_pct",
+                label: "Body fat",
+                unit: "%",
+                goodOnIncrease: false,
+              })
+            }
           />
           <StatCard
             label="Lean mass"
@@ -221,9 +260,10 @@ export default function MeasureScreen() {
           />
         </View>
 
-        {/* Body goals */}
-        {(bodyGoals.goal_weight_lb != null ||
-          bodyGoals.goal_body_fat_pct != null) && (
+        {/* Body goals. Always rendered so the pencil is a stable home for goal
+            editing -- when nothing is set the card prompts instead of hiding,
+            which previously left no way in from this screen. */}
+        {latest !== null && (
           <View style={styles.goalsCard}>
             <View style={styles.goalsCardHeader}>
               <Text style={styles.goalsCardTitle}>Goals</Text>
@@ -240,6 +280,17 @@ export default function MeasureScreen() {
                 />
               </Pressable>
             </View>
+            {bodyGoals.goal_weight_lb == null &&
+            bodyGoals.goal_body_fat_pct == null ? (
+              <Pressable
+                onPress={() => setGoalsModalVisible(true)}
+                style={({ pressed }) => [pressed && { opacity: 0.6 }]}
+              >
+                <Text style={styles.goalsEmpty}>
+                  Set a weight or body fat target to track progress →
+                </Text>
+              </Pressable>
+            ) : null}
             {bodyGoals.goal_weight_lb != null && (
               <GoalProgressRow
                 label="Weight"
@@ -296,11 +347,21 @@ export default function MeasureScreen() {
             const current = latest?.[f.key] ?? null;
             const previous = prior?.[f.key] ?? null;
             return (
-              <View
+              <Pressable
                 key={f.key}
-                style={[
+                onPress={() =>
+                  setDetail({
+                    key: f.key,
+                    label: f.label,
+                    unit: "″",
+                    goodOnIncrease: f.goodOnIncrease,
+                  })
+                }
+                accessibilityLabel={`${f.label} history`}
+                style={({ pressed }) => [
                   styles.listRow,
                   i !== CIRC_FIELDS.length - 1 && styles.listDivider,
+                  pressed && { opacity: 0.6 },
                 ]}
               >
                 <Text style={styles.listLabel}>{f.label}</Text>
@@ -314,8 +375,13 @@ export default function MeasureScreen() {
                     goodOnIncrease={f.goodOnIncrease}
                     unit="″"
                   />
+                  <ChevronRight
+                    size={14}
+                    color={colors.textMuted}
+                    strokeWidth={2}
+                  />
                 </View>
-              </View>
+              </Pressable>
             );
           })}
         </View>
@@ -350,6 +416,7 @@ export default function MeasureScreen() {
                     label="Body fat"
                     unit="%"
                     color={colors.warning}
+                    goodOnIncrease={false}
                   />
                 </View>
               ) : null}
@@ -364,6 +431,16 @@ export default function MeasureScreen() {
         latest={latest}
         onClose={() => setEditModalVisible(false)}
         onSave={save}
+      />
+      {/* Metric history */}
+      <MetricDetailSheet
+        visible={detail != null}
+        metricKey={detail?.key ?? null}
+        label={detail?.label ?? ""}
+        unit={detail?.unit ?? ""}
+        goodOnIncrease={detail?.goodOnIncrease ?? null}
+        history={history}
+        onClose={() => setDetail(null)}
       />
       {/* Goals modal */}
       <BodyGoalsSheet

@@ -45,6 +45,7 @@ import {
   getLastCompletedSetsForExercise,
   getOrCreateSession,
   getSetLogsForSessionExercise,
+  updateExercise,
   upsertSetLog,
   type ExerciseSessionHistory,
 } from "../../src/db/queries";
@@ -79,7 +80,18 @@ export default function ExerciseDetailScreen() {
   const [editOpen, setEditOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [restKey, setRestKey] = useState<number | null>(null);
+  // Open state is tracked separately from the weight so the sheet can open
+  // with no weight entered yet -- tapping the set number used to no-op
+  // silently when the row was blank, which read as a dead button.
+  const [plateOpen, setPlateOpen] = useState(false);
   const [plateTarget, setPlateTarget] = useState<number | null>(null);
+
+  const openPlateSheet = (rawWeight: string) => {
+    const w = Number(rawWeight);
+    hapticTap();
+    setPlateTarget(Number.isFinite(w) && w > 0 ? w : null);
+    setPlateOpen(true);
+  };
 
   const load = useCallback(async () => {
     if (!exerciseId || Number.isNaN(exerciseId)) return;
@@ -422,6 +434,62 @@ export default function ExerciseDetailScreen() {
     ]);
   };
 
+  // Working sets are driven by `exercise.sets` -- load() rebuilds `rows` as
+  // 1..ex.sets on every focus -- so unlike a warmup row, an added set has to be
+  // persisted to day_exercises or it would disappear on the next reload.
+  //
+  // This edits the exercise's set count for the day, which is the same thing
+  // the edit sheet's Sets stepper does; it is not a per-session override.
+  const addWorkingSet = async () => {
+    if (!exercise) return;
+    const nextCount = exercise.sets + 1;
+    hapticTap();
+    setRows((prev) => [
+      ...prev,
+      {
+        setNumber: nextCount,
+        weight: prev[prev.length - 1]?.weight ?? "",
+        reps: "",
+        dropWeight: prev[prev.length - 1]?.dropWeight ?? "",
+        dropReps: "",
+        completed: false,
+      },
+    ]);
+    setExercise({ ...exercise, sets: nextCount });
+    await updateExercise(exercise.id, { sets: nextCount });
+  };
+
+  // Long-press counterpart to "Add set". Only the trailing set can be removed:
+  // rows are keyed by set_number 1..n, so dropping one from the middle would
+  // renumber every row after it and re-point their existing logs.
+  const removeWorkingSet = (idx: number) => {
+    if (!exercise) return;
+    if (idx !== rows.length - 1 || rows.length <= 1) return;
+    const r = rows[idx];
+    const doRemove = async () => {
+      // Drop the log first so a completed set does not linger as orphaned
+      // history after the row count shrinks.
+      if (sessionId) await deleteSetLog(sessionId, exercise.id, r.setNumber);
+      const nextCount = Math.max(1, exercise.sets - 1);
+      setRows((prev) => prev.filter((_, i) => i !== idx));
+      setExercise({ ...exercise, sets: nextCount });
+      await updateExercise(exercise.id, { sets: nextCount });
+    };
+    if (r.completed || r.weight.trim() !== "" || r.reps.trim() !== "") {
+      Alert.alert(
+        `Remove set ${r.setNumber}?`,
+        "This set has data logged. Removing it deletes that entry.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Remove", style: "destructive", onPress: doRemove },
+        ],
+      );
+      return;
+    }
+    hapticTap();
+    doRemove();
+  };
+
   const removeWarmupRow = async (idx: number) => {
     const r = warmupRows[idx];
     if (sessionId && exercise) {
@@ -620,17 +688,11 @@ export default function ExerciseDetailScreen() {
                 <View key={r.setNumber} style={!isLast && styles.rowDivider}>
                   <View style={styles.tableRow}>
                     <Pressable
-                      onPress={() => {
-                        const w = Number(r.weight);
-                        if (Number.isFinite(w) && w > 0) {
-                          hapticTap();
-                          setPlateTarget(w);
-                        }
-                      }}
+                      onPress={() => openPlateSheet(r.weight)}
                       hitSlop={8}
                       accessibilityLabel={`Plate loading for warmup set ${idx + 1}`}
                       style={({ pressed }) => [
-                        { width: 32 },
+                        styles.setNumChip,
                         pressed && { opacity: 0.5 },
                       ]}
                     >
@@ -723,17 +785,16 @@ export default function ExerciseDetailScreen() {
                 <View key={r.setNumber} style={!isLast && styles.rowDivider}>
                   <View style={styles.tableRow}>
                     <Pressable
-                      onPress={() => {
-                        const w = Number(r.weight);
-                        if (Number.isFinite(w) && w > 0) {
-                          hapticTap();
-                          setPlateTarget(w);
-                        }
-                      }}
+                      onPress={() => openPlateSheet(r.weight)}
+                      onLongPress={
+                        idx === rows.length - 1 && rows.length > 1
+                          ? () => removeWorkingSet(idx)
+                          : undefined
+                      }
                       hitSlop={8}
                       accessibilityLabel={`Plate loading for set ${r.setNumber}`}
                       style={({ pressed }) => [
-                        { width: 32 },
+                        styles.setNumChip,
                         pressed && { opacity: 0.5 },
                       ]}
                     >
@@ -817,6 +878,17 @@ export default function ExerciseDetailScreen() {
                 </View>
               );
             })}
+            <Pressable
+              onPress={addWorkingSet}
+              style={({ pressed }) => [
+                styles.addWarmupRow,
+                rows.length > 0 && styles.addWarmupRowBorder,
+                pressed && { opacity: 0.6 },
+              ]}
+            >
+              <Plus size={13} color={colors.primary} strokeWidth={2.5} />
+              <Text style={styles.addWarmupText}>Add set</Text>
+            </Pressable>
           </Card>
 
           <View style={styles.restWrap}>
@@ -844,9 +916,12 @@ export default function ExerciseDetailScreen() {
       </KeyboardAvoidingView>
 
       <PlateSheet
-        visible={plateTarget !== null}
+        visible={plateOpen}
         targetLb={plateTarget}
-        onClose={() => setPlateTarget(null)}
+        onClose={() => {
+          setPlateOpen(false);
+          setPlateTarget(null);
+        }}
       />
 
       {exercise ? (
@@ -990,11 +1065,23 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  // Rendered as a bordered chip rather than plain text: this is the plate
+  // calculator's only entry point, and as bare muted text it was
+  // indistinguishable from a non-interactive row label.
   setNum: {
     fontSize: s(14),
     fontWeight: "600",
     color: colors.textSecondary,
     textAlign: "center",
+  },
+  setNumChip: {
+    width: 28,
+    paddingVertical: 3,
+    alignSelf: "center",
+    borderRadius: radius.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
   input: {
     fontSize: s(15),

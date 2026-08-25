@@ -1,6 +1,13 @@
 import { X } from "lucide-react-native";
-import React, { useState } from "react";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useEffect, useState } from "react";
+import {
+  Modal,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { colors } from "../../theme/colors";
 import { radius } from "../../theme/spacing";
 import { makeSheetStyles } from "../../theme/sheets";
@@ -31,8 +38,22 @@ export function PlateSheet({
 }) {
   const styles = useStyles(makeStyles);
   const [barLb, setBarLb] = useState<number>(DEFAULT_BAR_LB);
+  // The sheet can be opened from a row with no weight typed yet, so it carries
+  // its own editable weight rather than being a read-only view of the row.
+  const [weightText, setWeightText] = useState("");
 
-  const solution = targetLb != null ? solvePlates(targetLb, barLb) : null;
+  useEffect(() => {
+    if (visible) setWeightText(targetLb != null ? String(targetLb) : "");
+  }, [visible, targetLb]);
+
+  const typed = Number(weightText);
+  const effectiveTarget =
+    weightText.trim() !== "" && Number.isFinite(typed) && typed > 0
+      ? typed
+      : null;
+
+  const solution =
+    effectiveTarget != null ? solvePlates(effectiveTarget, barLb) : null;
   const grouped = solution ? groupPlates(solution.perSide) : [];
 
   return (
@@ -44,13 +65,27 @@ export function PlateSheet({
             <View style={{ flex: 1 }}>
               <Text style={styles.sheetTitle}>Plates per side</Text>
               <Text style={styles.sheetSubtitle}>
-                {targetLb != null ? `${targetLb} lb total` : ""}
+                {effectiveTarget != null
+                  ? `${formatPlate(effectiveTarget)} lb total`
+                  : "Enter a target weight"}
               </Text>
             </View>
             <Pressable onPress={onClose} hitSlop={10} accessibilityLabel="Close">
               <X size={20} color={colors.textSecondary} />
             </Pressable>
           </View>
+
+          <Text style={styles.barLabel}>Target weight (lb)</Text>
+          <TextInput
+            value={weightText}
+            onChangeText={setWeightText}
+            keyboardType="decimal-pad"
+            selectTextOnFocus
+            style={[styles.input, styles.sheetInput, { marginBottom: 18 }]}
+            placeholder="e.g. 185"
+            placeholderTextColor={colors.textMuted}
+            accessibilityLabel="Target weight in pounds"
+          />
 
           <Text style={styles.barLabel}>Bar weight</Text>
           <View style={styles.barRow}>
@@ -76,8 +111,8 @@ export function PlateSheet({
 
           {solution === null ? (
             <Text style={styles.emptyText}>
-              {targetLb != null && targetLb < barLb
-                ? `${targetLb} lb is lighter than the ${barLb} lb bar.`
+              {effectiveTarget != null && effectiveTarget < barLb
+                ? `${formatPlate(effectiveTarget)} lb is lighter than the ${barLb} lb bar.`
                 : "Enter a weight to see the loading."}
             </Text>
           ) : grouped.length === 0 ? (

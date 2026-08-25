@@ -95,14 +95,25 @@ export function EditSheet({
     }
   }, [exercise]);
 
-  // Load same-day exercises when superset type is active
+  // Load same-day exercises when superset type is active.
+  //
+  // The `[exercise]` sync effect above clears this list, so the fetch must not
+  // rely on running after it -- both effects fire on the same commit when the
+  // sheet opens on an exercise that is already a superset. The `cancelled`
+  // guard also stops a fetch for a previously-edited exercise from landing
+  // after the user has switched to a different one, which showed the wrong
+  // day's exercises (or an empty list) in the picker.
   useEffect(() => {
-    if (type === "superset" && exercise) {
-      getExercisesByDay(exercise.day).then((exs) => {
-        setDayExercises(exs.filter((e) => e.id !== exercise.id));
-      });
-    }
-  }, [type, exercise?.id, exercise?.day]);
+    if (type !== "superset" || !exercise) return;
+    let cancelled = false;
+    getExercisesByDay(exercise.day).then((exs) => {
+      if (cancelled) return;
+      setDayExercises(exs.filter((e) => e.id !== exercise.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, exercise?.id, exercise?.day, visible]);
 
   const canSave = !(type === "superset" && partnerValue === null);
 

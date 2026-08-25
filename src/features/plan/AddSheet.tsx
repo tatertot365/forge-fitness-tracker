@@ -89,13 +89,25 @@ export function AddSheet({ visible, day, onClose, onCreated }: AddSheetProps) {
     }
   }, [visible]);
 
-  // Load same-day exercises when superset type is selected
+  // Load same-day exercises when superset type is selected.
+  //
+  // Keyed on `visible` as well as `day`, because the sheet is kept mounted
+  // between opens: without it, an exercise added to the day since the last
+  // time superset was selected would be missing from the picker. The
+  // `cancelled` guard stops a fetch for a previous day from landing after the
+  // user has switched days.
   useEffect(() => {
-    if (type === "superset") {
-      getExercisesByDay(day).then(setDayExercises);
-      setPartnerValue(null);
-    }
-  }, [type, day]);
+    if (type !== "superset" || !visible) return;
+    let cancelled = false;
+    getExercisesByDay(day).then((exs) => {
+      if (cancelled) return;
+      setDayExercises(exs);
+    });
+    setPartnerValue(null);
+    return () => {
+      cancelled = true;
+    };
+  }, [type, day, visible]);
 
   const reset = () => {
     setMode("library");

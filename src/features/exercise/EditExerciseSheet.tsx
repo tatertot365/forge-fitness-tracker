@@ -61,13 +61,21 @@ export function EditExerciseSheet({
   const [busy, setBusy] = useState(false);
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
 
+  // Guarded so a fetch for a previously-edited exercise cannot land after the
+  // user has moved to a different one and repopulate the picker with the wrong
+  // day's exercises. Also refetches when the sheet reopens, so an exercise
+  // added to the day since the last open shows up.
   useEffect(() => {
-    if (type === "superset") {
-      getExercisesByDay(exercise.day).then((rows) =>
-        setAllExercises(rows.filter((e) => e.id !== exercise.id)),
-      );
-    }
-  }, [type, exercise.id, exercise.day]);
+    if (type !== "superset" || !visible) return;
+    let cancelled = false;
+    getExercisesByDay(exercise.day).then((rows) => {
+      if (cancelled) return;
+      setAllExercises(rows.filter((e) => e.id !== exercise.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [type, exercise.id, exercise.day, visible]);
 
   const partnerCandidates = allExercises;
   const canSave =
@@ -243,7 +251,7 @@ export function EditExerciseSheet({
                   <Text style={styles.fieldLabel}>Pair with</Text>
                   {partnerCandidates.length === 0 ? (
                     <Text style={styles.sheetHint}>
-                      No other exercises in your library yet. Add one first.
+                      No other exercises on this day yet. Add one first.
                     </Text>
                   ) : (
                     <View style={{ gap: 6 }}>

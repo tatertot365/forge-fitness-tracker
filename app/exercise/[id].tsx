@@ -190,7 +190,10 @@ export default function ExerciseDetailScreen() {
     setSessionId(sid);
     setRows(nextRows);
     setHistory(hist);
-  }, [exerciseId, params.sessionId]);
+    // params.date is read above to resolve the session for a catch-up entry,
+    // so it belongs in the deps -- omitting it meant navigating between two
+    // catch-up dates reused the first date's session.
+  }, [exerciseId, params.sessionId, params.date]);
 
   useFocusEffect(
     useCallback(() => {
@@ -623,7 +626,18 @@ export default function ExerciseDetailScreen() {
 
           {exercise?.type === "superset" && partner ? (
             <Pressable
-              onPress={() => router.replace(`/exercise/${partner.id}`)}
+              onPress={() => {
+                // Carry the session context across. Without it the partner
+                // resolves to today's session via the fallback branch in
+                // load(), so a superset opened from a catch-up or from another
+                // day silently logged its sets against the wrong date.
+                const qs = params.sessionId
+                  ? `?sessionId=${params.sessionId}`
+                  : params.date
+                    ? `?date=${params.date}`
+                    : "";
+                router.replace(`/exercise/${partner.id}${qs}`);
+              }}
               style={({ pressed }) => [
                 styles.partnerPill,
                 pressed && { opacity: 0.7 },

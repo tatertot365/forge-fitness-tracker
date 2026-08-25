@@ -137,6 +137,25 @@ export const makeSs = (s: (n: number) => number) => StyleSheet.create({
     marginLeft: 8,
   },
   checkText: { color: "#FFFFFF", fontSize: s(12), fontWeight: "700" },
+  // Marks a candidate that is already half of another superset. Picking it
+  // re-pairs, which breaks that other pair -- the badge is what makes that
+  // consequence visible before the tap.
+  pairedBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: radius.pill,
+    backgroundColor: colors.warning + "1F",
+  },
+  pairedBadgeText: {
+    fontSize: s(11),
+    color: colors.warning,
+    fontWeight: "600",
+  },
   emptyText: {
     color: colors.textMuted,
     fontSize: s(13),

@@ -1,4 +1,4 @@
-import { Minus, Plus, Trash2, X } from "lucide-react-native";
+import { Link2, Minus, Plus, Trash2, X } from "lucide-react-native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useEffect, useState } from "react";
 import {
@@ -78,6 +78,34 @@ export function EditExerciseSheet({
   }, [type, exercise.id, exercise.day, visible]);
 
   const partnerCandidates = allExercises;
+
+  // Name of the exercise `c` is already paired with, or null when picking it
+  // breaks nothing. A candidate pointing back at this exercise is the pair we
+  // are already in, not a conflict.
+  const pairedWith = (c: Exercise): string | null => {
+    if (c.type !== "superset" || !c.superset_partner_id) return null;
+    if (c.superset_partner_id === exercise.id) return null;
+    const partner = allExercises.find((e) => e.id === c.superset_partner_id);
+    return partner?.name ?? "another exercise";
+  };
+
+  const choosePartner = (c: Exercise) => {
+    const existing = pairedWith(c);
+    if (existing) {
+      // linkSuperset already unlinks the displaced partner on save; this makes
+      // that consequence visible before the user commits to it.
+      Alert.alert(
+        "Re-pair this exercise?",
+        `"${c.name}" is currently paired with "${existing}". Pairing it here will unlink that superset.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Re-pair", onPress: () => setPartnerId(c.id) },
+        ],
+      );
+      return;
+    }
+    setPartnerId(c.id);
+  };
   const canSave =
     name.trim().length > 0 && (type !== "superset" || partnerId !== null);
 
@@ -258,7 +286,7 @@ export function EditExerciseSheet({
                       {partnerCandidates.map((c) => (
                         <Pressable
                           key={c.id}
-                          onPress={() => setPartnerId(c.id)}
+                          onPress={() => choosePartner(c)}
                           style={({ pressed }) => [
                             styles.partnerOption,
                             partnerId === c.id && styles.partnerOptionActive,
@@ -283,6 +311,18 @@ export function EditExerciseSheet({
                           >
                             {MUSCLE_LABEL[c.muscle_group]}
                           </Text>
+                          {pairedWith(c) ? (
+                            <View style={styles.pairedBadge}>
+                              <Link2
+                                size={10}
+                                color={colors.warning}
+                                strokeWidth={2.5}
+                              />
+                              <Text style={styles.pairedBadgeText}>
+                                Paired with {pairedWith(c)}
+                              </Text>
+                            </View>
+                          ) : null}
                         </Pressable>
                       ))}
                     </View>
@@ -427,6 +467,22 @@ const makeStyles = (s: (n: number) => number) =>
     backgroundColor: colors.card,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
+  },
+  pairedBadge: {
+    alignSelf: "flex-start",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    backgroundColor: colors.warning + "1F",
+  },
+  pairedBadgeText: {
+    fontSize: s(11),
+    color: colors.warning,
+    fontWeight: "600",
   },
     partnerOptionActive: {
     backgroundColor: colors.primary + "15",

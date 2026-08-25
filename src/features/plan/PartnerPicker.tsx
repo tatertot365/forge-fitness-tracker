@@ -1,7 +1,7 @@
-import { Minus, Plus } from "lucide-react-native";
+import { Link2, Minus, Plus } from "lucide-react-native";
 import SegmentedControl from "@react-native-segmented-control/segmented-control";
 import React, { useState } from "react";
-import { Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Pressable, Text, TextInput, View } from "react-native";
 import { colors, muscleAccent } from "../../theme/colors";
 import { useStyles } from "../../theme/useStyles";
 import {
@@ -28,12 +28,23 @@ export type PartnerPickerProps = {
   dayExercises: Exercise[];
   value: PartnerPickerValue | null;
   onChange: (v: PartnerPickerValue | null) => void;
+  /**
+   * The exercise being paired, when it already exists. Used to resolve which
+   * candidates are "already paired" relative to this one -- a candidate linked
+   * back to this exercise is the current partner, not a conflict.
+   */
+  selfId?: number;
 };
 
 const MODE_ORDER = ["library", "new"] as const;
 const MODE_LABELS = ["From this day", "Create new"];
 
-export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerProps) {
+export function PartnerPicker({
+  dayExercises,
+  value,
+  onChange,
+  selfId,
+}: PartnerPickerProps) {
   const ss = useStyles(makeSs);
   const [mode, setMode] = useState<"library" | "new">(
     value?.kind === "new" ? "new" : "library",
@@ -53,7 +64,34 @@ export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerPr
     onChange(null);
   };
 
+  // Name of the exercise `ex` is currently paired with, or null when picking
+  // it breaks nothing. A candidate pointing back at `selfId` is the pair we are
+  // already in, so it is not a conflict.
+  const pairedWith = (ex: Exercise): string | null => {
+    if (ex.type !== "superset" || !ex.superset_partner_id) return null;
+    if (selfId != null && ex.superset_partner_id === selfId) return null;
+    const partner = dayExercises.find((e) => e.id === ex.superset_partner_id);
+    return partner?.name ?? "another exercise";
+  };
+
   const selectExisting = (ex: Exercise) => {
+    const existing = pairedWith(ex);
+    if (existing) {
+      // linkSuperset already unlinks the displaced partner, so the only thing
+      // missing was telling the user it is about to happen.
+      Alert.alert(
+        "Re-pair this exercise?",
+        `"${ex.name}" is currently paired with "${existing}". Pairing it here will unlink that superset.`,
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Re-pair",
+            onPress: () => onChange({ kind: "existing", exercise: ex }),
+          },
+        ],
+      );
+      return;
+    }
     onChange({ kind: "existing", exercise: ex });
   };
 
@@ -130,6 +168,7 @@ export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerPr
               {filtered.map((ex) => {
                 const isSel =
                   value?.kind === "existing" && value.exercise.id === ex.id;
+                const paired = pairedWith(ex);
                 return (
                   <Pressable
                     key={ex.id}
@@ -152,6 +191,18 @@ export function PartnerPicker({ dayExercises, value, onChange }: PartnerPickerPr
                       <Text style={ss.libraryRowMeta}>
                         {ex.sets} sets · {ex.rep_range}
                       </Text>
+                      {paired ? (
+                        <View style={ss.pairedBadge}>
+                          <Link2
+                            size={10}
+                            color={colors.warning}
+                            strokeWidth={2.5}
+                          />
+                          <Text style={ss.pairedBadgeText}>
+                            Paired with {paired}
+                          </Text>
+                        </View>
+                      ) : null}
                     </View>
                     {isSel && (
                       <View style={ss.checkBadge}>

@@ -425,6 +425,7 @@ export function EditSheet({
                       dayExercises={dayExercises}
                       value={partnerValue}
                       onChange={setPartnerValue}
+                      selfId={exercise?.id}
                     />
                     {!canSave && (
                       <Text style={ss.partnerHint}>

@@ -25,6 +25,10 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Decline dumbbell press',              muscle_group: 'chest',           notes: null },
   { name: 'Weighted dip',                        muscle_group: 'chest',           notes: 'Lean torso forward for chest focus' },
   { name: 'Low cable fly',                       muscle_group: 'chest',           notes: 'Low pulley, arms arc upward — upper chest' },
+  { name: 'Band chest press',                    muscle_group: 'chest',           notes: 'Band anchored behind, press forward' },
+  { name: 'Band push-up',                        muscle_group: 'chest',           notes: 'Band across the back — resistance peaks at lockout' },
+  { name: 'Band chest fly',                      muscle_group: 'chest',           notes: 'Anchored at chest height, arc the hands together' },
+  { name: 'Kettlebell floor press',              muscle_group: 'chest',           notes: 'Triceps touch the floor each rep' },
 
   // Shoulders
   { name: 'Dumbbell overhead press',             muscle_group: 'shoulders',       notes: null },
@@ -39,6 +43,12 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Landmine press',                      muscle_group: 'shoulders',       notes: 'Shoulder-friendly pressing angle' },
   { name: 'Machine lateral raise',               muscle_group: 'shoulders',       notes: 'Easier to load progressively than dumbbells' },
   { name: 'Barbell upright row',                 muscle_group: 'shoulders',       notes: 'Elbows above wrists throughout' },
+  { name: 'Band overhead press',                 muscle_group: 'shoulders',       notes: 'Stand on the band, press overhead' },
+  { name: 'Band lateral raise',                  muscle_group: 'shoulders',       notes: 'Stand on the band — constant tension out to the side' },
+  { name: 'Band pull-apart',                     muscle_group: 'shoulders',       notes: 'Arms straight, pull to a T — rear delts and upper back' },
+  { name: 'Band face pull',                      muscle_group: 'shoulders',       notes: 'Anchored at head height, pull to the forehead' },
+  { name: 'Kettlebell overhead press',           muscle_group: 'shoulders',       notes: 'Bell rests on the forearm in the rack position' },
+  { name: 'Kettlebell halo',                     muscle_group: 'shoulders',       notes: 'Circle the bell around the head — shoulder mobility' },
 
   // Triceps
   { name: 'Cable rope pushdown',                 muscle_group: 'triceps',         notes: 'Flare rope at bottom — lateral head' },
@@ -51,6 +61,9 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Machine tricep extension',            muscle_group: 'triceps',         notes: null },
   { name: 'JM press',                            muscle_group: 'triceps',         notes: 'Hybrid skull crusher / close-grip — long head' },
   { name: 'Tricep kickback',                     muscle_group: 'triceps',         notes: 'Hinge at hip, upper arm parallel to floor' },
+  { name: 'Band tricep pushdown',                muscle_group: 'triceps',         notes: 'Anchored overhead — the travel version of the cable pushdown' },
+  { name: 'Band overhead tricep extension',      muscle_group: 'triceps',         notes: 'Anchored low behind, extend overhead — long head' },
+  { name: 'Kettlebell skull crusher',            muscle_group: 'triceps',         notes: 'Bells lowered beside the head' },
 
   // Back — width
   { name: 'Wide grip pull-up',                   muscle_group: 'back-width',      notes: 'Full hang at bottom, chin over bar at top' },
@@ -65,6 +78,8 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Reverse grip lat pulldown',           muscle_group: 'back-width',      notes: 'Underhand — lats with bicep assistance' },
   { name: 'Kneeling cable pulldown',             muscle_group: 'back-width',      notes: 'Rope overhead, kneel and pull to the chest' },
   { name: 'Assisted pull-up',                    muscle_group: 'back-width',      notes: 'Machine or band — build to unassisted reps' },
+  { name: 'Band lat pulldown',                   muscle_group: 'back-width',      notes: 'Anchored overhead, kneel and pull to the chest' },
+  { name: 'Band straight arm pulldown',          muscle_group: 'back-width',      notes: 'Arms locked, drive the hands to the thighs' },
 
   // Back — thickness
   { name: 'Deadlift',                            muscle_group: 'back-thickness',  notes: 'Hip hinge, brace core' },
@@ -78,6 +93,10 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Trap bar deadlift',                   muscle_group: 'back-thickness',  notes: 'More quad-friendly than conventional' },
   { name: 'Rack pull',                           muscle_group: 'back-thickness',  notes: 'Partial ROM from knee height — upper back focus' },
   { name: 'Seal row',                            muscle_group: 'back-thickness',  notes: 'Chest on bench — eliminates hip drive' },
+  { name: 'Band bent-over row',                  muscle_group: 'back-thickness',  notes: 'Stand on the band, hinge and row to the hips' },
+  { name: 'Band seated row',                     muscle_group: 'back-thickness',  notes: 'Band around the feet, drive the elbows back' },
+  { name: 'Kettlebell bent-over row',            muscle_group: 'back-thickness',  notes: null },
+  { name: 'Kettlebell high pull',                muscle_group: 'back-thickness',  notes: 'Explosive hinge, elbow leads high' },
 
   // Biceps
   { name: 'Barbell curl',                        muscle_group: 'biceps',          notes: null },
@@ -92,6 +111,9 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Zottman curl',                        muscle_group: 'biceps',          notes: 'Supinate up, pronate down — builds brachialis' },
   { name: 'Spider curl',                         muscle_group: 'biceps',          notes: 'Prone on incline bench — short head peak' },
   { name: 'Cross-body hammer curl',              muscle_group: 'biceps',          notes: 'Curl across body to opposite shoulder' },
+  { name: 'Band curl',                           muscle_group: 'biceps',          notes: 'Stand on the band — resistance peaks at the top' },
+  { name: 'Band hammer curl',                    muscle_group: 'biceps',          notes: 'Neutral grip throughout' },
+  { name: 'Kettlebell curl',                     muscle_group: 'biceps',          notes: 'Offset load sits below the hand' },
 
   // Grip
   { name: 'Dumbbell farmer carry',               muscle_group: 'grip',            notes: '30–40 meters per set' },
@@ -104,6 +126,8 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Fat grip hold',                       muscle_group: 'grip',            notes: 'Thick bar or grips, hold for time' },
   { name: 'Captains of Crush gripper',           muscle_group: 'grip',            notes: 'Crush grip — work in low reps' },
   { name: 'Suitcase carry',                      muscle_group: 'grip',            notes: 'Single side loaded — grip plus anti-lateral-flexion' },
+  { name: 'Kettlebell bottoms-up carry',         muscle_group: 'grip',            notes: 'Bell inverted — crushing grip and shoulder stability' },
+  { name: 'Band finger extension',               muscle_group: 'grip',            notes: 'Band around the fingers, open the hand — balances all the gripping' },
 
   // Traps
   { name: 'Barbell shrug',                       muscle_group: 'traps',           notes: null },
@@ -116,6 +140,8 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Overhead shrug',                      muscle_group: 'traps',           notes: 'Bar locked overhead — upper and lower traps' },
   { name: 'Prone Y raise',                       muscle_group: 'traps',           notes: 'Face down on incline, arms to a Y — lower traps' },
   { name: 'Farmer carry shrug',                  muscle_group: 'traps',           notes: 'Shrug at the top of each step' },
+  { name: 'Band shrug',                          muscle_group: 'traps',           notes: 'Stand on the band, shrug straight up' },
+  { name: 'Kettlebell shrug',                    muscle_group: 'traps',           notes: null },
 
   // Quads
   { name: 'Barbell back squat',                  muscle_group: 'quads',           notes: 'Go deep, brace core' },
@@ -128,6 +154,10 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Smith machine squat',                 muscle_group: 'quads',           notes: null },
   { name: 'Step-up',                             muscle_group: 'quads',           notes: 'Drive through front heel' },
   { name: 'Sissy squat',                         muscle_group: 'quads',           notes: 'Knees travel far forward — terminal knee extension' },
+  { name: 'Kettlebell goblet squat',             muscle_group: 'quads',           notes: 'Bell at the chest — the easiest squat to learn depth with' },
+  { name: 'Kettlebell front rack squat',         muscle_group: 'quads',           notes: 'One or two bells racked on the forearms' },
+  { name: 'Band squat',                          muscle_group: 'quads',           notes: 'Band under the feet and over the shoulders' },
+  { name: 'Banded leg extension',                muscle_group: 'quads',           notes: 'Anchored behind, extend the knee against the band' },
 
   // Hamstrings
   { name: 'Romanian deadlift',                   muscle_group: 'hamstrings',      notes: 'Hip hinge, big hamstring stretch' },
@@ -142,6 +172,10 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Cable pull-through',                  muscle_group: 'hamstrings',      notes: 'Rope between the legs, hinge and drive the hips' },
   { name: 'Glute-ham raise',                     muscle_group: 'hamstrings',      notes: 'GHD bench — control the eccentric' },
   { name: 'Standing single-leg curl',            muscle_group: 'hamstrings',      notes: 'One leg at a time on the machine' },
+  { name: 'Kettlebell Romanian deadlift',        muscle_group: 'hamstrings',      notes: 'Hinge with the bells tracking the legs' },
+  { name: 'Single-arm kettlebell swing',         muscle_group: 'hamstrings',      notes: 'Same hinge, adds an anti-rotation demand' },
+  { name: 'Band leg curl',                       muscle_group: 'hamstrings',      notes: 'Anchored ahead, curl the heel toward the glute' },
+  { name: 'Band good morning',                   muscle_group: 'hamstrings',      notes: 'Band over the neck, hinge forward' },
 
   // Glutes
   { name: 'Hip thrust',                          muscle_group: 'glutes',          notes: 'Drive through heel' },
@@ -156,6 +190,10 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Curtsy lunge',                        muscle_group: 'glutes',          notes: 'Step behind and across — glute medius' },
   { name: 'Reverse lunge',                       muscle_group: 'glutes',          notes: 'Step back — less knee stress than a forward lunge' },
   { name: 'Frog pump',                           muscle_group: 'glutes',          notes: 'Soles together, knees out — pure glute contraction' },
+  { name: 'Banded glute bridge',                 muscle_group: 'glutes',          notes: 'Band above the knees, press out as you lift' },
+  { name: 'Banded lateral walk',                 muscle_group: 'glutes',          notes: 'Band above the knees, step sideways — glute medius' },
+  { name: 'Banded clamshell',                    muscle_group: 'glutes',          notes: 'Side-lying, knees open against the band' },
+  { name: 'Kettlebell sumo deadlift',            muscle_group: 'glutes',          notes: 'Wide stance, bell between the feet' },
 
   // Calves
   { name: 'Standing calf raise',                 muscle_group: 'calves',          notes: 'Full stretch at bottom, pause at top' },
@@ -168,6 +206,8 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Tibialis raise',                      muscle_group: 'calves',          notes: 'Toes toward shin — balances the calf, protects the knee' },
   { name: 'Farmer carry on toes',                muscle_group: 'calves',          notes: 'Walk on the balls of the feet' },
   { name: 'Seated calf raise machine',           muscle_group: 'calves',          notes: 'Bent knee — biases the soleus' },
+  { name: 'Band calf raise',                     muscle_group: 'calves',          notes: 'Band over the knees or under the hands, rise onto the toes' },
+  { name: 'Kettlebell calf raise',               muscle_group: 'calves',          notes: 'Hold the bells at the sides, pause at the top' },
 
   // Core
   { name: 'Hanging leg raise',                   muscle_group: 'core',            notes: 'Control the negative' },
@@ -182,6 +222,11 @@ const EXERCISES: ExerciseSeed[] = [
   { name: 'Dragon flag',                         muscle_group: 'core',            notes: 'Full body lever — control the eccentric' },
   { name: 'Landmine rotation',                   muscle_group: 'core',            notes: 'Rotational power — keep arms straight' },
   { name: 'GHD sit-up',                          muscle_group: 'core',            notes: 'Full hip extension at bottom' },
+  { name: 'Band pallof press',                   muscle_group: 'core',            notes: 'Anti-rotation — press out and resist the pull' },
+  { name: 'Band woodchop',                       muscle_group: 'core',            notes: 'High to low across the body, rotate from the trunk' },
+  { name: 'Kettlebell Turkish get-up',           muscle_group: 'core',            notes: 'Slow and deliberate — full-body stability, go light first' },
+  { name: 'Kettlebell windmill',                 muscle_group: 'core',            notes: 'Bell locked overhead, hinge sideways — obliques' },
+  { name: 'Kettlebell suitcase hold',            muscle_group: 'core',            notes: 'Anti-lateral-flexion — stay square, do not lean' },
 ];
 
 const STRETCHES: StretchSeed[] = [
@@ -264,7 +309,7 @@ export async function seedIfNeeded(db: SQLiteDatabase): Promise<void> {
   const seeded = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM settings WHERE key = 'seeded'`,
   );
-  if (seeded?.value === 'library-v5') return;
+  if (seeded?.value === 'library-v6') return;
 
   const existingPhase = await db.getFirstAsync<{ value: string }>(
     `SELECT value FROM settings WHERE key = 'phase'`,
@@ -294,7 +339,7 @@ export async function seedIfNeeded(db: SQLiteDatabase): Promise<void> {
   }
 
   await db.runAsync(
-    `INSERT INTO settings (key, value) VALUES ('seeded', 'library-v5')
+    `INSERT INTO settings (key, value) VALUES ('seeded', 'library-v6')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }

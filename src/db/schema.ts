@@ -125,7 +125,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
 
     CREATE TABLE IF NOT EXISTS stretches (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
+      name TEXT NOT NULL UNIQUE,
       muscle_group TEXT NOT NULL,
       hold_seconds INTEGER NOT NULL DEFAULT 30,
       per_side INTEGER NOT NULL DEFAULT 0,
@@ -163,6 +163,9 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
 
   // Add the started_at column for existing installs created before schema_v4.
   await migrateAddSessionStartedAt(db);
+
+  // Add UNIQUE(name) to stretches for existing installs (schema_v5).
+  await migrateStretchNameUnique(db);
 
   // Insert default day_plan rows for all 7 days if not present
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -226,6 +229,77 @@ async function migrateAddSessionStartedAt(db: SQLiteDatabase): Promise<void> {
 
   await db.runAsync(
     `INSERT INTO settings (key, value) VALUES ('schema_v4', '4')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+}
+
+// Add UNIQUE(name) to `stretches`.
+//
+// Without it the seeder cannot use INSERT OR IGNORE, so it could only seed
+// when the table was empty -- meaning new builtin stretches never reached an
+// existing install. SQLite cannot add a constraint via ALTER, so the table is
+// rebuilt.
+//
+// Duplicate names are collapsed before the rebuild, keeping the lowest id of
+// each name. `cooldown_logs.stretch_id` references these rows, so surviving
+// ids are preserved (INSERT ... SELECT keeps the original id) and logs that
+// pointed at a dropped duplicate are repointed at the kept row rather than
+// being orphaned or cascade-deleted.
+async function migrateStretchNameUnique(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v5'`,
+  );
+  if (done?.value === '5') return;
+
+  // Already unique (fresh install created with the constraint) -- just stamp.
+  const idxList = await db.getAllAsync<{ name: string; unique: number }>(
+    `PRAGMA index_list(stretches)`,
+  );
+  const hasUnique = idxList.some((i) => i.unique === 1);
+
+  if (!hasUnique) {
+    // Repoint cooldown_logs at the surviving row for each duplicated name,
+    // then delete the duplicates.
+    await db.execAsync(`
+      UPDATE cooldown_logs
+         SET stretch_id = (
+           SELECT MIN(s2.id) FROM stretches s2
+            WHERE s2.name = (SELECT s1.name FROM stretches s1 WHERE s1.id = cooldown_logs.stretch_id)
+         )
+       WHERE EXISTS (SELECT 1 FROM stretches s WHERE s.id = cooldown_logs.stretch_id);
+
+      DELETE FROM stretches
+       WHERE id NOT IN (SELECT MIN(id) FROM stretches GROUP BY name);
+    `);
+
+    // Rebuild with the constraint, preserving ids.
+    await db.execAsync(`
+      PRAGMA foreign_keys = OFF;
+
+      CREATE TABLE stretches_new (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL UNIQUE,
+        muscle_group TEXT NOT NULL,
+        hold_seconds INTEGER NOT NULL DEFAULT 30,
+        per_side INTEGER NOT NULL DEFAULT 0,
+        notes TEXT,
+        builtin INTEGER NOT NULL DEFAULT 0
+      );
+
+      INSERT INTO stretches_new (id, name, muscle_group, hold_seconds, per_side, notes, builtin)
+        SELECT id, name, muscle_group, hold_seconds, per_side, notes, builtin FROM stretches;
+
+      DROP TABLE stretches;
+      ALTER TABLE stretches_new RENAME TO stretches;
+
+      CREATE INDEX IF NOT EXISTS idx_stretches_muscle ON stretches(muscle_group);
+
+      PRAGMA foreign_keys = ON;
+    `);
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v5', '5')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }

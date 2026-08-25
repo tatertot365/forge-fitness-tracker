@@ -10,6 +10,38 @@ import { toISO } from '../../utils/date';
 
 // ─── Food log ─────────────────────────────────────────────────────────
 
+/**
+ * SQL expression that reduces a food name to its dedup key.
+ *
+ * The library and recents lists are derived views over `food_entries` -- there
+ * is no separate foods table -- so "the same food" is decided entirely by this
+ * key. Case alone is not enough: names arriving from the barcode scanner are
+ * user-contributed via Open Food Facts and routinely carry irregular internal
+ * spacing, so "Chicken  breast" and "Chicken breast" would otherwise sit in the
+ * picker as two separate foods forever.
+ *
+ * SQLite has no regex, so runs of whitespace are collapsed with repeated
+ * REPLACE passes. Tabs and newlines are folded to spaces first, then each pass
+ * halves the length of any remaining run: four passes collapse up to 16
+ * consecutive spaces, far beyond anything a real food name contains.
+ *
+ * This normalizes comparison only -- stored names keep their original text, so
+ * the display name is whatever the user actually typed or scanned.
+ */
+function nameKeyExpr(column: string): string {
+  const folded = `REPLACE(REPLACE(LOWER(${column}), char(9), ' '), char(10), ' ')`;
+  let collapsed = folded;
+  for (let i = 0; i < 4; i++) {
+    collapsed = `REPLACE(${collapsed}, '  ', ' ')`;
+  }
+  return `TRIM(${collapsed})`;
+}
+
+/** JS twin of `nameKeyExpr`, for keys computed outside SQL. */
+export function foodNameKey(name: string): string {
+  return name.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
 const DEFAULT_CALORIE_GOAL = 2500;
 const DEFAULT_PROTEIN_GOAL = 180;
 const DEFAULT_FAT_GOAL = 80;
@@ -80,7 +112,7 @@ export async function getFoodRecents(limit: number = 8): Promise<FoodRecent[]> {
      FROM food_entries fe
      WHERE fe.id = (
        SELECT id FROM food_entries
-       WHERE LOWER(name) = LOWER(fe.name)
+       WHERE ${nameKeyExpr('name')} = ${nameKeyExpr('fe.name')}
        ORDER BY created_at DESC, id DESC
        LIMIT 1
      )
@@ -113,13 +145,13 @@ export async function searchFoodHistory(
             fe.carbs_g,
             fe.created_at AS last_used_at,
             (SELECT COUNT(*) FROM food_entries c
-              WHERE LOWER(c.name) = LOWER(fe.name)) AS use_count,
+              WHERE ${nameKeyExpr('c.name')} = ${nameKeyExpr('fe.name')}) AS use_count,
             (ff.name_key IS NOT NULL) AS is_favorite
        FROM food_entries fe
-       LEFT JOIN food_favorites ff ON ff.name_key = LOWER(fe.name)
+       LEFT JOIN food_favorites ff ON ff.name_key = ${nameKeyExpr('fe.name')}
       WHERE fe.id = (
         SELECT id FROM food_entries
-         WHERE LOWER(name) = LOWER(fe.name)
+         WHERE ${nameKeyExpr('name')} = ${nameKeyExpr('fe.name')}
          ORDER BY created_at DESC, id DESC
          LIMIT 1
       )
@@ -134,7 +166,8 @@ export async function searchFoodHistory(
 
 export async function toggleFoodFavorite(name: string): Promise<boolean> {
   const db = await getDb();
-  const key = name.trim().toLowerCase();
+  // Must match `nameKeyExpr`, which is what searchFoodHistory joins on.
+  const key = foodNameKey(name);
   const existing = await db.getFirstAsync<{ name_key: string }>(
     'SELECT name_key FROM food_favorites WHERE name_key = ?',
     [key],

@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { searchFoodHistory, toggleFoodFavorite } from "../../db/queries";
+import { foodNameKey, searchFoodHistory, toggleFoodFavorite } from "../../db/queries";
 import {
   searchFoodDatabase,
   type FoodSearchItem,
@@ -108,7 +108,9 @@ export function FoodLibrarySheet({
     // under the finger that just tapped it.
     setItems((prev) =>
       prev.map((i) =>
-        i.name.toLowerCase() === item.name.toLowerCase()
+        // Same identity rule the query layer dedupes on, so the patched row is
+        // the one the list actually collapsed these names into.
+        foodNameKey(i.name) === foodNameKey(item.name)
           ? { ...i, is_favorite: next }
           : i,
       ),
@@ -239,7 +241,7 @@ export function FoodLibrarySheet({
               </Text>
             ) : (
               items.map((item) => (
-                <View key={item.name.toLowerCase()} style={styles.row}>
+                <View key={foodNameKey(item.name)} style={styles.row}>
                   <Pressable
                     onPress={() => onPick(item)}
                     onLongPress={() => onLongPick(item)}

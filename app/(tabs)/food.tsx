@@ -50,6 +50,7 @@ import {
 import {
   addFoodEntry,
   deleteFoodEntry,
+  foodNameKey,
   getActivityLevel,
   getDailyNutritionTotals,
   getFoodEntriesForDate,
@@ -464,7 +465,7 @@ export default function FoodScreen() {
                 // Keyed on the lowercased name: the recents query dedupes with
                 // LOWER() but returns whatever casing was stored, so raw name
                 // is not guaranteed unique across rows.
-                key={r.name.toLowerCase()}
+                key={foodNameKey(r.name)}
                 onPress={() => onTapRecent(r)}
                 onLongPress={() => {
                   hapticSelect();

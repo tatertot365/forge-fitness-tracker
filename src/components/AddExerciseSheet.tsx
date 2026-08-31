@@ -13,7 +13,16 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import { createExerciseChecked, findExercisesByName, getAllStretches, getLibraryExercises } from '../db/queries';
+import {
+  createExercise,
+  createExerciseChecked,
+  findExercisesByName,
+  getAllStretches,
+  getExercisesByDay,
+  getLibraryExercises,
+  linkSuperset,
+} from '../db/queries';
+import { PartnerPicker, type PartnerPickerValue } from '../features/plan';
 import { colors, muscleAccent } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
@@ -22,6 +31,7 @@ import {
   MUSCLE_GROUPS_ALPHA,
   MUSCLE_LABEL,
   type Day,
+  type Exercise,
   type ExerciseType,
   type LibraryExercise,
   type MuscleGroup,
@@ -71,6 +81,13 @@ export function AddExerciseSheet({
   // we read it off the selection. Tracking both as `pickedGroup` keeps the
   // save path uniform.
   const [pickedGroup, setPickedGroup] = useState<MuscleGroup | null>(null);
+  // Superset partner. This sheet offered "Superset" as a type but had no way
+  // to choose a partner, so it created a superset with a NULL partner id --
+  // the row showed a bare "Superset" badge linked to nothing.
+  const [dayExercises, setDayExercises] = useState<Exercise[]>([]);
+  const [partnerValue, setPartnerValue] = useState<PartnerPickerValue | null>(
+    null,
+  );
   const [name, setName] = useState('');
   const [sets, setSets] = useState(3);
   const [warmupSets, setWarmupSets] = useState(0);
@@ -88,6 +105,22 @@ export function AddExerciseSheet({
     }
   }, [visible, initialMuscleGroup]);
 
+  // Same pattern as the plan sheets: keyed on `visible` so reopening picks up
+  // exercises added since the last open, with a guard so a fetch for a
+  // previous day cannot land after the user switched days.
+  useEffect(() => {
+    if (type !== 'superset' || !visible) return;
+    let cancelled = false;
+    getExercisesByDay(day).then((exs) => {
+      if (cancelled) return;
+      setDayExercises(exs);
+    });
+    setPartnerValue(null);
+    return () => {
+      cancelled = true;
+    };
+  }, [type, day, visible]);
+
   const reset = () => {
     setMode('library');
     setSearch('');
@@ -100,6 +133,7 @@ export function AddExerciseSheet({
     setWarmupSets(0);
     setRepRange('8–12');
     setNotes('');
+    setPartnerValue(null);
     setType('normal');
     setHoldSeconds(30);
   };
@@ -168,7 +202,10 @@ export function AddExerciseSheet({
       ? selected !== null
       : mode === 'stretches'
         ? selectedStretch !== null
-        : name.trim().length > 0);
+        : name.trim().length > 0) &&
+    // A superset with no partner is exactly the broken state this sheet used
+    // to create, so it cannot be saved.
+    (type !== 'superset' || partnerValue !== null);
 
   const doCreate = async (trimmed: string) => {
     if (!pickedGroup) return;
@@ -195,6 +232,27 @@ export function AddExerciseSheet({
         );
         return;
       }
+      // Link the partner. createExercise (not ...Checked) is right here: an
+      // internal call that only needs an id back.
+      if (type === 'superset' && partnerValue) {
+        let partnerId: number;
+        if (partnerValue.kind === 'existing') {
+          partnerId = partnerValue.exercise.id;
+        } else {
+          partnerId = await createExercise({
+            day,
+            muscle_group: partnerValue.muscleGroup,
+            name: partnerValue.name,
+            sets: partnerValue.sets,
+            warmup_sets: 0,
+            rep_range: partnerValue.repRange || '8–12',
+            notes: null,
+            type: 'normal',
+          });
+        }
+        await linkSuperset(newId, partnerId);
+      }
+
       hapticSuccess();
       reset();
       await onCreated(newId);
@@ -269,7 +327,10 @@ export function AddExerciseSheet({
             <ScrollView
               keyboardShouldPersistTaps="handled"
               showsVerticalScrollIndicator={false}
-              contentContainerStyle={{ paddingBottom: 4 }}
+              // Enough tail room that the superset partner list -- the tallest
+              // thing this sheet renders -- can scroll fully into view inside
+              // the 85%-height sheet.
+              contentContainerStyle={{ paddingBottom: 32 }}
             >
               {/* Library mode */}
               {mode === 'library' && (
@@ -618,6 +679,19 @@ export function AddExerciseSheet({
                         activeFontStyle={{ color: "#FFFFFF", fontWeight: "600" }}
                         style={styles.segmentedNative}
                       />
+
+                      {type === 'superset' && (
+                        <>
+                          <Text style={styles.fieldLabel}>
+                            Superset partner
+                          </Text>
+                          <PartnerPicker
+                            dayExercises={dayExercises}
+                            value={partnerValue}
+                            onChange={setPartnerValue}
+                          />
+                        </>
+                      )}
                     </>
                   )}
                 </>

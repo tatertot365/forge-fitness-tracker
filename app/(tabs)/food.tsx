@@ -404,9 +404,25 @@ export default function FoodScreen() {
         />
       </Card>
 
-      {/* Quick-add: scan / calculator promoted above the manual form so users
-          reach the lower-friction options first. */}
+      {/* Search / scan / calculator are promoted above the manual form so
+          users reach the lower-friction options first. */}
       <SectionLabel>Add food</SectionLabel>
+      {/* Sits outside the recents block on purpose: the strip only renders once
+          something has been logged, which would leave the full history
+          unreachable on a fresh install. */}
+      <Pressable
+        onPress={() => {
+          hapticTap();
+          setLibrarySheet(true);
+        }}
+        style={({ pressed }) => [
+          styles.libraryBtn,
+          pressed && { opacity: 0.85 },
+        ]}
+      >
+        <Search size={16} color={colors.primary} strokeWidth={2} />
+        <Text style={styles.quickAddText}>Search foods</Text>
+      </Pressable>
       <View style={styles.quickAddRow}>
         <Pressable
           onPress={() => {
@@ -435,23 +451,6 @@ export default function FoodScreen() {
           <Text style={styles.quickAddText}>Calculator</Text>
         </Pressable>
       </View>
-      {/* Sits outside the recents block on purpose: the strip only renders once
-          something has been logged, which would leave the full history
-          unreachable on a fresh install. */}
-      <Pressable
-        onPress={() => {
-          hapticTap();
-          setLibrarySheet(true);
-        }}
-        style={({ pressed }) => [
-          styles.libraryBtn,
-          pressed && { opacity: 0.85 },
-        ]}
-      >
-        <Search size={16} color={colors.primary} strokeWidth={2} />
-        <Text style={styles.quickAddText}>Search foods</Text>
-      </Pressable>
-
       {recents.length > 0 ? (
         <>
           <SectionLabel>Recent — tap to add, hold for portion</SectionLabel>
@@ -818,7 +817,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     gap: 8,
-    marginTop: 8,
     paddingVertical: 12,
     borderRadius: radius.card,
     borderWidth: StyleSheet.hairlineWidth,
@@ -863,6 +861,9 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
   quickAddRow: {
     flexDirection: "row",
     gap: 10,
+    // Was on libraryBtn when it sat below this row; the gap belongs between
+    // the two either way.
+    marginTop: 8,
   },
   quickAddBtn: {
     flex: 1,

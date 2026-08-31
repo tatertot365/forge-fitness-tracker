@@ -96,13 +96,17 @@ export const makeSs = (s: (n: number) => number) => StyleSheet.create({
   deleteBtnSub: { fontSize: s(11), color: colors.red + "AA", marginTop: 2 },
 
   pillRow: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
+  // Matches the muscle-group pills in AddExerciseSheet -- same component in
+  // two places, so they need to look identical. The radius was hardcoded to
+  // 20, which exceeds half the pill's height and rendered a full capsule while
+  // every other pill in the app uses radius.pill.
   pill: {
-    paddingVertical: 6,
-    paddingHorizontal: 11,
-    borderRadius: 20,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: radius.pill,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.card,
   },
   pillText: { fontSize: s(12), color: colors.textSecondary, fontWeight: "500" },
 

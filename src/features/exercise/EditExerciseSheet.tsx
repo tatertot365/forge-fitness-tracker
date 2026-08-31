@@ -61,6 +61,34 @@ export function EditExerciseSheet({
   const [busy, setBusy] = useState(false);
   const [allExercises, setAllExercises] = useState<Exercise[]>([]);
 
+  // The useState initialisers above only run on mount, and the parent keys
+  // this sheet on exercise.id -- which does not change when the exercise is
+  // edited in place. Without this, "Add set" on the detail screen bumped
+  // exercise.sets but the stepper still showed the count from when the screen
+  // first mounted, and saving would write that stale value back.
+  //
+  // Resyncs on open rather than on every prop change so it cannot clobber
+  // edits the user is part-way through typing.
+  useEffect(() => {
+    if (!visible) return;
+    setName(exercise.name);
+    setSets(exercise.sets);
+    setWarmupSets(exercise.warmup_sets);
+    setRepRange(exercise.rep_range);
+    setNotes(exercise.notes ?? "");
+    setType(exercise.type);
+    setPartnerId(exercise.superset_partner_id);
+  }, [
+    visible,
+    exercise.name,
+    exercise.sets,
+    exercise.warmup_sets,
+    exercise.rep_range,
+    exercise.notes,
+    exercise.type,
+    exercise.superset_partner_id,
+  ]);
+
   // Guarded so a fetch for a previously-edited exercise cannot land after the
   // user has moved to a different one and repopulate the picker with the wrong
   // day's exercises. Also refetches when the sheet reopens, so an exercise

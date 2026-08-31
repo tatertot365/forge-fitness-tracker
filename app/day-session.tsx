@@ -12,7 +12,6 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AddExerciseSheet } from "../src/components/AddExerciseSheet";
 import { ExerciseRow } from "../src/components/ExerciseRow";
-import { MuscleGroupPickerSheet } from "../src/components/MuscleGroupPickerSheet";
 import { SectionLabel } from "../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
 import { SummaryModal } from "../src/features/session";
@@ -65,8 +64,7 @@ export default function DaySessionScreen() {
   );
   const [isRestDay, setIsRestDay] = useState(false);
   const [focusLabel, setFocusLabel] = useState("");
-  const [addingToGroup, setAddingToGroup] = useState<MuscleGroup | null>(null);
-  const [pickerOpen, setPickerOpen] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
   const [summary, setSummary] = useState<null | {
     completed: number;
     total: number;
@@ -331,26 +329,13 @@ export default function DaySessionScreen() {
                   />
                 </SwipeableExerciseRow>
               ))}
-              <Pressable
-                onPress={() => {
-                  hapticTap();
-                  setAddingToGroup(group);
-                }}
-                style={({ pressed }) => [
-                  styles.addExerciseBtn,
-                  pressed && { opacity: 0.7 },
-                ]}
-              >
-                <Plus size={14} color={colors.primary} strokeWidth={2} />
-                <Text style={styles.addExerciseText}>Add new exercise</Text>
-              </Pressable>
             </View>
           ))}
 
           <Pressable
             onPress={() => {
               hapticTap();
-              setPickerOpen(true);
+              setAddOpen(true);
             }}
             style={({ pressed }) => [
               styles.addGroupBtn,
@@ -358,7 +343,7 @@ export default function DaySessionScreen() {
             ]}
           >
             <Plus size={14} color={colors.primary} strokeWidth={2} />
-            <Text style={styles.addGroupText}>Add muscle group</Text>
+            <Text style={styles.addGroupText}>Add exercise</Text>
           </Pressable>
 
           <Pressable
@@ -382,20 +367,13 @@ export default function DaySessionScreen() {
         }}
       />
 
-      <MuscleGroupPickerSheet
-        visible={pickerOpen}
-        onClose={() => setPickerOpen(false)}
-        onSelect={(g) => setAddingToGroup(g)}
-      />
-
       {day ? (
         <AddExerciseSheet
-          visible={addingToGroup !== null}
+          visible={addOpen}
           day={day}
-          initialMuscleGroup={addingToGroup}
-          onClose={() => setAddingToGroup(null)}
+          onClose={() => setAddOpen(false)}
           onCreated={async () => {
-            setAddingToGroup(null);
+            setAddOpen(false);
             await load();
           }}
         />
@@ -453,19 +431,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     backgroundColor: colors.primary + "0F",
   },
   addGroupText: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
-  addExerciseBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    marginBottom: 4,
-    borderRadius: radius.card,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: colors.border,
-    backgroundColor: colors.card,
-  },
-  addExerciseText: { color: colors.primary, fontSize: s(13), fontWeight: "600" },
 
   finishBtn: {
     marginTop: 24,

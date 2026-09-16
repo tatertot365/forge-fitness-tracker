@@ -55,7 +55,13 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Pro
   // Incremented on every cancel/schedule so an in-flight schedule can tell it
   // has been superseded. See scheduleNotif.
   const notifEpoch = useRef(0);
-  const fired = useRef(false);
+  // Seeded from the restored snapshot: a timer that already elapsed has had its
+  // completion haptic. Starting at false meant navigating away from a finished
+  // "Done" timer and back re-fired the haptic on the first tick, as if rest had
+  // just ended again.
+  const fired = useRef(
+    saved?.endTime != null ? saved.endTime <= Date.now() : false,
+  );
 
   // Load the persisted custom value once on first mount of the session.
   useEffect(() => {
@@ -177,6 +183,16 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Pro
   const choosePreset = (p: number) => {
     hapticSelect();
     setPreset(p);
+    // Restart only a *running* countdown. `active` is also true while paused,
+    // so keying off it silently resumed a paused timer -- pausing at 0:35 and
+    // then tapping 3m started a live 3:00 countdown instead of re-arming the
+    // paused one.
+    if (isPaused) {
+      setPausedSecs(p);
+      setDisplaySecs(p);
+      fired.current = false;
+      return;
+    }
     if (active) {
       fired.current = false;
       const end = Date.now() + p * 1000;
@@ -236,7 +252,12 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Pro
     await setCustomRestSeconds(clamped);
   };
 
-  const customIsActive = preset === customSecs;
+  // A custom value that happens to equal a fixed preset (60 / 180 / 300) would
+  // otherwise light up both pills, since both compare against `preset`. The
+  // fixed pill wins -- it is the one the user tapped to get there.
+  const customIsActive =
+    preset === customSecs &&
+    !(FIXED_PRESETS as readonly number[]).includes(preset);
 
   return (
     <>

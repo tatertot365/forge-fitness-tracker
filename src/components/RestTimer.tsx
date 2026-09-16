@@ -52,6 +52,9 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Pro
   });
 
   const notifId = useRef<string | null>(saved?.notifId ?? null);
+  // Incremented on every cancel/schedule so an in-flight schedule can tell it
+  // has been superseded. See scheduleNotif.
+  const notifEpoch = useRef(0);
   const fired = useRef(false);
 
   // Load the persisted custom value once on first mount of the session.
@@ -113,17 +116,42 @@ export function RestTimer({ defaultSeconds = DEFAULT_PRESET, autoStartKey }: Pro
   }, [endTime]);
 
   const cancelNotif = async () => {
-    if (notifId.current) {
-      await cancelRestNotification(notifId.current);
-      notifId.current = null;
-      if (saved) saved.notifId = null;
-    }
+    // Bump first so any scheduling still in flight sees a stale token and
+    // throws its result away rather than resurrecting a cancelled timer.
+    notifEpoch.current += 1;
+    const id = notifId.current;
+    notifId.current = null;
+    if (saved) saved.notifId = null;
+    if (id) await cancelRestNotification(id);
   };
 
+  // Scheduling is async, so rapid taps (1m -> 3m -> 5m) would otherwise all
+  // read notifId.current as null before any of them finished and each schedule
+  // a notification without cancelling the others -- leaving orphans that fire
+  // at their original times.
+  //
+  // The epoch is claimed synchronously, before any await, so a later call
+  // always invalidates an earlier one still in flight. Checking it after each
+  // await lets a superseded call cancel what it just scheduled instead of
+  // storing it.
   const scheduleNotif = async (seconds: number) => {
-    await cancelNotif();
-    notifId.current = await scheduleRestComplete(seconds);
-    if (saved) saved.notifId = notifId.current;
+    notifEpoch.current += 1;
+    const epoch = notifEpoch.current;
+    const prev = notifId.current;
+    notifId.current = null;
+    if (saved) saved.notifId = null;
+    if (prev) await cancelRestNotification(prev);
+    if (epoch !== notifEpoch.current) return;
+
+    const id = await scheduleRestComplete(seconds);
+    if (id == null) return;
+    if (epoch !== notifEpoch.current) {
+      // Superseded while we were scheduling -- drop it.
+      await cancelRestNotification(id);
+      return;
+    }
+    notifId.current = id;
+    if (saved) saved.notifId = id;
   };
 
   // Auto-start when a set is completed. The per-instance ref blocks duplicate

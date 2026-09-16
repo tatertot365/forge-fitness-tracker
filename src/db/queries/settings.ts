@@ -181,3 +181,22 @@ export async function getCustomRestSeconds(): Promise<number | null> {
 export async function setCustomRestSeconds(seconds: number): Promise<void> {
   await setSetting('rest_custom_secs', String(Math.round(seconds)));
 }
+
+// ─── Notifications ────────────────────────────────────────────────────
+
+/**
+ * Whether a local notification fires when the rest timer finishes.
+ *
+ * Defaults to on: the timer's whole point is letting you put the phone down
+ * between sets, which only works if something tells you when to pick it back
+ * up. Stored as a string like every other setting; absent means never changed,
+ * which reads as enabled.
+ */
+export async function getRestNotificationsEnabled(): Promise<boolean> {
+  const v = await getSetting('rest_notifications_enabled');
+  return v !== '0';
+}
+
+export async function setRestNotificationsEnabled(enabled: boolean): Promise<void> {
+  await setSetting('rest_notifications_enabled', enabled ? '1' : '0');
+}

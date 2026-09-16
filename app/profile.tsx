@@ -2,6 +2,7 @@ import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import {
   Apple,
+  Bell,
   ChevronLeft,
   ChevronRight,
   Download,
@@ -17,6 +18,7 @@ import {
   Linking,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   View,
 } from "react-native";
@@ -24,11 +26,17 @@ import { Screen } from "../src/components/Screen";
 import { SectionLabel } from "../src/components/SectionLabel";
 import {
   getNutritionGoalForDate,
+  getRestNotificationsEnabled,
   resetAllData,
   setBodyGoals,
   setNutritionGoal,
+  setRestNotificationsEnabled,
   type BodyGoals,
 } from "../src/db/queries";
+import {
+  cancelAllRestNotifications,
+  ensureNotificationPermission,
+} from "../src/utils/notifications";
 import { GoalSheet } from "../src/features/food";
 import {
   BodyGoalsSheet,
@@ -70,6 +78,8 @@ export default function ProfileScreen() {
 
   const today = todayISO();
 
+  const [restNotifs, setRestNotifs] = useState(true);
+
   const loadGoal = useCallback(async () => {
     setNutritionGoalState(await getNutritionGoalForDate(today));
   }, [today]);
@@ -77,6 +87,34 @@ export default function ProfileScreen() {
   useEffect(() => {
     loadGoal();
   }, [loadGoal]);
+
+  useEffect(() => {
+    getRestNotificationsEnabled().then(setRestNotifs);
+  }, []);
+
+  const onToggleRestNotifs = async (next: boolean) => {
+    // Optimistic: the switch should not lag behind the finger while the write
+    // and the permission round-trip happen.
+    setRestNotifs(next);
+    await setRestNotificationsEnabled(next);
+    if (next) {
+      // Ask here rather than at the first rest timer, so turning this on is
+      // what surfaces the system prompt -- the user has just said they want it.
+      const granted = await ensureNotificationPermission();
+      if (!granted) {
+        setRestNotifs(false);
+        await setRestNotificationsEnabled(false);
+        Alert.alert(
+          "Notifications are off",
+          "Forge needs notification permission to tell you when rest is over. Turn it on in Settings › Notifications › Forge.",
+        );
+      }
+      return;
+    }
+    // Drop anything already queued so a notification cannot fire after opting
+    // out mid-rest.
+    await cancelAllRestNotifications();
+  };
 
   const appName = (Constants.expoConfig?.name as string | undefined) ?? "Forge";
   const version =
@@ -229,6 +267,25 @@ export default function ProfileScreen() {
               />
             }
             onPress={() => setBodyGoalsVisible(true)}
+          />
+        </View>
+
+        <SectionLabel>Notifications</SectionLabel>
+        <View style={styles.card}>
+          <RowButton
+            icon={<Bell size={16} color={colors.primary} strokeWidth={2} />}
+            label="Rest timer alerts"
+            sub="Get a notification when your rest is over."
+            trailing={
+              <Switch
+                value={restNotifs}
+                onValueChange={onToggleRestNotifs}
+                trackColor={{ false: colors.border, true: colors.primary }}
+                thumbColor="#FFFFFF"
+              />
+            }
+            // The row is the switch -- tapping anywhere on it toggles.
+            onPress={() => onToggleRestNotifs(!restNotifs)}
           />
         </View>
 

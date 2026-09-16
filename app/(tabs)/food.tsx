@@ -105,6 +105,17 @@ export default function FoodScreen() {
   const [goalSheet, setGoalSheet] = useState(false);
   const [editEntry, setEditEntry] = useState<FoodEntry | null>(null);
   const [historyDate, setHistoryDate] = useState<string | null>(null);
+  // Bumped after an edit saved through EditFoodSheet, so an open day sheet
+  // re-reads the day it is showing. EditFoodSheet is a Modal and so is the day
+  // sheet; nesting them is unreliable on iOS, so the parent owns it and the
+  // two communicate through this counter.
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  // The day to reopen after editing an entry from it. iOS will not present a
+  // second Modal while the day sheet's Modal is up, so the day sheet is
+  // dismissed to show the editor and restored when the editor closes.
+  const [resumeHistoryDate, setResumeHistoryDate] = useState<string | null>(
+    null,
+  );
   const [calcSheet, setCalcSheet] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [portionRecent, setPortionRecent] = useState<FoodRecent | null>(null);
@@ -265,6 +276,11 @@ export default function FoodScreen() {
     await updateFoodEntry(id, patch);
     hapticSuccess();
     setEditEntry(null);
+    setHistoryRefresh((k) => k + 1);
+    if (resumeHistoryDate) {
+      setHistoryDate(resumeHistoryDate);
+      setResumeHistoryDate(null);
+    }
     load();
   };
 
@@ -667,20 +683,36 @@ export default function FoodScreen() {
         onSave={onSaveGoal}
       />
 
-      <EditFoodSheet
-        entry={editEntry}
-        onClose={() => setEditEntry(null)}
-        onSave={onSaveEdit}
-      />
-
       <DayHistorySheet
         date={historyDate}
+        refreshKey={historyRefresh}
+        onEditEntry={(e) => {
+          setResumeHistoryDate(historyDate);
+          setHistoryDate(null);
+          setEditEntry(e);
+        }}
+        onChanged={load}
         onClose={() => setHistoryDate(null)}
         onCopied={() => {
           hapticSuccess();
           showToast("Copied to today's log");
           load();
         }}
+      />
+
+      {/* Declared after DayHistorySheet on purpose: sibling Modals stack in
+          mount order, so this must come last to appear above the day sheet
+          when editing an entry from a past day. */}
+      <EditFoodSheet
+        entry={editEntry}
+        onClose={() => {
+          setEditEntry(null);
+          if (resumeHistoryDate) {
+            setHistoryDate(resumeHistoryDate);
+            setResumeHistoryDate(null);
+          }
+        }}
+        onSave={onSaveEdit}
       />
 
       <MacroCalculatorSheet

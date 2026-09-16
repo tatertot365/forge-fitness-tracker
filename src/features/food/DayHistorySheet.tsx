@@ -2,25 +2,20 @@ import { CopyPlus, Pencil, Plus, X } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
-  KeyboardAvoidingView,
   Modal,
-  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import {
-  addFoodEntry,
   copyFoodEntriesToDate,
   deleteFoodEntry,
   getFoodEntriesForDate,
   getNutritionGoalForDate,
 } from "../../db/queries";
-import { hapticSuccess, hapticTap } from "../../utils/haptics";
-import { parseOptional, parseRequired } from "./helpers";
+import { hapticTap } from "../../utils/haptics";
 import { SwipeableFoodRow } from "./SwipeableFoodRow";
 import { formatHeaderDate } from "./helpers";
 import { todayISO } from "../../utils/date";
@@ -38,6 +33,7 @@ export function DayHistorySheet({
   onClose,
   onCopied,
   onEditEntry,
+  onAddFood,
   onChanged,
   refreshKey,
 }: {
@@ -52,6 +48,11 @@ export function DayHistorySheet({
    * is unreliable, so the parent owns that state and renders it as a sibling.
    */
   onEditEntry?: (entry: FoodEntry) => void;
+  /**
+   * Request that the parent open its log sheet for this day. Same handoff
+   * reason as onEditEntry: iOS will not stack a second Modal over this one.
+   */
+  onAddFood?: () => void;
   /** Any mutation to this day, so the parent's chart and totals refresh. */
   onChanged?: () => void;
   /**
@@ -65,12 +66,6 @@ export function DayHistorySheet({
   const [goal, setGoal] = useState<NutritionGoal | null>(null);
 
   const [editing, setEditing] = useState(false);
-  const [adding, setAdding] = useState(false);
-  const [name, setName] = useState("");
-  const [calInput, setCalInput] = useState("");
-  const [proteinInput, setProteinInput] = useState("");
-  const [fatInput, setFatInput] = useState("");
-  const [carbsInput, setCarbsInput] = useState("");
 
   const reload = React.useCallback(async () => {
     if (!date) return;
@@ -89,7 +84,6 @@ export function DayHistorySheet({
       // Leave edit mode behind with the sheet, so reopening another day
       // starts read-only rather than inheriting the last day's mode.
       setEditing(false);
-      setAdding(false);
       return;
     }
     reload();
@@ -100,14 +94,6 @@ export function DayHistorySheet({
     if (!date || !refreshKey) return;
     reload();
   }, [refreshKey, date, reload]);
-
-  const clearForm = () => {
-    setName("");
-    setCalInput("");
-    setProteinInput("");
-    setFatInput("");
-    setCarbsInput("");
-  };
 
   const onDeleteEntry = (entry: FoodEntry) => {
     Alert.alert("Delete entry?", `"${entry.name}" will be removed.`, [
@@ -123,38 +109,6 @@ export function DayHistorySheet({
         },
       },
     ]);
-  };
-
-  const onAdd = async () => {
-    if (!date) return;
-    // Matches the main log: calories and protein are required, so a blank box
-    // must not silently become 0.
-    const cal = parseRequired(calInput);
-    const prot = parseRequired(proteinInput);
-    const fat = parseOptional(fatInput);
-    const carbs = parseOptional(carbsInput);
-    if (name.trim() === "") {
-      Alert.alert("Enter a food name");
-      return;
-    }
-    if (cal === null || prot === null || fat === null || carbs === null) {
-      Alert.alert("Enter calories and protein");
-      return;
-    }
-    // The sheet's date, never today -- this is the whole point of the screen.
-    await addFoodEntry({
-      date,
-      name: name.trim(),
-      calories: cal,
-      protein_g: prot,
-      fat_g: fat,
-      carbs_g: carbs,
-    });
-    hapticSuccess();
-    clearForm();
-    setAdding(false);
-    await reload();
-    onChanged?.();
   };
 
   const [copying, setCopying] = useState(false);
@@ -202,10 +156,6 @@ export function DayHistorySheet({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
       <View style={styles.sheetBackdrop}>
         <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={[styles.sheet, { maxHeight: "75%" }]}>
@@ -230,8 +180,7 @@ export function DayHistorySheet({
                 onPress={() => {
                   hapticTap();
                   setEditing((v) => !v);
-                  setAdding(false);
-                }}
+                            }}
                 hitSlop={8}
                 accessibilityLabel={editing ? "Done editing" : "Edit this day"}
                 style={({ pressed }) => [
@@ -307,91 +256,19 @@ export function DayHistorySheet({
             )}
 
             {editing ? (
-              adding ? (
-                <View style={styles.addForm}>
-                  <TextInput
-                    value={name}
-                    onChangeText={setName}
-                    style={[styles.input, styles.sheetInput]}
-                    placeholder="Food name"
-                    placeholderTextColor={colors.textMuted}
-                    autoCapitalize="words"
-                  />
-                  <View style={styles.formRow}>
-                    <TextInput
-                      value={calInput}
-                      onChangeText={setCalInput}
-                      style={[styles.input, styles.sheetInput, { flex: 1 }]}
-                      placeholder="Calories"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                    />
-                    <TextInput
-                      value={proteinInput}
-                      onChangeText={setProteinInput}
-                      style={[styles.input, styles.sheetInput, { flex: 1 }]}
-                      placeholder="Protein g"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                  <View style={styles.formRow}>
-                    <TextInput
-                      value={fatInput}
-                      onChangeText={setFatInput}
-                      style={[styles.input, styles.sheetInput, { flex: 1 }]}
-                      placeholder="Fat g"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                    />
-                    <TextInput
-                      value={carbsInput}
-                      onChangeText={setCarbsInput}
-                      style={[styles.input, styles.sheetInput, { flex: 1 }]}
-                      placeholder="Carbs g"
-                      placeholderTextColor={colors.textMuted}
-                      keyboardType="decimal-pad"
-                    />
-                  </View>
-                  <View style={styles.formRow}>
-                    <Pressable
-                      onPress={() => {
-                        clearForm();
-                        setAdding(false);
-                      }}
-                      style={({ pressed }) => [
-                        styles.cancelBtn,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                    >
-                      <Text style={styles.cancelBtnText}>Cancel</Text>
-                    </Pressable>
-                    <Pressable
-                      onPress={onAdd}
-                      style={({ pressed }) => [
-                        styles.addConfirmBtn,
-                        pressed && { opacity: 0.85 },
-                      ]}
-                    >
-                      <Text style={styles.addConfirmText}>Add</Text>
-                    </Pressable>
-                  </View>
-                </View>
-              ) : (
-                <Pressable
-                  onPress={() => {
-                    hapticTap();
-                    setAdding(true);
-                  }}
-                  style={({ pressed }) => [
-                    styles.addRow,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Plus size={14} color={colors.primary} strokeWidth={2.5} />
-                  <Text style={styles.addRowText}>Add food to this day</Text>
-                </Pressable>
-              )
+              <Pressable
+                onPress={() => {
+                  hapticTap();
+                  onAddFood?.();
+                }}
+                style={({ pressed }) => [
+                  styles.addRow,
+                  pressed && { opacity: 0.6 },
+                ]}
+              >
+                <Plus size={14} color={colors.primary} strokeWidth={2.5} />
+                <Text style={styles.addRowText}>Add food to this day</Text>
+              </Pressable>
             ) : null}
           </ScrollView>
           {/* Hidden when viewing today: copying a day onto itself would just
@@ -414,7 +291,6 @@ export function DayHistorySheet({
           ) : null}
         </View>
       </View>
-      </KeyboardAvoidingView>
     </Modal>
   );
 }

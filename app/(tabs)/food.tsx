@@ -38,8 +38,10 @@ import {
   EditFoodSheet,
   GoalRow,
   GoalSheet,
+  LogFoodSheet,
   MacroCalculatorSheet,
   FoodLibrarySheet,
+  formatHeaderDate,
   formatMultiplier,
   NutritionTrendChart,
   parseOptional,
@@ -116,6 +118,18 @@ export default function FoodScreen() {
   const [resumeHistoryDate, setResumeHistoryDate] = useState<string | null>(
     null,
   );
+  // Date the log sheet writes to. Null means today, which is what the header's
+  // "+ Log" button uses; the day sheet sets it so the same form logs to a past
+  // day instead.
+  const [logTargetDate, setLogTargetDate] = useState<string | null>(null);
+  // Prefill for the log sheet, set when a food is picked from search.
+  const [logPrefill, setLogPrefill] = useState<{
+    name: string;
+    calories: string;
+    protein: string;
+    fat: string;
+    carbs: string;
+  } | null>(null);
   const [calcSheet, setCalcSheet] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
   const [portionRecent, setPortionRecent] = useState<FoodRecent | null>(null);
@@ -543,129 +557,115 @@ export default function FoodScreen() {
       {/* The manual form is the slowest path and the least used once recents
           exist, so it lives behind the header Log button rather than taking
           space above today's log. */}
-      <Modal
+      <LogFoodSheet
         visible={manualOpen}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setManualOpen(false)}
-      >
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
-          style={styles.manualBackdrop}
-        >
-          <Pressable style={{ flex: 1 }} onPress={() => setManualOpen(false)} />
-          <View style={styles.manualSheet}>
-            <View style={styles.manualHeader}>
-              <Text style={styles.manualTitle}>Log food</Text>
-              <Pressable
-                onPress={() => setManualOpen(false)}
-                hitSlop={10}
-                accessibilityLabel="Close"
-              >
-                <X size={20} color={colors.textSecondary} strokeWidth={2} />
-              </Pressable>
-            </View>
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-      <Card>
-        <Text style={styles.formLabel}>Name</Text>
-        <TextInput
-          value={name}
-          onChangeText={setName}
-          style={styles.input}
-          placeholder="e.g. Chicken breast"
-          placeholderTextColor={colors.textMuted}
-        />
-        <View style={styles.formRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.formLabel}>Calories</Text>
-            <TextInput
-              value={calInput}
-              onChangeText={setCalInput}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="165"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.formLabel}>Protein (g)</Text>
-            <TextInput
-              value={proteinInput}
-              onChangeText={setProteinInput}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="31"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-        </View>
-        <View style={styles.formRow}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.formLabel}>Fat (g)</Text>
-            <TextInput
-              value={fatInput}
-              onChangeText={setFatInput}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="7"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.formLabel}>Carbs (g)</Text>
-            <TextInput
-              value={carbsInput}
-              onChangeText={setCarbsInput}
-              keyboardType="decimal-pad"
-              style={styles.input}
-              placeholder="0"
-              placeholderTextColor={colors.textMuted}
-            />
-          </View>
-        </View>
-        <Pressable
-          onPress={onAdd}
-          style={({ pressed }) => [styles.addBtn, pressed && { opacity: 0.85 }]}
-        >
-          <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
-          <Text style={styles.addBtnText}>Add</Text>
-        </Pressable>
-      </Card>
-              <View style={{ height: 12 }} />
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
+        title={logTargetDate ? "Add food" : "Log food"}
+        subtitle={
+          logTargetDate ? formatHeaderDate(logTargetDate) : undefined
+        }
+        initialName={logPrefill?.name}
+        initialCalories={logPrefill?.calories}
+        initialProtein={logPrefill?.protein}
+        initialFat={logPrefill?.fat}
+        initialCarbs={logPrefill?.carbs}
+        onClose={() => {
+          setManualOpen(false);
+          setLogPrefill(null);
+          // Restore the day sheet if this was opened from one.
+          if (logTargetDate) {
+            setHistoryDate(logTargetDate);
+            setLogTargetDate(null);
+          }
+        }}
+        onSearch={() => {
+          setManualOpen(false);
+          setLibrarySheet(true);
+        }}
+        onAdd={async (draft) => {
+          // logTargetDate, not today -- this is what makes the same form work
+          // for a past day.
+          await addFoodEntry({ date: logTargetDate ?? today, ...draft });
+          hapticSuccess();
+          setManualOpen(false);
+          setLogPrefill(null);
+          if (logTargetDate) {
+            setHistoryRefresh((k) => k + 1);
+            setHistoryDate(logTargetDate);
+            setLogTargetDate(null);
+          }
+          load();
+        }}
+      />
 
       <FoodLibrarySheet
         visible={librarySheet}
-        onClose={() => setLibrarySheet(false)}
+        onClose={() => {
+          setLibrarySheet(false);
+          // Opened from the log sheet: go back to it rather than dropping the
+          // user on the log screen mid-flow.
+          if (logTargetDate) setManualOpen(true);
+        }}
         onPick={(item) => {
           setLibrarySheet(false);
+          if (logTargetDate) {
+            // Prefill the form instead of logging straight away, so the entry
+            // lands on the day being edited rather than today.
+            setLogPrefill({
+              name: item.name,
+              calories: String(Math.round(item.calories)),
+              protein: String(item.protein_g),
+              fat: String(item.fat_g),
+              carbs: String(item.carbs_g),
+            });
+            setManualOpen(true);
+            return;
+          }
           onTapRecent(toRecent(item));
         }}
         onLongPick={(item) => {
           hapticSelect();
           setLibrarySheet(false);
+          if (logTargetDate) {
+            setLogPrefill({
+              name: item.name,
+              calories: String(Math.round(item.calories)),
+              protein: String(item.protein_g),
+              fat: String(item.fat_g),
+              carbs: String(item.carbs_g),
+            });
+            setManualOpen(true);
+            return;
+          }
           setPortionRecent(toRecent(item));
         }}
         onPickRemote={(item) => {
           hapticSelect();
           setLibrarySheet(false);
+          // Database hits are per-100g and need DatabaseResultSheet's portion
+          // scaling, so this path is the same for today and for a past day --
+          // only the date it writes to differs.
           setDbResult(item);
         }}
       />
 
       <DatabaseResultSheet
         item={dbResult}
-        onClose={() => setDbResult(null)}
+        onClose={() => {
+          setDbResult(null);
+          if (logTargetDate) {
+            setHistoryDate(logTargetDate);
+            setLogTargetDate(null);
+          }
+        }}
         onAdd={async (entry) => {
-          await addFoodEntry({ date: today, ...entry });
+          await addFoodEntry({ date: logTargetDate ?? today, ...entry });
           hapticSuccess();
           setDbResult(null);
+          if (logTargetDate) {
+            setHistoryRefresh((k) => k + 1);
+            setHistoryDate(logTargetDate);
+            setLogTargetDate(null);
+          }
           load();
         }}
       />
@@ -690,6 +690,11 @@ export default function FoodScreen() {
           setResumeHistoryDate(historyDate);
           setHistoryDate(null);
           setEditEntry(e);
+        }}
+        onAddFood={() => {
+          setLogTargetDate(historyDate);
+          setHistoryDate(null);
+          setManualOpen(true);
         }}
         onChanged={load}
         onClose={() => setHistoryDate(null)}

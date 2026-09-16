@@ -118,7 +118,7 @@ export default function ProfileScreen() {
 
   const appName = (Constants.expoConfig?.name as string | undefined) ?? "Forge";
   const version =
-    (Constants.expoConfig?.version as string | undefined) ?? "1.1.2";
+    (Constants.expoConfig?.version as string | undefined) ?? "1.1.3";
   const build =
     (Constants.expoConfig?.ios?.buildNumber as string | undefined) ?? "1";
 

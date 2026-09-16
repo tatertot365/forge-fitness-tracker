@@ -17,6 +17,7 @@ import {
 } from "../../db/queries";
 import { hapticTap } from "../../utils/haptics";
 import { SwipeableFoodRow } from "./SwipeableFoodRow";
+import { Card } from "../../components/Card";
 import { formatHeaderDate } from "./helpers";
 import { todayISO } from "../../utils/date";
 import { colors } from "../../theme/colors";
@@ -216,43 +217,48 @@ export function DayHistorySheet({
                   ? "Nothing logged this day — add something below."
                   : "Nothing logged this day."}
               </Text>
-            ) : editing ? (
-              // Same row component the main log uses: tap to edit, swipe to
-              // delete. Editing is opt-in so a casual tap on a chart bar
-              // cannot delete a past entry by accident.
-              entries.map((e, i) => (
-                <SwipeableFoodRow
-                  key={e.id}
-                  entry={e}
-                  isLast={i === entries.length - 1}
-                  onDelete={() => onDeleteEntry(e)}
-                  onEdit={() => onEditEntry?.(e)}
-                />
-              ))
             ) : (
-              entries.map((e, i) => (
-                <View
-                  key={e.id}
-                  style={[
-                    styles.entryRow,
-                    i < entries.length - 1 && styles.entryRowDivider,
-                  ]}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.entryName} numberOfLines={1}>
-                      {e.name}
-                    </Text>
-                    <Text style={styles.entryMeta}>
-                      P {Math.round(e.protein_g)}g · F {Math.round(e.fat_g)}g ·
-                      C {Math.round(e.carbs_g)}g
-                    </Text>
-                  </View>
-                  <Text style={styles.entryCal}>
-                    {Math.round(e.calories).toLocaleString()}
-                    <Text style={styles.entryCalUnit}> cal</Text>
-                  </Text>
-                </View>
-              ))
+              // Wrapped in the same Card the Food tab's "Today's log" uses, so
+              // the rounded corners and border match rather than sitting as
+              // bare rows against the sheet.
+              <Card padded={false}>
+                {editing
+                  ? // Same row component the main log uses: tap to edit, swipe
+                    // to delete. Editing is opt-in so a casual tap on a chart
+                    // bar cannot delete a past entry by accident.
+                    entries.map((e, i) => (
+                      <SwipeableFoodRow
+                        key={e.id}
+                        entry={e}
+                        isLast={i === entries.length - 1}
+                        onDelete={() => onDeleteEntry(e)}
+                        onEdit={() => onEditEntry?.(e)}
+                      />
+                    ))
+                  : entries.map((e, i) => (
+                      <View
+                        key={e.id}
+                        style={[
+                          styles.entryRow,
+                          i < entries.length - 1 && styles.entryRowDivider,
+                        ]}
+                      >
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.entryName} numberOfLines={1}>
+                            {e.name}
+                          </Text>
+                          <Text style={styles.entryMeta}>
+                            P {Math.round(e.protein_g)}g · F{" "}
+                            {Math.round(e.fat_g)}g · C {Math.round(e.carbs_g)}g
+                          </Text>
+                        </View>
+                        <Text style={styles.entryCal}>
+                          {Math.round(e.calories).toLocaleString()}
+                          <Text style={styles.entryCalUnit}> cal</Text>
+                        </Text>
+                      </View>
+                    ))}
+              </Card>
             )}
 
             {editing ? (

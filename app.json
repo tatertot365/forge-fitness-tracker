@@ -9,7 +9,7 @@
     "userInterfaceStyle": "dark",
     "ios": {
       "bundleIdentifier": "com.tategillespie.forgetrainer",
-      "buildNumber": "1",
+      "buildNumber": "2",
       "appleTeamId": "ALLG3X69SH",
       "supportsTablet": false,
       "infoPlist": {

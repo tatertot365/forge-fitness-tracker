@@ -1,9 +1,11 @@
 import { getDb } from '../client';
 import type {
+  ExerciseType,
   MuscleGroup,
   SetLog,
 } from '../../types';
 import { weekDates } from '../../utils/date';
+import { formatDuration } from '../../utils/duration';
 
 // ─── Set logs ─────────────────────────────────────────────────────────
 
@@ -73,6 +75,7 @@ export async function upsertSetLog(
     completed?: 0 | 1;
     drop_weight_lb?: number | null;
     drop_reps?: number | null;
+    duration_seconds?: number | null;
   },
 ): Promise<void> {
   const db = await getDb();
@@ -90,7 +93,8 @@ export async function upsertSetLog(
   if (existing) {
     await db.runAsync(
       `UPDATE set_logs
-       SET weight_lb = ?, reps = ?, completed = ?, drop_weight_lb = ?, drop_reps = ?
+       SET weight_lb = ?, reps = ?, completed = ?, drop_weight_lb = ?, drop_reps = ?,
+           duration_seconds = ?
        WHERE id = ?`,
       [
         patch.weight_lb !== undefined ? patch.weight_lb : existing.weight_lb,
@@ -98,13 +102,14 @@ export async function upsertSetLog(
         patch.completed !== undefined ? patch.completed : existing.completed,
         patch.drop_weight_lb !== undefined ? patch.drop_weight_lb : existing.drop_weight_lb,
         patch.drop_reps !== undefined ? patch.drop_reps : existing.drop_reps,
+        patch.duration_seconds !== undefined ? patch.duration_seconds : existing.duration_seconds,
         existing.id,
       ],
     );
   } else {
     await db.runAsync(
-      `INSERT INTO set_logs (session_id, exercise_id, set_number, weight_lb, reps, completed, drop_weight_lb, drop_reps)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO set_logs (session_id, exercise_id, set_number, weight_lb, reps, completed, drop_weight_lb, drop_reps, duration_seconds)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         sessionId,
         libId,
@@ -114,6 +119,7 @@ export async function upsertSetLog(
         patch.completed ?? 0,
         patch.drop_weight_lb ?? null,
         patch.drop_reps ?? null,
+        patch.duration_seconds ?? null,
       ],
     );
   }
@@ -140,24 +146,40 @@ export async function upsertSetLog(
   }
 }
 
+/**
+ * How a set is scored when picking the best one: weight × reps, reps alone
+ * for bodyweight, or time held for timed exercises.
+ */
+export type SetScoring = 'weighted' | 'bodyweight' | 'timed';
+
+export function scoringFor(type: ExerciseType): SetScoring {
+  if (type === 'bodyweight') return 'bodyweight';
+  if (type === 'timed') return 'timed';
+  return 'weighted';
+}
+
 async function getLibraryIdForDayExercise(
   db: Awaited<ReturnType<typeof getDb>>,
   exerciseId: number,
-): Promise<{ libId: number; isBodyweight: boolean }> {
+): Promise<{ libId: number; isBodyweight: boolean; scoring: SetScoring }> {
   // Try resolving as day_exercises.id first
-  const de = await db.getFirstAsync<{ exercise_id: number; type: string }>(
+  const de = await db.getFirstAsync<{ exercise_id: number; type: ExerciseType }>(
     'SELECT exercise_id, type FROM day_exercises WHERE id = ?',
     [exerciseId],
   );
   if (de) {
-    return { libId: de.exercise_id, isBodyweight: de.type === 'bodyweight' };
+    return {
+      libId: de.exercise_id,
+      isBodyweight: de.type === 'bodyweight',
+      scoring: scoringFor(de.type),
+    };
   }
   // Fall back: treat as direct library id (for history queries from old set_logs)
   const lib = await db.getFirstAsync<{ type: string }>(
     'SELECT \'normal\' as type FROM exercises WHERE id = ?',
     [exerciseId],
   );
-  return { libId: exerciseId, isBodyweight: false };
+  return { libId: exerciseId, isBodyweight: false, scoring: 'weighted' };
 }
 
 export async function getLastCompletedSetsForExercise(
@@ -186,18 +208,50 @@ export async function getLastCompletedSetsForExercise(
   );
 }
 
-export function bestSet(sets: SetLog[], isBodyweight = false): SetLog | null {
+/**
+ * Comparable score for one set, or null if the set can't be scored. Timed sets
+ * rank by time, with weight breaking ties (a 60s plank at 25 lb beats one
+ * without); the tiebreak is scaled small enough never to outweigh a second.
+ */
+function setScore(s: SetLog, scoring: SetScoring): number | null {
+  if (scoring === 'timed') {
+    if (s.duration_seconds == null) return null;
+    return s.duration_seconds + (s.weight_lb ?? 0) / 10_000;
+  }
+  if (s.reps == null) return null;
+  if (scoring === 'bodyweight') return s.reps;
+  if (s.weight_lb == null) return null;
+  return s.weight_lb * s.reps;
+}
+
+export function bestSet(sets: SetLog[], scoring: SetScoring = 'weighted'): SetLog | null {
   let best: SetLog | null = null;
+  let bestScore = -Infinity;
   for (const s of sets) {
-    if (s.reps == null) continue;
-    if (!isBodyweight && s.weight_lb == null) continue;
-    const score = isBodyweight ? s.reps : (s.weight_lb ?? 0) * s.reps;
-    const bestScore = best == null
-      ? -Infinity
-      : isBodyweight ? (best.reps ?? 0) : (best.weight_lb ?? 0) * (best.reps ?? 0);
-    if (score > bestScore) best = s;
+    const score = setScore(s, scoring);
+    if (score != null && score > bestScore) {
+      best = s;
+      bestScore = score;
+    }
   }
   return best;
+}
+
+/**
+ * The "Last: …" / "Beat this" label for an exercise's best previous set, e.g.
+ * "240 lb × 6", "12 reps", "1:15" or "45s @ 25 lb". Null when nothing usable
+ * was logged.
+ */
+export function bestSetLabel(sets: SetLog[], type: ExerciseType): string | null {
+  const scoring = scoringFor(type);
+  const b = bestSet(sets, scoring);
+  if (!b) return null;
+  if (scoring === 'timed') {
+    const time = formatDuration(b.duration_seconds ?? 0);
+    return b.weight_lb ? `${time} @ ${b.weight_lb} lb` : time;
+  }
+  if (scoring === 'bodyweight') return `${b.reps} reps`;
+  return `${b.weight_lb} lb × ${b.reps}`;
 }
 
 export type ExerciseSessionHistory = {
@@ -205,6 +259,9 @@ export type ExerciseSessionHistory = {
   date: string;
   best_weight_lb: number | null;
   best_reps: number;
+  /** Timed exercises: the longest set that session, in seconds. */
+  best_seconds: number | null;
+  /** lb moved; total reps for bodyweight; total seconds for timed. */
   volume: number;
   sets_count: number;
 };
@@ -214,7 +271,7 @@ export async function getExerciseSessionHistory(
   limit: number = 10,
 ): Promise<ExerciseSessionHistory[]> {
   const db = await getDb();
-  const { libId, isBodyweight } = await getLibraryIdForDayExercise(db, exerciseId);
+  const { libId, scoring } = await getLibraryIdForDayExercise(db, exerciseId);
 
   const sessionRows = await db.getAllAsync<{ session_id: number; date: string }>(
     `SELECT DISTINCT sl.session_id, s.date
@@ -229,41 +286,44 @@ export async function getExerciseSessionHistory(
 
   const sessionIds = sessionRows.map((r) => r.session_id);
   const sessPh = sessionIds.map(() => '?').join(',');
-  const weightFilter = isBodyweight
-    ? 'AND reps IS NOT NULL'
-    : 'AND weight_lb IS NOT NULL AND reps IS NOT NULL';
-  const setRows = await db.getAllAsync<{ session_id: number; weight_lb: number | null; reps: number }>(
-    `SELECT session_id, weight_lb, reps
-     FROM set_logs
-     WHERE exercise_id = ? AND session_id IN (${sessPh})
-       AND completed = 1 ${weightFilter}`,
+  const setRows = await db.getAllAsync<SetLog>(
+    `SELECT * FROM set_logs
+     WHERE exercise_id = ? AND session_id IN (${sessPh}) AND completed = 1`,
     [libId, ...sessionIds],
   );
 
   const dateById = new Map(sessionRows.map((r) => [r.session_id, r.date]));
   const bySession = new Map<number, ExerciseSessionHistory>();
+  const bestScore = new Map<number, number>();
   for (const r of setRows) {
-    const score = isBodyweight ? r.reps : (r.weight_lb ?? 0) * r.reps;
-    const existing = bySession.get(r.session_id);
-    if (!existing) {
-      bySession.set(r.session_id, {
+    const score = setScore(r, scoring);
+    if (score == null) continue;
+    const amount =
+      scoring === 'timed'
+        ? r.duration_seconds ?? 0
+        : scoring === 'bodyweight'
+          ? r.reps ?? 0
+          : (r.weight_lb ?? 0) * (r.reps ?? 0);
+    let h = bySession.get(r.session_id);
+    if (!h) {
+      h = {
         session_id: r.session_id,
         date: dateById.get(r.session_id)!,
-        best_weight_lb: r.weight_lb,
-        best_reps: r.reps,
-        volume: score,
-        sets_count: 1,
-      });
-    } else {
-      existing.volume += score;
-      existing.sets_count += 1;
-      const existingScore = isBodyweight
-        ? existing.best_reps
-        : (existing.best_weight_lb ?? 0) * existing.best_reps;
-      if (score > existingScore) {
-        existing.best_weight_lb = r.weight_lb;
-        existing.best_reps = r.reps;
-      }
+        best_weight_lb: null,
+        best_reps: 0,
+        best_seconds: null,
+        volume: 0,
+        sets_count: 0,
+      };
+      bySession.set(r.session_id, h);
+    }
+    h.volume += amount;
+    h.sets_count += 1;
+    if (score > (bestScore.get(r.session_id) ?? -Infinity)) {
+      bestScore.set(r.session_id, score);
+      h.best_weight_lb = r.weight_lb;
+      h.best_reps = r.reps ?? 0;
+      h.best_seconds = r.duration_seconds;
     }
   }
   return sessionIds.map((id) => bySession.get(id)).filter((r): r is ExerciseSessionHistory => !!r);

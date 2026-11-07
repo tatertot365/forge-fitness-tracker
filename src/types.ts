@@ -24,7 +24,9 @@ export type MuscleGroup =
   | 'calves'
   | 'core';
 
-export type ExerciseType = 'normal' | 'drop' | 'superset' | 'bodyweight' | 'stretch';
+// 'timed' sets record how long the set lasted instead of reps (planks, dead
+// hangs, carries); hold_seconds is the per-set target.
+export type ExerciseType = 'normal' | 'drop' | 'superset' | 'bodyweight' | 'stretch' | 'timed';
 
 // Library entry — one row per unique exercise, no day/sets/reps
 export type LibraryExercise = {
@@ -78,6 +80,8 @@ export type SetLog = {
   completed: 0 | 1;
   drop_weight_lb: number | null;
   drop_reps: number | null;
+  /** Timed exercises only: how long the set lasted, in seconds. */
+  duration_seconds: number | null;
 };
 
 export type FoodEntry = {
@@ -148,6 +152,16 @@ export type CardioSession = {
   id: number;
   date: string;
   created_at: string;
+  /** CardioActivity key ('walk', 'run', ...). Null on logs from before v8. */
+  activity: string | null;
+  duration_seconds: number | null;
+  distance_mi: number | null;
+  /** When the session began, if known (live timer or Health import). */
+  started_at: string | null;
+  /** 'forge' when logged in Forge, 'health' when added from a Health workout. */
+  source: 'forge' | 'health';
+  /** The HealthKit workout: the one Forge wrote, or the one it was added from. */
+  health_uuid: string | null;
 };
 
 export type DayPlan = {

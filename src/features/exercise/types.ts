@@ -7,6 +7,8 @@ export type Row = {
   reps: string;
   dropWeight: string;
   dropReps: string;
+  /** Timed exercises only: the set's time as typed, e.g. "45s" or "1:15". */
+  time: string;
   completed: boolean;
 };
 

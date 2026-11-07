@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { AddExerciseSheet } from "../src/components/AddExerciseSheet";
 import { ExerciseRow } from "../src/components/ExerciseRow";
+import { useUndoToast } from "../src/components/UndoToast";
 import { SectionLabel } from "../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
 import {
@@ -20,7 +21,7 @@ import {
   syncSessionToHealth,
 } from "../src/features/session";
 import {
-  bestSet,
+  bestSetLabel,
   deleteExercise,
   deleteExercisesByGroup,
   finalizeSession,
@@ -31,6 +32,7 @@ import {
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
+  unskipCatchupItem,
 } from "../src/db/queries";
 import { type HealthMetrics } from "../src/health";
 import { colors, muscleAccent } from "../src/theme/colors";
@@ -52,6 +54,7 @@ type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 
 export default function DaySessionScreen() {
   const styles = useStyles(makeStyles);
+  const undo = useUndoToast();
   const router = useRouter();
   const params = useLocalSearchParams<{ day?: string }>();
   const day = DAYS.includes(params.day as Day) ? (params.day as Day) : null;
@@ -98,15 +101,7 @@ export default function DaySessionScreen() {
     await Promise.all(
       filtered.map(async (e) => {
         const last = await getLastCompletedSetsForExercise(e.id, sid);
-        const b = bestSet(last, e.type === "bodyweight");
-        lastMap[e.id] =
-          e.type === "bodyweight"
-            ? b?.reps != null
-              ? `${b.reps} reps`
-              : null
-            : b?.weight_lb != null && b.reps != null
-              ? `${b.weight_lb} lb × ${b.reps}`
-              : null;
+        lastMap[e.id] = bestSetLabel(last, e.type);
       }),
     );
     setSessionId(sid);
@@ -219,6 +214,10 @@ export default function DaySessionScreen() {
     if (!sessionDate) return;
     await skipCatchupItem(ex.id, sessionDate);
     setExercises((prev) => prev.filter((e) => e.id !== ex.id));
+    undo.show(`${ex.name} skipped`, async () => {
+      await unskipCatchupItem(ex.id, sessionDate);
+      await load();
+    });
   };
 
   const finalizeAndShow = async () => {
@@ -319,6 +318,7 @@ export default function DaySessionScreen() {
                     accentColor={muscleAccent[e.muscle_group] ?? colors.primary}
                     notes={e.notes}
                     typeBadge={e.type === "normal" ? null : e.type}
+                    holdSeconds={e.hold_seconds}
                     partnerName={
                       e.type === "superset" && e.superset_partner_id
                         ? (nameById[e.superset_partner_id] ?? null)
@@ -381,6 +381,7 @@ export default function DaySessionScreen() {
           }}
         />
       ) : null}
+      {undo.toast}
     </SafeAreaView>
   );
 }

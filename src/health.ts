@@ -235,10 +235,21 @@ const FORGE_BUNDLE_ID: string | undefined = (() => {
   }
 })();
 
+// Cardio's counterpart to FORGE_SESSION_KEY.
+const FORGE_CARDIO_KEY = 'ForgeCardioId';
+// The cardio log's sync id, repeated as ordinary metadata so a delete can
+// find the workout by it. HealthKit keeps the real sync id out of the
+// metadata a predicate can match, and the workout's uuid changes with every
+// edit -- deleting by a uuid read before an edit finished syncing missed.
+const FORGE_CARDIO_REF_KEY = 'ForgeCardioRef';
+
 function isForgeWorkout(workout: any): boolean {
   const bundle = workout?.sourceRevision?.source?.bundleIdentifier;
   if (FORGE_BUNDLE_ID && bundle === FORGE_BUNDLE_ID) return true;
-  return workout?.metadata?.[FORGE_SESSION_KEY] != null;
+  return (
+    workout?.metadata?.[FORGE_SESSION_KEY] != null ||
+    workout?.metadata?.[FORGE_CARDIO_KEY] != null
+  );
 }
 
 /**
@@ -310,6 +321,117 @@ export async function writeStrengthWorkoutToHealth(
     return 'saved';
   } catch {
     return 'failed';
+  }
+}
+
+// ─── Cardio ───────────────────────────────────────────────────────────
+
+const METERS_PER_MILE = 1609.344;
+
+export type CardioWorkoutForHealth = {
+  /** Stable per cardio log, so editing it replaces the workout. */
+  syncId: string;
+  cardioId: number;
+  /** HKWorkoutActivityType raw value. */
+  hkType: number;
+  indoor: boolean;
+  start: Date;
+  end: Date;
+  distanceMi: number | null;
+};
+
+/**
+ * Saves a cardio session as a Health workout of the matching type, unless
+ * another app (normally the Watch) already recorded a workout at that time.
+ * Returns the saved workout's uuid, so deleting the log can remove it again.
+ */
+export async function writeCardioWorkoutToHealth(
+  w: CardioWorkoutForHealth,
+): Promise<{ result: WorkoutWriteResult; uuid: string | null }> {
+  if (!HK) return { result: 'not-allowed', uuid: null };
+  if (!canWrite('HKWorkoutTypeIdentifier')) return { result: 'not-allowed', uuid: null };
+  if ((await otherWorkoutsBetween(w.start, w.end)).length > 0) {
+    return { result: 'skipped-duplicate', uuid: null };
+  }
+  try {
+    const workout = await HK.saveWorkoutSample(
+      w.hkType,
+      [],
+      w.start,
+      w.end,
+      w.distanceMi ? { distance: w.distanceMi * METERS_PER_MILE } : undefined,
+      {
+        [SYNC_ID_KEY]: w.syncId,
+        [SYNC_VERSION_KEY]: Date.now(),
+        HKIndoorWorkout: w.indoor,
+        [FORGE_CARDIO_KEY]: w.cardioId,
+        [FORGE_CARDIO_REF_KEY]: w.syncId,
+      },
+    );
+    return { result: 'saved', uuid: workout?.uuid ?? null };
+  } catch {
+    return { result: 'failed', uuid: null };
+  }
+}
+
+/**
+ * Removes the workout Forge saved for a cardio log, found by the log's sync
+ * id. iOS only lets an app delete its own data, so nothing else can match.
+ */
+export async function deleteCardioWorkoutFromHealth(syncId: string): Promise<void> {
+  if (!HK) return;
+  try {
+    await HK.deleteObjects('HKWorkoutTypeIdentifier', {
+      metadata: { withMetadataKey: FORGE_CARDIO_REF_KEY, value: syncId },
+    });
+  } catch {
+    /* already gone, or access was revoked */
+  }
+}
+
+export type HealthCardioWorkout = {
+  uuid: string;
+  hkType: number;
+  start: Date;
+  end: Date;
+  distanceMi: number | null;
+};
+
+function toMiles(q: { quantity?: number; unit?: string } | undefined): number | null {
+  if (!q || typeof q.quantity !== 'number' || q.quantity <= 0) return null;
+  const unit = String(q.unit ?? 'm').toLowerCase();
+  const mi =
+    unit === 'mi' ? q.quantity
+    : unit === 'km' ? q.quantity * 1000 / METERS_PER_MILE
+    : unit === 'yd' ? q.quantity * 0.9144 / METERS_PER_MILE
+    : q.quantity / METERS_PER_MILE;
+  return Math.round(mi * 100) / 100;
+}
+
+/**
+ * Workouts other apps recorded since `since`, newest first, for offering to
+ * add to Forge's cardio log. The caller filters to cardio types. Empty when
+ * reading isn't allowed (iOS reports a denied read as "no data").
+ */
+export async function otherWorkoutsSince(since: Date): Promise<HealthCardioWorkout[]> {
+  if (!HK) return [];
+  try {
+    const workouts = await HK.queryWorkoutSamples({
+      limit: 50,
+      ascending: false,
+      filter: { date: { startDate: since } },
+    });
+    return (workouts ?? [])
+      .filter((w: any) => !isForgeWorkout(w))
+      .map((w: any) => ({
+        uuid: String(w.uuid),
+        hkType: Number(w.workoutActivityType),
+        start: new Date(w.startDate),
+        end: new Date(w.endDate),
+        distanceMi: toMiles(w.totalDistance),
+      }));
+  } catch {
+    return [];
   }
 }
 

@@ -31,13 +31,14 @@ import {
   EditExerciseSheet,
   PlateSheet,
   StretchPanel,
+  TimeCell,
   estimateOneRepMax,
   warmupRamp,
   type Row,
   type WarmupRow,
 } from "../../src/features/exercise";
 import {
-  bestSet,
+  bestSetLabel,
   deleteSetLog,
   getExercise,
   getExerciseSessionHistory,
@@ -54,9 +55,11 @@ import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
 import {
   type Exercise,
+  type ExerciseType,
   type SetLog,
 } from "../../src/types";
 import { dayOfWeek, todayISO } from "../../src/utils/date";
+import { formatDuration, parseDuration } from "../../src/utils/duration";
 import { hapticTap } from "../../src/utils/haptics";
 
 export default function ExerciseDetailScreen() {
@@ -85,6 +88,11 @@ export default function ExerciseDetailScreen() {
   // silently when the row was blank, which read as a dead button.
   const [plateOpen, setPlateOpen] = useState(false);
   const [plateTarget, setPlateTarget] = useState<number | null>(null);
+  // Timed sets: one count-up timer at a time. Starting a set's timer while
+  // another runs simply moves it -- the earlier set keeps whatever it had.
+  const [timerRun, setTimerRun] = useState<{ idx: number; since: number } | null>(
+    null,
+  );
 
   const openPlateSheet = (rawWeight: string) => {
     const w = Number(rawWeight);
@@ -118,17 +126,7 @@ export default function ExerciseDetailScreen() {
     const lastBySetNumber = new Map<number, SetLog>();
     for (const l of lastLogs) lastBySetNumber.set(l.set_number, l);
 
-    const isBW = ex.type === "bodyweight";
-    const best = bestSet(lastLogs, isBW);
-    setBeatThis(
-      isBW
-        ? best && best.reps != null
-          ? `${best.reps} reps`
-          : null
-        : best && best.weight_lb != null && best.reps != null
-          ? `${best.weight_lb} lb × ${best.reps}`
-          : null,
-    );
+    setBeatThis(bestSetLabel(lastLogs, ex.type));
 
     // Split warmup (negative set_number) from working logs
     const warmupLogs = currentLogs
@@ -180,6 +178,10 @@ export default function ExerciseDetailScreen() {
               ? String(prior.drop_weight_lb)
               : "",
         dropReps: current?.drop_reps != null ? String(current.drop_reps) : "",
+        time:
+          current?.duration_seconds != null
+            ? formatDuration(current.duration_seconds)
+            : "",
         completed: !!current?.completed,
       });
     }
@@ -209,9 +211,12 @@ export default function ExerciseDetailScreen() {
   // include it here, so the best prior is taken from sessions strictly before
   // the one on screen.
   const isBodyweight = exercise?.type === "bodyweight";
+  const isTimed = exercise?.type === "timed";
+  // e1RM only means something for weight × reps.
+  const noE1rm = isBodyweight || isTimed;
 
   const priorBestE1rm = React.useMemo(() => {
-    if (isBodyweight) return null;
+    if (noE1rm) return null;
     let best: number | null = null;
     for (const h of history) {
       if (h.session_id === sessionId) continue;
@@ -220,10 +225,10 @@ export default function ExerciseDetailScreen() {
       if (e != null && (best == null || e > best)) best = e;
     }
     return best;
-  }, [history, sessionId, isBodyweight]);
+  }, [history, sessionId, noE1rm]);
 
   const currentBestE1rm = React.useMemo(() => {
-    if (isBodyweight) return null;
+    if (noE1rm) return null;
     let best: number | null = null;
     for (const r of rows) {
       if (!r.completed) continue;
@@ -233,7 +238,7 @@ export default function ExerciseDetailScreen() {
       if (e != null && (best == null || e > best)) best = e;
     }
     return best;
-  }, [rows, isBodyweight]);
+  }, [rows, noE1rm]);
 
   const isPR =
     currentBestE1rm != null &&
@@ -247,8 +252,9 @@ export default function ExerciseDetailScreen() {
     });
   };
 
-  const rowToPatch = (r: Row, isDrop: boolean) => {
+  const rowToPatch = (r: Row, type: ExerciseType) => {
     const toNum = (s: string) => (s.trim() === "" ? null : Number(s));
+    const isDrop = type === "drop";
     const weight = toNum(r.weight);
     const reps = toNum(r.reps);
     const dropWeight = toNum(r.dropWeight);
@@ -260,6 +266,8 @@ export default function ExerciseDetailScreen() {
         isDrop && Number.isFinite(dropWeight as number) ? dropWeight : null,
       drop_reps:
         isDrop && Number.isFinite(dropReps as number) ? dropReps : null,
+      // Only timed sets own this column; leave it alone for everything else.
+      duration_seconds: type === "timed" ? parseDuration(r.time) : undefined,
       completed: (r.completed ? 1 : 0) as 0 | 1,
     };
   };
@@ -271,7 +279,7 @@ export default function ExerciseDetailScreen() {
       sessionId,
       exercise.id,
       r.setNumber,
-      rowToPatch(r, exercise.type === "drop"),
+      rowToPatch(r, exercise.type),
     );
   };
 
@@ -305,10 +313,10 @@ export default function ExerciseDetailScreen() {
     const r = rowsRef.current[idx];
     if (!sid || !ex || !r) return;
     const rowSnap = { ...r };
-    const isDrop = ex.type === "drop";
+    const exType = ex.type;
     const exId = ex.id;
     const write = () => {
-      upsertSetLog(sid, exId, rowSnap.setNumber, rowToPatch(rowSnap, isDrop));
+      upsertSetLog(sid, exId, rowSnap.setNumber, rowToPatch(rowSnap, exType));
     };
     const key = `r:${exId}:${idx}`;
     const map = pendingWrites.current;
@@ -354,6 +362,8 @@ export default function ExerciseDetailScreen() {
   useEffect(() => {
     if (prevExerciseIdRef.current !== exerciseId) {
       flushAllPending();
+      // A running timer belongs to the exercise being left.
+      setTimerRun(null);
       prevExerciseIdRef.current = exerciseId;
     }
   }, [exerciseId]);
@@ -455,6 +465,7 @@ export default function ExerciseDetailScreen() {
         reps: "",
         dropWeight: prev[prev.length - 1]?.dropWeight ?? "",
         dropReps: "",
+        time: "",
         completed: false,
       },
     ]);
@@ -475,10 +486,16 @@ export default function ExerciseDetailScreen() {
       if (sessionId) await deleteSetLog(sessionId, exercise.id, r.setNumber);
       const nextCount = Math.max(1, exercise.sets - 1);
       setRows((prev) => prev.filter((_, i) => i !== idx));
+      if (timerRun?.idx === idx) setTimerRun(null);
       setExercise({ ...exercise, sets: nextCount });
       await updateExercise(exercise.id, { sets: nextCount });
     };
-    if (r.completed || r.weight.trim() !== "" || r.reps.trim() !== "") {
+    if (
+      r.completed ||
+      r.weight.trim() !== "" ||
+      r.reps.trim() !== "" ||
+      r.time.trim() !== ""
+    ) {
       Alert.alert(
         `Remove set ${r.setNumber}?`,
         "This set has data logged. Removing it deletes that entry.",
@@ -517,8 +534,21 @@ export default function ExerciseDetailScreen() {
       sessionId,
       exercise.id,
       r.setNumber,
-      rowToPatch(r, exercise.type === "drop"),
+      rowToPatch(r, exercise.type),
     );
+  };
+
+  // Stopping the timer is finishing the set: record the time and tick it off
+  // in one tap, which also starts rest like any other completed set.
+  const stopTimedSet = async (idx: number, elapsedSeconds: number) => {
+    setTimerRun(null);
+    if (elapsedSeconds <= 0) return;
+    const time = formatDuration(elapsedSeconds);
+    updateRow(idx, { time, completed: true });
+    if (idx !== rows.length - 1) setRestKey((k) => (k ?? 0) + 1);
+    if (!sessionId || !exercise) return;
+    const r = { ...rows[idx], time, completed: true };
+    await upsertSetLog(sessionId, exercise.id, r.setNumber, rowToPatch(r, exercise.type));
   };
 
   return (
@@ -540,6 +570,8 @@ export default function ExerciseDetailScreen() {
             {exercise
               ? exercise.type === "stretch"
                 ? `${exercise.sets} ${exercise.sets === 1 ? "round" : "rounds"} · ${exercise.hold_seconds ?? 30}s hold · Stretch`
+                : exercise.type === "timed"
+                ? `${exercise.sets} sets · ${formatDuration(exercise.hold_seconds ?? 30)} each · Timed`
                 : `${exercise.sets} sets · ${exercise.rep_range}${
                     exercise.type === "drop" ? " · Drop set" : ""
                   }${exercise.type === "superset" ? " · Superset" : ""}${
@@ -616,7 +648,9 @@ export default function ExerciseDetailScreen() {
                       score:
                         exercise?.type === "bodyweight"
                           ? h.best_reps
-                          : (h.best_weight_lb ?? 0) * h.best_reps,
+                          : exercise?.type === "timed"
+                            ? (h.best_seconds ?? 0)
+                            : (h.best_weight_lb ?? 0) * h.best_reps,
                     }))
                     .reverse()}
                 />
@@ -664,6 +698,9 @@ export default function ExerciseDetailScreen() {
           ) : null}
 
           {exercise?.type !== "stretch" ? (
+            <>
+          {/* Timed holds have no warmup sets. */}
+          {!isTimed ? (
             <>
           <SectionLabel
             trailing={
@@ -775,17 +812,23 @@ export default function ExerciseDetailScreen() {
               <Text style={styles.addWarmupText}>Add warmup set</Text>
             </Pressable>
           </Card>
+            </>
+          ) : null}
 
           <SectionLabel>Sets</SectionLabel>
 
           <View style={styles.tableHeader}>
             <Text style={[styles.headCell, { width: 32 }]}>Set</Text>
             {exercise?.type !== "bodyweight" ? (
-              <Text style={[styles.headCell, { flex: 1 }]}>Weight (lb)</Text>
+              <Text style={[styles.headCell, { flex: 1 }]}>
+                {isTimed ? "Added wt (lb)" : "Weight (lb)"}
+              </Text>
             ) : (
               <View style={{ flex: 1 }} />
             )}
-            <Text style={[styles.headCell, { flex: 1 }]}>Reps</Text>
+            <Text style={[styles.headCell, { flex: isTimed ? 1.3 : 1 }]}>
+              {isTimed ? "Time" : "Reps"}
+            </Text>
             <Text style={[styles.headCell, { width: 32, textAlign: "center" }]}>
               ✓
             </Text>
@@ -834,20 +877,41 @@ export default function ExerciseDetailScreen() {
                         returnKeyType="next"
                       />
                     )}
-                    <TextInput
-                      value={r.reps}
-                      onChangeText={(t: string) => {
-                        updateRow(idx, { reps: t });
-                        schedulePersistRow(idx);
-                      }}
-                      onBlur={() => persist(idx)}
-                      keyboardType="number-pad"
-                      selectTextOnFocus
-                      style={[styles.input, { flex: 1 }]}
-                      placeholder="—"
-                      placeholderTextColor={colors.textMuted}
-                      returnKeyType={isDrop ? "next" : "done"}
-                    />
+                    {isTimed ? (
+                      <View style={{ flex: 1.3 }}>
+                        <TimeCell
+                          value={r.time}
+                          targetSeconds={exercise?.hold_seconds ?? 30}
+                          runningSince={
+                            timerRun?.idx === idx ? timerRun.since : null
+                          }
+                          onChangeText={(t: string) => {
+                            updateRow(idx, { time: t });
+                            schedulePersistRow(idx);
+                          }}
+                          onBlur={() => persist(idx)}
+                          onStart={() =>
+                            setTimerRun({ idx, since: Date.now() })
+                          }
+                          onStop={(secs) => stopTimedSet(idx, secs)}
+                        />
+                      </View>
+                    ) : (
+                      <TextInput
+                        value={r.reps}
+                        onChangeText={(t: string) => {
+                          updateRow(idx, { reps: t });
+                          schedulePersistRow(idx);
+                        }}
+                        onBlur={() => persist(idx)}
+                        keyboardType="number-pad"
+                        selectTextOnFocus
+                        style={[styles.input, { flex: 1 }]}
+                        placeholder="—"
+                        placeholderTextColor={colors.textMuted}
+                        returnKeyType={isDrop ? "next" : "done"}
+                      />
+                    )}
                     <View style={{ width: 32, alignItems: "center" }}>
                       <SetCheckButton
                         completed={r.completed}
@@ -944,6 +1008,7 @@ export default function ExerciseDetailScreen() {
           exerciseName={exercise.name}
           history={history}
           isBodyweight={exercise.type === "bodyweight"}
+          isTimed={exercise.type === "timed"}
           onClose={() => setHistoryOpen(false)}
         />
       ) : null}

@@ -12,21 +12,34 @@ import { type ExerciseSessionHistory } from '../db/queries';
 import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
+import { formatDuration } from '../utils/duration';
 
 type Props = {
   visible: boolean;
   exerciseName: string;
   history: ExerciseSessionHistory[];
   isBodyweight?: boolean;
+  /** Timed exercises rank and label sessions by time held. */
+  isTimed?: boolean;
   onClose: () => void;
 };
 
-export function HistorySheet({ visible, exerciseName, history, isBodyweight = false, onClose }: Props) {
+export function HistorySheet({
+  visible,
+  exerciseName,
+  history,
+  isBodyweight = false,
+  isTimed = false,
+  onClose,
+}: Props) {
   const styles = useStyles(makeStyles);
-  const bestEverScore = history.reduce(
-    (m, h) => Math.max(m, isBodyweight ? h.best_reps : (h.best_weight_lb ?? 0) * h.best_reps),
-    0,
-  );
+  const scoreOf = (h: ExerciseSessionHistory) =>
+    isTimed
+      ? (h.best_seconds ?? 0)
+      : isBodyweight
+        ? h.best_reps
+        : (h.best_weight_lb ?? 0) * h.best_reps;
+  const bestEverScore = history.reduce((m, h) => Math.max(m, scoreOf(h)), 0);
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -56,14 +69,17 @@ export function HistorySheet({ visible, exerciseName, history, isBodyweight = fa
               showsVerticalScrollIndicator={false}
             >
               {history.map((h, idx) => {
-                const score = isBodyweight ? h.best_reps : (h.best_weight_lb ?? 0) * h.best_reps;
-                const isBest = score === bestEverScore;
-                const bestSetLabel = isBodyweight
-                  ? `${h.best_reps} reps`
-                  : `${h.best_weight_lb} × ${h.best_reps}`;
-                const volumeLabel = isBodyweight
-                  ? `${h.volume} total reps`
-                  : `${Math.round(h.volume).toLocaleString()} lb volume`;
+                const isBest = scoreOf(h) === bestEverScore;
+                const bestSetLabel = isTimed
+                  ? `${formatDuration(h.best_seconds ?? 0)}${h.best_weight_lb ? ` @ ${h.best_weight_lb} lb` : ''}`
+                  : isBodyweight
+                    ? `${h.best_reps} reps`
+                    : `${h.best_weight_lb} × ${h.best_reps}`;
+                const volumeLabel = isTimed
+                  ? `${formatDuration(h.volume)} total`
+                  : isBodyweight
+                    ? `${h.volume} total reps`
+                    : `${Math.round(h.volume).toLocaleString()} lb volume`;
                 return (
                   <View
                     key={h.session_id}

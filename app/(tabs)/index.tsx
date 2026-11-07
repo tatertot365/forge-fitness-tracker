@@ -2,7 +2,6 @@ import { useFocusEffect, useRouter } from "expo-router";
 import {
   Heart,
   Pencil,
-  Plus,
   SkipForward,
   User as UserIcon,
 } from "lucide-react-native";
@@ -17,6 +16,7 @@ import {
 } from "react-native";
 import { Card } from "../../src/components/Card";
 import { ProgressBar } from "../../src/components/ProgressBar";
+import { useUndoToast } from "../../src/components/UndoToast";
 import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import {
@@ -31,9 +31,14 @@ import {
   SwipeableCatchupRow,
 } from "../../src/features/session";
 import {
-  addCardioToday,
   getBodyGoals,
+  clearRunningCardio,
   getCardioCountThisWeek,
+  getCardioMinutesThisWeek,
+  getLastCardioActivity,
+  getRunningCardio,
+  startRunningCardio,
+  type RunningCardio,
   getCardioInfo,
   getCatchupItems,
   getCompletedSetCountForSession,
@@ -59,6 +64,8 @@ import {
   setHealthWriteEnabled,
   skipCatchupItem,
   skipDay,
+  unskipCatchupItem,
+  unskipDay,
   type BodyGoals,
   type CardioInfo,
 } from "../../src/db/queries";
@@ -69,6 +76,14 @@ import {
   verifyHealthKitAccess,
 } from "../../src/health";
 import { offerMeasurementBackfill } from "../../src/features/measure";
+import {
+  CardioCard,
+  CardioHistorySheet,
+  CardioLogSheet,
+  DEFAULT_CARDIO_ACTIVITY,
+  getHealthCardioSuggestions,
+  type CardioLogTarget,
+} from "../../src/features/cardio";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
@@ -91,6 +106,7 @@ const CARDIO_TARGET: Record<Phase, number> = { cut: 4, maintain: 3, bulk: 2 };
 
 export default function TodayScreen() {
   const styles = useStyles(makeStyles);
+  const undo = useUndoToast();
   const router = useRouter();
   // today/todayDate/thisWeek are state, not module-time constants, so they
   // refresh when the app returns to foreground or focus changes — otherwise a
@@ -132,6 +148,14 @@ export default function TodayScreen() {
     description: "12° / 3 mph / 20–30 min",
   });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
+  const [cardioMinutes, setCardioMinutes] = useState(0);
+  const [cardioRunning, setCardioRunning] = useState<RunningCardio | null>(null);
+  const [cardioSuggestions, setCardioSuggestions] = useState(0);
+  const [cardioLog, setCardioLog] = useState<CardioLogTarget | null>(null);
+  // Set while the log sheet is finishing a live session, so saving it (and
+  // only saving it) ends the timer -- closing the sheet keeps it running.
+  const [finishingRun, setFinishingRun] = useState(false);
+  const [cardioHistoryOpen, setCardioHistoryOpen] = useState(false);
   const [todayNutrition, setTodayNutrition] =
     useState<DailyNutritionTotal | null>(null);
   const [nutritionGoalSet, setNutritionGoalSet] = useState(false);
@@ -225,6 +249,7 @@ export default function TodayScreen() {
     setWeekTotalSetCounts(totalCounts);
     setCardioInfo(ci);
     setMuscleGroupSets(mgSets);
+    loadCardio();
     setTodayNutrition({
       date: currentDate,
       calories: foodEntries.reduce((s, e) => s + e.calories, 0),
@@ -262,6 +287,10 @@ export default function TodayScreen() {
     await skipDay(d, date);
     setSkippedDays((prev) => ({ ...prev, [d]: true }));
     setCatchup((prev) => prev.filter((c) => c.day !== d));
+    undo.show(`${DAY_LABEL[d]} skipped`, async () => {
+      await unskipDay(d, date);
+      await load();
+    });
   };
 
   const onLongPressDay = (d: Day) => {
@@ -278,6 +307,10 @@ export default function TodayScreen() {
 
   const onSkipCatchup = async (item: CatchupItem) => {
     await skipCatchupItem(item.exercise_id, item.date_missed);
+    undo.show(`${item.exercise_name} skipped`, async () => {
+      await unskipCatchupItem(item.exercise_id, item.date_missed);
+      await load();
+    });
     setCatchup((prev) =>
       prev.filter(
         (c) =>
@@ -289,10 +322,64 @@ export default function TodayScreen() {
     );
   };
 
-  const onAddCardio = async () => {
+  // Separate from load() so saving a cardio log refreshes just this card.
+  // Health suggestions query HealthKit, so they land a moment after the rest.
+  const loadCardio = useCallback(async () => {
+    const [count, minutes, running] = await Promise.all([
+      getCardioCountThisWeek(),
+      getCardioMinutesThisWeek(),
+      getRunningCardio(),
+    ]);
+    setCardioCount(count);
+    setCardioMinutes(minutes);
+    setCardioRunning(running);
+    setCardioSuggestions((await getHealthCardioSuggestions()).length);
+  }, []);
+
+  const onStartCardio = async () => {
     hapticTap();
-    await addCardioToday();
-    setCardioCount((c) => c + 1);
+    const activity = (await getLastCardioActivity()) ?? DEFAULT_CARDIO_ACTIVITY;
+    setCardioRunning(await startRunningCardio(activity));
+  };
+
+  const onFinishCardio = () => {
+    if (!cardioRunning) return;
+    hapticTap();
+    const since = new Date(cardioRunning.since);
+    setFinishingRun(true);
+    setCardioLog({
+      kind: "new",
+      activity: cardioRunning.activity,
+      durationSeconds: Math.max(1, Math.round((Date.now() - since.getTime()) / 1000)),
+      startedAt: cardioRunning.since,
+    });
+  };
+
+  const onDiscardCardio = () => {
+    Alert.alert("Discard this session?", "The time won't be logged.", [
+      { text: "Keep going", style: "cancel" },
+      {
+        text: "Discard",
+        style: "destructive",
+        onPress: async () => {
+          await clearRunningCardio();
+          setCardioRunning(null);
+        },
+      },
+    ]);
+  };
+
+  const onLogCardio = async () => {
+    hapticTap();
+    setFinishingRun(false);
+    setCardioLog({ kind: "new", activity: await getLastCardioActivity() });
+  };
+
+  const onCardioLogSaved = async () => {
+    if (finishingRun) await clearRunningCardio();
+    setFinishingRun(false);
+    setCardioLog(null);
+    await loadCardio();
   };
 
   const onConnectHealth = async () => {
@@ -364,6 +451,7 @@ export default function TodayScreen() {
 
 
   return (
+    <>
     <Screen>
       {/* ── Header ── */}
       <View style={styles.header}>
@@ -577,28 +665,19 @@ export default function TodayScreen() {
       >
         Cardio
       </SectionLabel>
-      <Card>
-        <Text style={styles.cardioTitle}>{cardioInfo.name}</Text>
-        <Text style={styles.cardioMeta}>{cardioInfo.description}</Text>
-        <View style={{ marginTop: 12 }}>
-          <ProgressBar value={cardioCount} max={cardioTarget} />
-        </View>
-        <View style={styles.cardioRow}>
-          <Text style={styles.cardioCount}>
-            {cardioCount}/{cardioTarget} this week
-          </Text>
-          <Pressable
-            onPress={onAddCardio}
-            style={({ pressed }) => [
-              styles.addBtn,
-              pressed && { opacity: 0.7 },
-            ]}
-          >
-            <Plus size={14} color="#FFFFFF" strokeWidth={2.5} />
-            <Text style={styles.addBtnText}>Log session</Text>
-          </Pressable>
-        </View>
-      </Card>
+      <CardioCard
+        info={cardioInfo}
+        count={cardioCount}
+        target={cardioTarget}
+        minutes={cardioMinutes}
+        running={cardioRunning}
+        healthSuggestions={cardioSuggestions}
+        onStart={onStartCardio}
+        onFinish={onFinishCardio}
+        onDiscard={onDiscardCardio}
+        onLog={onLogCardio}
+        onHistory={() => setCardioHistoryOpen(true)}
+      />
 
       <SectionLabel>Mobility</SectionLabel>
       <Card>
@@ -615,6 +694,21 @@ export default function TodayScreen() {
         </View>
       </Card>
 
+      <CardioLogSheet
+        target={cardioLog}
+        onClose={() => {
+          setCardioLog(null);
+          setFinishingRun(false);
+        }}
+        onSaved={onCardioLogSaved}
+      />
+
+      <CardioHistorySheet
+        visible={cardioHistoryOpen}
+        onClose={() => setCardioHistoryOpen(false)}
+        onChanged={loadCardio}
+      />
+
       <EditCardioSheet
         visible={editCardioOpen}
         current={cardioInfo}
@@ -626,6 +720,8 @@ export default function TodayScreen() {
         }}
       />
     </Screen>
+    {undo.toast}
+    </>
   );
 }
 
@@ -697,36 +793,6 @@ const makeStyles = (s: (n: number) => number) => StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-  cardioTitle: { ...typography.exerciseName, fontSize: s(14), color: colors.text },
-  cardioMeta: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  cardioRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: 10,
-  },
-  cardioCount: {
-    ...typography.caption,
-    fontSize: s(12),
-    color: colors.textSecondary,
-    fontVariant: ["tabular-nums"],
-  },
-  addBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    borderRadius: radius.pill,
-    backgroundColor: colors.primary,
-  },
-  addBtnText: { color: "#FFFFFF", fontSize: s(12), fontWeight: "600" },
-
   mobilityRow: {
     flexDirection: "row",
     alignItems: "center",

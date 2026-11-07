@@ -53,8 +53,9 @@ type Props = {
 
 type Mode = 'library' | 'stretches' | 'new';
 
-const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight"];
-const TYPE_LABELS = ["Normal", "Drop", "Superset", "Bodyweight"];
+const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight", "timed"];
+// Five segments: "Bodyweight" in full truncates on a phone-width sheet.
+const TYPE_LABELS = ["Normal", "Drop", "Superset", "Body wt", "Timed"];
 
 const MODE_ORDER = ["library", "stretches", "new"] as const;
 const MODE_LABELS = ["Library", "Stretches", "New"];
@@ -212,16 +213,18 @@ export function AddExerciseSheet({
     setBusy(true);
     try {
       const isStretch = type === 'stretch';
+      // Timed exercises reuse hold_seconds as their per-set target.
+      const usesHold = isStretch || type === 'timed';
       const { id: newId, created } = await createExerciseChecked({
         day,
         muscle_group: pickedGroup,
         name: trimmed,
         sets,
-        warmup_sets: isStretch ? 0 : warmupSets,
-        rep_range: isStretch ? '—' : repRange.trim() || '8–12',
+        warmup_sets: usesHold ? 0 : warmupSets,
+        rep_range: usesHold ? '—' : repRange.trim() || '8–12',
         notes: notes.trim() ? notes.trim() : null,
         type,
-        hold_seconds: isStretch ? holdSeconds : null,
+        hold_seconds: usesHold ? holdSeconds : null,
       });
       if (!created) {
         // Already on this day. Keep the sheet open so the picked sets/reps
@@ -594,9 +597,11 @@ export function AddExerciseSheet({
                     </Pressable>
                   </View>
 
-                  {type === 'stretch' ? (
+                  {type === 'stretch' || type === 'timed' ? (
                     <>
-                      <Text style={styles.fieldLabel}>Hold (seconds)</Text>
+                      <Text style={styles.fieldLabel}>
+                        {type === 'timed' ? 'Target time (seconds)' : 'Hold (seconds)'}
+                      </Text>
                       <View style={styles.stepperRow}>
                         <Pressable
                           onPress={() =>
@@ -612,7 +617,7 @@ export function AddExerciseSheet({
                         <Text style={styles.stepperValue}>{holdSeconds}</Text>
                         <Pressable
                           onPress={() =>
-                            setHoldSeconds((s) => Math.min(300, s + 5))
+                            setHoldSeconds((s) => Math.min(600, s + 5))
                           }
                           style={({ pressed }) => [
                             styles.stepperBtn,

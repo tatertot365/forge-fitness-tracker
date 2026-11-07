@@ -10,6 +10,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, AppState, Pressable, StyleSheet, Text, View } from "react-native";
 import { AddExerciseSheet } from "../../src/components/AddExerciseSheet";
 import { Card } from "../../src/components/Card";
+import { useUndoToast } from "../../src/components/UndoToast";
 import { ProgressBar } from "../../src/components/ProgressBar";
 import { CooldownSheet } from "../../src/components/CooldownSheet";
 import { ExerciseRow } from "../../src/components/ExerciseRow";
@@ -24,7 +25,7 @@ import {
   SwipeableCatchupRow,
 } from "../../src/features/session";
 import {
-  bestSet,
+  bestSetLabel,
   deleteExercise,
   deleteExercisesByGroup,
   finalizeSession,
@@ -38,6 +39,7 @@ import {
   getSetLogsForSession,
   getSkippedExerciseIds,
   skipCatchupItem,
+  unskipCatchupItem,
 } from "../../src/db/queries";
 import { type HealthMetrics } from "../../src/health";
 import { colors, muscleAccent } from "../../src/theme/colors";
@@ -60,6 +62,8 @@ type GroupedExercises = { group: MuscleGroup; items: Exercise[] }[];
 
 export default function SessionScreen() {
   const styles = useStyles(makeStyles);
+  // Clear of the pinned Finish button (see useUndoToast).
+  const undo = useUndoToast({ bottom: 140 });
   const router = useRouter();
   const [day, setDay] = useState<Day>(() => dayOfWeek());
   const [sessionDate, setSessionDate] = useState<string>(
@@ -128,15 +132,7 @@ export default function SessionScreen() {
     await Promise.all(
       filtered.map(async (e) => {
         const last = await getLastCompletedSetsForExercise(e.id, sid);
-        const b = bestSet(last, e.type === "bodyweight");
-        lastMap[e.id] =
-          e.type === "bodyweight"
-            ? b?.reps != null
-              ? `${b.reps} reps`
-              : null
-            : b?.weight_lb != null && b.reps != null
-              ? `${b.weight_lb} lb × ${b.reps}`
-              : null;
+        lastMap[e.id] = bestSetLabel(last, e.type);
       }),
     );
     setSessionId(sid);
@@ -258,10 +254,18 @@ export default function SessionScreen() {
   const onSkipExercise = async (ex: Exercise) => {
     await skipCatchupItem(ex.id, sessionDate);
     setExercises((prev) => prev.filter((e) => e.id !== ex.id));
+    undo.show(`${ex.name} skipped`, async () => {
+      await unskipCatchupItem(ex.id, sessionDate);
+      await load();
+    });
   };
 
   const onSkipCatchup = async (item: CatchupItem) => {
     await skipCatchupItem(item.exercise_id, item.date_missed);
+    undo.show(`${item.exercise_name} skipped`, async () => {
+      await unskipCatchupItem(item.exercise_id, item.date_missed);
+      await load();
+    });
     setCatchup((prev) =>
       prev.filter(
         (c) =>
@@ -555,6 +559,7 @@ export default function SessionScreen() {
           await load();
         }}
       />
+      {undo.toast}
     </>
   );
 }

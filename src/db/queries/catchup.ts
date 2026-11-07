@@ -17,6 +17,12 @@ export async function skipDay(day: Day, date: string): Promise<void> {
   );
 }
 
+/** Reverses skipDay -- backs the Undo shown right after skipping. */
+export async function unskipDay(day: Day, date: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync('DELETE FROM day_skips WHERE day = ? AND date = ?', [day, date]);
+}
+
 export async function getSkippedDaysThisWeek(): Promise<Partial<Record<Day, true>>> {
   const db = await getDb();
   const week = weekDates();
@@ -37,6 +43,15 @@ export async function skipCatchupItem(exerciseId: number, dateMissed: string): P
   const db = await getDb();
   await db.runAsync(
     'INSERT OR IGNORE INTO catchup_skips (exercise_id, date_missed) VALUES (?, ?)',
+    [exerciseId, dateMissed],
+  );
+}
+
+/** Reverses skipCatchupItem -- backs the Undo shown right after skipping. */
+export async function unskipCatchupItem(exerciseId: number, dateMissed: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(
+    'DELETE FROM catchup_skips WHERE exercise_id = ? AND date_missed = ?',
     [exerciseId, dateMissed],
   );
 }

@@ -30,8 +30,9 @@ import {
 } from "../../types";
 import { hapticSuccess } from "../../utils/haptics";
 
-const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight"];
-const TYPE_LABELS = ["Normal", "Drop", "Superset", "Bodyweight"];
+const TYPE_ORDER: ExerciseType[] = ["normal", "drop", "superset", "bodyweight", "timed"];
+// Five segments: "Bodyweight" in full truncates on a phone-width sheet.
+const TYPE_LABELS = ["Normal", "Drop", "Superset", "Body wt", "Timed"];
 
 export function EditExerciseSheet({
   visible,
@@ -55,6 +56,7 @@ export function EditExerciseSheet({
   const [repRange, setRepRange] = useState(exercise.rep_range);
   const [notes, setNotes] = useState(exercise.notes ?? "");
   const [type, setType] = useState<ExerciseType>(exercise.type);
+  const [holdSeconds, setHoldSeconds] = useState(exercise.hold_seconds ?? 30);
   const [partnerId, setPartnerId] = useState<number | null>(
     exercise.superset_partner_id,
   );
@@ -77,6 +79,7 @@ export function EditExerciseSheet({
     setRepRange(exercise.rep_range);
     setNotes(exercise.notes ?? "");
     setType(exercise.type);
+    setHoldSeconds(exercise.hold_seconds ?? 30);
     setPartnerId(exercise.superset_partner_id);
   }, [
     visible,
@@ -86,6 +89,7 @@ export function EditExerciseSheet({
     exercise.rep_range,
     exercise.notes,
     exercise.type,
+    exercise.hold_seconds,
     exercise.superset_partner_id,
   ]);
 
@@ -142,13 +146,23 @@ export function EditExerciseSheet({
     if (!trimmedName) return;
     setBusy(true);
     try {
+      const isTimed = type === "timed";
+      // Leaving timed: its "—" rep range would otherwise stick.
+      const reps = repRange.trim();
       await updateExercise(exercise.id, {
         name: trimmedName,
         sets,
-        warmup_sets: warmupSets,
-        rep_range: repRange.trim() || exercise.rep_range,
+        warmup_sets: isTimed ? 0 : warmupSets,
+        rep_range: isTimed
+          ? "—"
+          : reps && reps !== "—"
+            ? reps
+            : "8–12",
         notes: notes.trim() ? notes.trim() : null,
         type,
+        // Timed reuses hold_seconds as its per-set target. Other types leave
+        // the column alone, since this sheet never edits a stretch's hold.
+        ...(isTimed ? { hold_seconds: holdSeconds } : {}),
       });
       if (type === "superset" && partnerId) {
         await linkSuperset(exercise.id, partnerId);
@@ -245,37 +259,67 @@ export function EditExerciseSheet({
                 </Pressable>
               </View>
 
-              <Text style={styles.fieldLabel}>Warmup sets</Text>
-              <View style={styles.stepperRow}>
-                <Pressable
-                  onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Minus size={16} color={colors.text} />
-                </Pressable>
-                <Text style={styles.stepperValue}>{warmupSets}</Text>
-                <Pressable
-                  onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
-                  style={({ pressed }) => [
-                    styles.stepperBtn,
-                    pressed && { opacity: 0.6 },
-                  ]}
-                >
-                  <Plus size={16} color={colors.text} />
-                </Pressable>
-              </View>
+              {type === "timed" ? (
+                <>
+                  <Text style={styles.fieldLabel}>Target time (seconds)</Text>
+                  <View style={styles.stepperRow}>
+                    <Pressable
+                      onPress={() => setHoldSeconds((v) => Math.max(5, v - 5))}
+                      style={({ pressed }) => [
+                        styles.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Minus size={16} color={colors.text} />
+                    </Pressable>
+                    <Text style={styles.stepperValue}>{holdSeconds}</Text>
+                    <Pressable
+                      onPress={() => setHoldSeconds((v) => Math.min(600, v + 5))}
+                      style={({ pressed }) => [
+                        styles.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Plus size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.fieldLabel}>Warmup sets</Text>
+                  <View style={styles.stepperRow}>
+                    <Pressable
+                      onPress={() => setWarmupSets((s) => Math.max(0, s - 1))}
+                      style={({ pressed }) => [
+                        styles.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Minus size={16} color={colors.text} />
+                    </Pressable>
+                    <Text style={styles.stepperValue}>{warmupSets}</Text>
+                    <Pressable
+                      onPress={() => setWarmupSets((s) => Math.min(5, s + 1))}
+                      style={({ pressed }) => [
+                        styles.stepperBtn,
+                        pressed && { opacity: 0.6 },
+                      ]}
+                    >
+                      <Plus size={16} color={colors.text} />
+                    </Pressable>
+                  </View>
 
-              <Text style={styles.fieldLabel}>Rep range</Text>
-              <TextInput
-                value={repRange}
-                onChangeText={setRepRange}
-                style={styles.fieldInput}
-                placeholder="e.g. 8–12"
-                placeholderTextColor={colors.textMuted}
-              />
+                  <Text style={styles.fieldLabel}>Rep range</Text>
+                  <TextInput
+                    value={repRange}
+                    onChangeText={setRepRange}
+                    style={styles.fieldInput}
+                    placeholder="e.g. 8–12"
+                    placeholderTextColor={colors.textMuted}
+                  />
+
+                </>
+              )}
 
               <Text style={styles.fieldLabel}>Notes</Text>
               <TextInput

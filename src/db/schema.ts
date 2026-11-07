@@ -64,6 +64,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       completed INTEGER NOT NULL DEFAULT 0,
       drop_weight_lb REAL,
       drop_reps INTEGER,
+      duration_seconds INTEGER,
       UNIQUE(session_id, exercise_id, set_number)
     );
 
@@ -107,7 +108,13 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
     CREATE TABLE IF NOT EXISTS cardio_sessions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       date TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      activity TEXT,
+      duration_seconds INTEGER,
+      distance_mi REAL,
+      started_at TEXT,
+      source TEXT NOT NULL DEFAULT 'forge',
+      health_uuid TEXT
     );
 
     CREATE INDEX IF NOT EXISTS idx_cardio_date ON cardio_sessions(date);
@@ -170,6 +177,12 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
 
   // Add the last_set_at column for existing installs created before schema_v6.
   await migrateAddSessionLastSetAt(db);
+
+  // Add set_logs.duration_seconds for timed exercises (schema_v7).
+  await migrateAddSetDuration(db);
+
+  // Give cardio logs an activity, duration, distance and Health link (schema_v8).
+  await migrateCardioDetails(db);
 
   // Insert default day_plan rows for all 7 days if not present
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -256,6 +269,60 @@ async function migrateAddSessionLastSetAt(db: SQLiteDatabase): Promise<void> {
 
   await db.runAsync(
     `INSERT INTO settings (key, value) VALUES ('schema_v6', '6')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+}
+
+// duration_seconds holds how long a timed set lasted (planks, hangs, carries),
+// which have no reps. Null for every other kind of set.
+async function migrateAddSetDuration(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v7'`,
+  );
+  if (done?.value === '7') return;
+
+  const cols = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(set_logs)`,
+  );
+  if (!cols.some((c) => c.name === 'duration_seconds')) {
+    await db.execAsync(`ALTER TABLE set_logs ADD COLUMN duration_seconds INTEGER`);
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v7', '7')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+}
+
+// Cardio logs used to be a bare tap (date + created_at). They now carry what
+// was done, for how long, and which Health workout they map to. Old rows keep
+// null details and still count toward the weekly goal.
+async function migrateCardioDetails(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v8'`,
+  );
+  if (done?.value === '8') return;
+
+  const cols = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(cardio_sessions)`,
+  );
+  const have = new Set(cols.map((c) => c.name));
+  const add: [string, string][] = [
+    ['activity', 'TEXT'],
+    ['duration_seconds', 'INTEGER'],
+    ['distance_mi', 'REAL'],
+    ['started_at', 'TEXT'],
+    ['source', "TEXT NOT NULL DEFAULT 'forge'"],
+    ['health_uuid', 'TEXT'],
+  ];
+  for (const [name, type] of add) {
+    if (!have.has(name)) {
+      await db.execAsync(`ALTER TABLE cardio_sessions ADD COLUMN ${name} ${type}`);
+    }
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v8', '8')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }
@@ -402,6 +469,7 @@ async function migrateToLibrarySchema(db: SQLiteDatabase): Promise<void> {
       completed INTEGER NOT NULL DEFAULT 0,
       drop_weight_lb REAL,
       drop_reps INTEGER,
+      duration_seconds INTEGER,
       UNIQUE(session_id, exercise_id, set_number)
     );
 

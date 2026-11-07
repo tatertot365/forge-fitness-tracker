@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../theme/colors';
 import { radius, typography } from '../theme/spacing';
 import { useStyles } from '../theme/useStyles';
+import { formatDuration } from '../utils/duration';
 
 type Props = {
   name: string;
@@ -13,7 +14,7 @@ type Props = {
   accentColor: string;
   onPress: () => void;
   notes?: string | null;
-  typeBadge?: 'drop' | 'superset' | 'bodyweight' | 'stretch' | null;
+  typeBadge?: 'drop' | 'superset' | 'bodyweight' | 'stretch' | 'timed' | null;
   partnerName?: string | null;
   holdSeconds?: number | null;
 };
@@ -49,7 +50,9 @@ export function ExerciseRow({
         <Text style={styles.meta}>
           {isStretch
             ? `${sets} ${sets === 1 ? 'round' : 'rounds'} · ${holdSeconds ?? 30}s hold`
-            : `${sets} sets · ${repRange}`}
+            : typeBadge === 'timed'
+              ? `${sets} sets · ${formatDuration(holdSeconds ?? 30)} each`
+              : `${sets} sets · ${repRange}`}
         </Text>
         {typeBadge === 'drop' ? (
           <View style={[styles.badge, { backgroundColor: colors.purple + '1F' }]}>
@@ -66,6 +69,11 @@ export function ExerciseRow({
         {typeBadge === 'bodyweight' ? (
           <View style={[styles.badge, { backgroundColor: colors.green + '1F' }]}>
             <Text style={[styles.badgeText, { color: colors.green }]}>Bodyweight</Text>
+          </View>
+        ) : null}
+        {typeBadge === 'timed' ? (
+          <View style={[styles.badge, { backgroundColor: colors.amber + '1F' }]}>
+            <Text style={[styles.badgeText, { color: colors.amber }]}>Timed</Text>
           </View>
         ) : null}
         {isStretch ? (

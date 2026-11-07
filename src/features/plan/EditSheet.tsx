@@ -44,8 +44,9 @@ type EditSheetProps = {
   onDeleted: () => void;
 };
 
-const TYPE_ORDER: ExerciseType[] = ["normal", "superset", "drop", "bodyweight"];
-const TYPE_LABELS = ["Normal", "Superset", "Drop", "Bodyweight"];
+const TYPE_ORDER: ExerciseType[] = ["normal", "superset", "drop", "bodyweight", "timed"];
+// Five segments: "Bodyweight" in full truncates on a phone-width sheet.
+const TYPE_LABELS = ["Normal", "Superset", "Drop", "Body wt", "Timed"];
 
 export function EditSheet({
   visible,
@@ -132,14 +133,16 @@ export function EditSheet({
       setBusy(true);
       try {
         const isStretch = type === "stretch";
+      // Timed exercises reuse hold_seconds as their per-set target.
+      const usesHold = isStretch || type === "timed";
         await updateExercise(exercise.id, {
           name: name.trim() || exercise.name,
           sets,
-          warmup_sets: isStretch ? 0 : warmupSets,
-          rep_range: isStretch ? "—" : repRange.trim() || exercise.rep_range,
+          warmup_sets: usesHold ? 0 : warmupSets,
+          rep_range: usesHold ? "—" : repRange.trim() || exercise.rep_range,
           notes: notes.trim() || null,
           type,
-          hold_seconds: isStretch ? holdSeconds : null,
+          hold_seconds: usesHold ? holdSeconds : null,
         });
 
         if (type === "superset" && partnerValue) {
@@ -308,9 +311,11 @@ export function EditSheet({
                   </Pressable>
                 </View>
 
-                {type === "stretch" ? (
+                {type === "stretch" || type === "timed" ? (
                   <>
-                    <Text style={ss.fieldLabel}>Hold (seconds)</Text>
+                    <Text style={ss.fieldLabel}>
+                        {type === "timed" ? "Target time (seconds)" : "Hold (seconds)"}
+                      </Text>
                     <View style={ss.stepperRow}>
                       <Pressable
                         onPress={() =>
@@ -326,7 +331,7 @@ export function EditSheet({
                       <Text style={ss.stepperValue}>{holdSeconds}</Text>
                       <Pressable
                         onPress={() =>
-                          setHoldSeconds((s) => Math.min(300, s + 5))
+                          setHoldSeconds((s) => Math.min(600, s + 5))
                         }
                         style={({ pressed }) => [
                           ss.stepperBtn,

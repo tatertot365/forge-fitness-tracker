@@ -68,6 +68,7 @@ export async function exportSessionsCSV(): Promise<string> {
     set_number: number;
     weight_lb: number | null;
     reps: number | null;
+    duration_seconds: number | null;
     completed: number;
   }>(`
     SELECT
@@ -78,6 +79,7 @@ export async function exportSessionsCSV(): Promise<string> {
       sl.set_number,
       sl.weight_lb,
       sl.reps,
+      sl.duration_seconds,
       sl.completed
     FROM set_logs sl
     JOIN sessions s ON s.id = sl.session_id
@@ -86,7 +88,7 @@ export async function exportSessionsCSV(): Promise<string> {
   `);
 
   return toCSV(
-    ['date', 'day', 'exercise', 'muscle_group', 'set_number', 'weight_lb', 'reps', 'completed'],
-    rows.map((r) => [r.date, r.day, r.exercise_name, r.muscle_group, r.set_number, r.weight_lb, r.reps, r.completed]),
+    ['date', 'day', 'exercise', 'muscle_group', 'set_number', 'weight_lb', 'reps', 'duration_seconds', 'completed'],
+    rows.map((r) => [r.date, r.day, r.exercise_name, r.muscle_group, r.set_number, r.weight_lb, r.reps, r.duration_seconds, r.completed]),
   );
 }

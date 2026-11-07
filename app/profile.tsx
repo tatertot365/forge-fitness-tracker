@@ -357,7 +357,7 @@ export default function ProfileScreen() {
                   <Activity size={16} color={colors.primary} strokeWidth={2} />
                 }
                 label="Read workouts"
-                sub="Show duration, heart rate and calories from your Apple Watch workout on the session summary."
+                sub="Show Apple Watch stats on the session summary, and offer Watch cardio to add to your log."
                 trailing={
                   <Switch
                     value={healthReadWorkouts}
@@ -391,7 +391,7 @@ export default function ProfileScreen() {
                   <Dumbbell size={16} color={colors.primary} strokeWidth={2} />
                 }
                 label="Save workouts"
-                sub="Finished sessions as strength workouts. Skipped when your Apple Watch already recorded one at the same time."
+                sub="Finished sessions and logged cardio as workouts. Skipped when your Apple Watch already recorded one at the same time."
                 trailing={
                   <Switch
                     value={healthWorkouts}

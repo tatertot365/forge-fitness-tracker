@@ -1,5 +1,6 @@
 export { EditExerciseSheet } from "./EditExerciseSheet";
 export { StretchPanel } from "./StretchPanel";
+export { TimeCell } from "./TimeCell";
 export { type Row, type WarmupRow } from "./types";
 export { PlateSheet } from "./PlateSheet";
 export {

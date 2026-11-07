@@ -26,7 +26,10 @@ import {
   MuscleGroupGrid,
   WeekStrip,
 } from "../../src/features/home";
-import { SwipeableCatchupRow } from "../../src/features/session";
+import {
+  offerWorkoutBackfill,
+  SwipeableCatchupRow,
+} from "../../src/features/session";
 import {
   addCardioToday,
   getBodyGoals,
@@ -53,6 +56,7 @@ import {
   markHealthKitAsked,
   comparisonMeasurement,
   setCardioInfo as saveCardioInfo,
+  setHealthWriteEnabled,
   skipCatchupItem,
   skipDay,
   type BodyGoals,
@@ -61,8 +65,10 @@ import {
 import {
   isHealthKitAvailable,
   requestHealthKitAccess,
+  requestAllHealthAccess,
   verifyHealthKitAccess,
 } from "../../src/health";
+import { offerMeasurementBackfill } from "../../src/features/measure";
 import { colors } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
@@ -291,11 +297,21 @@ export default function TodayScreen() {
 
   const onConnectHealth = async () => {
     hapticTap();
+    // One sheet covering reads and every write, so connecting is a single
+    // decision rather than more prompts later from Profile.
+    const allowed = await requestAllHealthAccess();
+    // Already answered above, so this shows nothing -- it just resets the
+    // cached read authorization the session screens rely on.
     await requestHealthKitAccess();
     const verified = await verifyHealthKitAccess();
     await markHealthKitAsked();
     setShowHealthConnect(false);
-    if (verified) hapticSuccess();
+    if (allowed.measurements) await setHealthWriteEnabled("measurements", true);
+    if (allowed.workouts) await setHealthWriteEnabled("workouts", true);
+    if (verified || allowed.measurements || allowed.workouts) hapticSuccess();
+    // One after the other: each resolves only once the user has answered.
+    if (allowed.measurements) await offerMeasurementBackfill();
+    if (allowed.workouts) await offerWorkoutBackfill();
   };
 
   // Week totals reduce from maps already loaded for the strip -- no extra query.
@@ -424,7 +440,7 @@ export default function TodayScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.healthTitle}>Connect Apple Health</Text>
             <Text style={styles.healthMeta}>
-              Let sessions pull heart rate, calories & duration.
+              Pull in Apple Watch stats and save your workouts and measurements.
             </Text>
           </View>
           <Text style={styles.healthCta}>Connect →</Text>

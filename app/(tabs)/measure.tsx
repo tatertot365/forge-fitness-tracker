@@ -34,6 +34,7 @@ import {
   ratePerWeek,
   seriesFor,
   StatCard,
+  syncMeasurementDayToHealth,
   TrendHeroCard,
   emaAt,
   useMeasurements,
@@ -80,6 +81,8 @@ export default function MeasureScreen() {
   const save = async (parsed: ParsedMeasurement) => {
     const today = todayISO();
     await upsertMeasurement(today, parsed);
+    // Not awaited: Health is a mirror and must never hold up the save.
+    syncMeasurementDayToHealth(today);
 
     const [goalsMode, activity, phase, freshProfile] = await Promise.all([
       getGoalsMode(),

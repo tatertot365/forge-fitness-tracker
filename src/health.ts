@@ -33,7 +33,6 @@ export function initHealthKit(): Promise<boolean> {
     try {
       const ok = await HK.requestAuthorization({
         toRead: READ_TYPES,
-        toWrite: [],
       });
       return !!ok;
     } catch {
@@ -48,6 +47,278 @@ export function requestHealthKitAccess(): Promise<boolean> {
   return initHealthKit();
 }
 
+// ─── Writing ──────────────────────────────────────────────────────────
+
+const MEASUREMENT_WRITE_TYPES = [
+  'HKQuantityTypeIdentifierBodyMass',
+  'HKQuantityTypeIdentifierBodyFatPercentage',
+  'HKQuantityTypeIdentifierLeanBodyMass',
+  'HKQuantityTypeIdentifierBodyMassIndex',
+  'HKQuantityTypeIdentifierWaistCircumference',
+  'HKQuantityTypeIdentifierHeight',
+] as const;
+
+const WORKOUT_WRITE_TYPES = ['HKWorkoutTypeIdentifier'] as const;
+
+type WriteType =
+  | (typeof MEASUREMENT_WRITE_TYPES)[number]
+  | (typeof WORKOUT_WRITE_TYPES)[number];
+
+// AuthorizationStatus.sharingAuthorized. Unlike reads, iOS does report whether
+// the user allowed writes, so this is a real answer rather than a guess.
+const SHARING_AUTHORIZED = 2;
+
+function canWrite(type: WriteType): boolean {
+  try {
+    return HK.authorizationStatusFor(type) === SHARING_AUTHORIZED;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Shows the iOS permission sheet for `toShare` (only types the user hasn't
+ * answered yet). Read types always ride along, so a write request never leaves
+ * reads for a second sheet later.
+ */
+async function requestWriteAccess(toShare: readonly WriteType[]): Promise<boolean> {
+  if (!HK) return false;
+  try {
+    await HK.requestAuthorization({ toShare, toRead: READ_TYPES });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** True if at least one measurement type is now allowed. */
+export async function requestMeasurementWriteAccess(): Promise<boolean> {
+  if (!(await requestWriteAccess(MEASUREMENT_WRITE_TYPES))) return false;
+  return MEASUREMENT_WRITE_TYPES.some(canWrite);
+}
+
+/** True if saving workouts is now allowed. */
+export async function requestWorkoutWriteAccess(): Promise<boolean> {
+  if (!(await requestWriteAccess(WORKOUT_WRITE_TYPES))) return false;
+  return WORKOUT_WRITE_TYPES.every(canWrite);
+}
+
+/**
+ * Everything Forge reads and writes, in one sheet -- for the Home "Connect"
+ * card, so connecting is a single decision. Reports which write categories the
+ * user allowed.
+ */
+export async function requestAllHealthAccess(): Promise<{
+  measurements: boolean;
+  workouts: boolean;
+}> {
+  const asked = await requestWriteAccess([
+    ...MEASUREMENT_WRITE_TYPES,
+    ...WORKOUT_WRITE_TYPES,
+  ]);
+  return {
+    measurements: asked && MEASUREMENT_WRITE_TYPES.some(canWrite),
+    workouts: asked && WORKOUT_WRITE_TYPES.every(canWrite),
+  };
+}
+
+// The constant's real string value. The library's generated metadata type
+// spells it `HKSyncIdentifier`, which HealthKit ignores -- every save would
+// then add a duplicate instead of replacing the earlier one.
+const SYNC_ID_KEY = 'HKMetadataKeySyncIdentifier';
+const SYNC_VERSION_KEY = 'HKMetadataKeySyncVersion';
+
+/**
+ * Saves one value. `syncId` makes the write an upsert: HealthKit replaces any
+ * earlier Forge sample with the same id and a lower version, so re-saving a
+ * day's weight edits it in Health instead of adding a second reading.
+ * Silently skips types the user hasn't allowed; never throws.
+ */
+async function saveQuantity(
+  type: WriteType,
+  unit: string,
+  value: number,
+  at: Date,
+  syncId: string,
+): Promise<void> {
+  if (!canWrite(type)) return;
+  try {
+    await HK.saveQuantitySample(type, unit, value, at, at, {
+      [SYNC_ID_KEY]: syncId,
+      // Milliseconds are always increasing, so a later save always wins.
+      [SYNC_VERSION_KEY]: Date.now(),
+      HKWasUserEntered: true,
+    });
+  } catch {
+    /* Health is a mirror; a failed write must never block the app. */
+  }
+}
+
+export type MeasurementForHealth = {
+  date: string;
+  weight_lb: number | null;
+  body_fat_pct: number | null;
+  waist_in: number | null;
+};
+
+/**
+ * Writes one day's measurements, plus lean body mass and BMI where they can
+ * be derived. Pass the full merged row for the day (not just the fields the
+ * user just typed) so derived values use everything known for that date.
+ * Shoulders, arms, chest and quads have no HealthKit type and are skipped.
+ */
+export async function writeMeasurementToHealth(
+  m: MeasurementForHealth,
+  heightIn: number | null,
+  at: Date,
+): Promise<void> {
+  if (!HK) return;
+  const id = (field: string) => `forge.measurement.${m.date}.${field}`;
+
+  if (m.weight_lb != null) {
+    await saveQuantity('HKQuantityTypeIdentifierBodyMass', 'lb', m.weight_lb, at, id('weight'));
+  }
+  if (m.body_fat_pct != null) {
+    // HealthKit percentages are fractions: 18% is stored as 0.18.
+    await saveQuantity(
+      'HKQuantityTypeIdentifierBodyFatPercentage',
+      '%',
+      m.body_fat_pct / 100,
+      at,
+      id('body_fat'),
+    );
+  }
+  if (m.waist_in != null) {
+    await saveQuantity('HKQuantityTypeIdentifierWaistCircumference', 'in', m.waist_in, at, id('waist'));
+  }
+  if (m.weight_lb != null && m.body_fat_pct != null) {
+    const lean = m.weight_lb * (1 - m.body_fat_pct / 100);
+    await saveQuantity('HKQuantityTypeIdentifierLeanBodyMass', 'lb', lean, at, id('lean_mass'));
+  }
+  if (m.weight_lb != null && heightIn != null && heightIn > 0) {
+    const bmi = (703 * m.weight_lb) / (heightIn * heightIn);
+    await saveQuantity(
+      'HKQuantityTypeIdentifierBodyMassIndex',
+      'count',
+      Math.round(bmi * 10) / 10,
+      at,
+      id('bmi'),
+    );
+  }
+}
+
+/** Writes height, keyed by date so a same-day correction replaces itself. */
+export async function writeHeightToHealth(
+  heightIn: number,
+  date: string,
+  at: Date,
+): Promise<void> {
+  if (!HK) return;
+  await saveQuantity('HKQuantityTypeIdentifierHeight', 'in', heightIn, at, `forge.height.${date}`);
+}
+
+// ─── Workouts ─────────────────────────────────────────────────────────
+
+// WorkoutActivityType.traditionalStrengthTraining.
+const TRADITIONAL_STRENGTH_TRAINING = 50;
+
+// Stamped on every workout Forge saves. A second way to recognise our own
+// workouts besides the bundle id, which is unavailable if Constants can't
+// read the app config.
+const FORGE_SESSION_KEY = 'ForgeSessionId';
+
+const FORGE_BUNDLE_ID: string | undefined = (() => {
+  try {
+    return require('expo-constants').default?.expoConfig?.ios?.bundleIdentifier;
+  } catch {
+    return undefined;
+  }
+})();
+
+function isForgeWorkout(workout: any): boolean {
+  const bundle = workout?.sourceRevision?.source?.bundleIdentifier;
+  if (FORGE_BUNDLE_ID && bundle === FORGE_BUNDLE_ID) return true;
+  return workout?.metadata?.[FORGE_SESSION_KEY] != null;
+}
+
+/**
+ * Workouts from other apps (Apple Watch, Fitness, ...) overlapping a window.
+ * Returns [] when reading isn't allowed -- iOS reports a denied read as "no
+ * data", so the caller can't tell the difference.
+ */
+async function otherWorkoutsBetween(start: Date, end: Date): Promise<any[]> {
+  try {
+    const workouts = await HK.queryWorkoutSamples({
+      limit: 20,
+      filter: { date: { startDate: start, endDate: end } },
+    });
+    return (workouts ?? []).filter((w: any) => !isForgeWorkout(w));
+  } catch {
+    return [];
+  }
+}
+
+export type StrengthWorkoutForHealth = {
+  /** Stable per day's session, so finishing it again replaces the workout. */
+  syncId: string;
+  sessionId: number;
+  name: string;
+  start: Date;
+  end: Date;
+  setsCompleted: number;
+  volumeLb: number;
+};
+
+export type WorkoutWriteResult = 'saved' | 'skipped-duplicate' | 'not-allowed' | 'failed';
+
+/**
+ * Saves a strength-training workout -- unless another app already recorded a
+ * workout overlapping the same time. That's normally the user's Apple Watch,
+ * whose workout has real heart rate and calories; a second Forge workout on top
+ * of it would double-count in the Fitness app.
+ *
+ * Sets and volume go into metadata. Health keeps them but doesn't display them
+ * as sets; they're there for any app that wants to read them.
+ */
+export async function writeStrengthWorkoutToHealth(
+  w: StrengthWorkoutForHealth,
+): Promise<WorkoutWriteResult> {
+  if (!HK) return 'not-allowed';
+  if (!canWrite('HKWorkoutTypeIdentifier')) return 'not-allowed';
+  if ((await otherWorkoutsBetween(w.start, w.end)).length > 0) {
+    return 'skipped-duplicate';
+  }
+  try {
+    await HK.saveWorkoutSample(
+      TRADITIONAL_STRENGTH_TRAINING,
+      [],
+      w.start,
+      w.end,
+      undefined,
+      {
+        [SYNC_ID_KEY]: w.syncId,
+        [SYNC_VERSION_KEY]: Date.now(),
+        HKIndoorWorkout: true,
+        [FORGE_SESSION_KEY]: w.sessionId,
+        // Health lists every metadata key on the workout, so an unnamed day
+        // plan leaves the field out rather than showing a blank row.
+        ...(w.name ? { ForgeWorkoutName: w.name } : {}),
+        ForgeSetsCompleted: w.setsCompleted,
+        ForgeVolumeLb: Math.round(w.volumeLb),
+      },
+    );
+    return 'saved';
+  } catch {
+    return 'failed';
+  }
+}
+
+/** The newest workout recorded by any app other than Forge. */
+async function mostRecentOtherWorkout(): Promise<any | null> {
+  const workouts = await HK.queryWorkoutSamples({ limit: 10, ascending: false });
+  return (workouts ?? []).find((w: any) => !isForgeWorkout(w)) ?? null;
+}
+
 // iOS deliberately hides HealthKit read-permission denials from apps. So
 // `requestAuthorization` resolving truthy doesn't prove access was granted.
 // This probes by attempting a small read; a positive result confirms access.
@@ -58,7 +329,9 @@ export async function verifyHealthKitAccess(): Promise<boolean> {
   const ok = await initHealthKit();
   if (!ok) return false;
   try {
-    const workout = await HK.getMostRecentWorkout();
+    // Not Forge's own: iOS always lets an app read what it wrote, so a Forge
+    // workout proves nothing about read access.
+    const workout = await mostRecentOtherWorkout();
     if (workout) return true;
     const stepSample = await HK.getMostRecentQuantitySample(
       'HKQuantityTypeIdentifierStepCount',
@@ -75,19 +348,24 @@ export type HealthMetrics = {
   calories: number | null;
 };
 
+const EMPTY_HEALTH_METRICS: HealthMetrics = {
+  durationMinutes: null,
+  avgHr: null,
+  calories: null,
+};
+
 export async function fetchRecentWorkoutMetrics(): Promise<HealthMetrics> {
-  const empty: HealthMetrics = {
-    durationMinutes: null,
-    avgHr: null,
-    calories: null,
-  };
+  const empty = EMPTY_HEALTH_METRICS;
   if (!HK) return empty;
   const ok = await initHealthKit();
   if (!ok) return empty;
 
   let workout: any;
   try {
-    workout = await HK.getMostRecentWorkout();
+    // Not getMostRecentWorkout(): once Forge saves its own workouts, that
+    // would hand back Forge's own entry (no heart rate, no calories) instead
+    // of the Apple Watch workout this summary is meant to show.
+    workout = await mostRecentOtherWorkout();
   } catch {
     return empty;
   }

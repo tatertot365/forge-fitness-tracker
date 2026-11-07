@@ -123,10 +123,20 @@ export async function upsertSetLog(
   // pre-filled from last session -- so only the check-off counts. No-ops once
   // started_at is set.
   if (patch.completed === 1) {
+    const now = new Date().toISOString();
     await db.runAsync(
       'UPDATE sessions SET started_at = ? WHERE id = ? AND started_at IS NULL',
-      [new Date().toISOString(), sessionId],
+      [now, sessionId],
     );
+    // Only on the actual check-off. The exercise screen re-sends completed: 1
+    // with every weight/rep edit to a done set, and a correction made hours
+    // later must not stretch the session's end time to the edit.
+    if (existing?.completed !== 1) {
+      await db.runAsync('UPDATE sessions SET last_set_at = ? WHERE id = ?', [
+        now,
+        sessionId,
+      ]);
+    }
   }
 }
 

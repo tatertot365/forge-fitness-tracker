@@ -24,3 +24,9 @@ export {
   type ParsedMeasurement,
 } from "./types";
 export { useHeightField } from "./useHeightField";
+export {
+  catchUpMeasurementsToHealth,
+  offerMeasurementBackfill,
+  syncHeightToHealth,
+  syncMeasurementDayToHealth,
+} from "./healthSync";

@@ -14,6 +14,7 @@ import {
 import { type Measurement } from "../../types";
 import { daysBetween } from "../../utils/date";
 import { type UserProfile } from "../../utils/tdee";
+import { syncHeightToHealth } from "./healthSync";
 
 type StartingMeasurement = {
   weight_lb: number | null;
@@ -73,10 +74,17 @@ export function useMeasurements() {
 
   // Persist a profile patch and mirror it locally so the form stays responsive
   // without waiting for a full reload.
-  const saveProfile = useCallback(async (patch: Partial<UserProfile>) => {
-    await setUserProfile(patch);
-    setProfile((p) => ({ ...p, ...patch }));
-  }, []);
+  const saveProfile = useCallback(
+    async (patch: Partial<UserProfile>) => {
+      await setUserProfile(patch);
+      // The height field commits on every blur, so only a real change is sent.
+      if (patch.height_in != null && patch.height_in !== profile.height_in) {
+        syncHeightToHealth(patch.height_in);
+      }
+      setProfile((p) => ({ ...p, ...patch }));
+    },
+    [profile.height_in],
+  );
 
   // How far back `prior` actually sits. Null when there is nothing to compare
   // against, so the UI can label the delta with a real interval instead of

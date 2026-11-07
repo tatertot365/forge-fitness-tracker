@@ -70,6 +70,19 @@ export async function getMeasurementHistory(limit = 16): Promise<Measurement[]> 
   return rows.reverse();
 }
 
+export async function getMeasurementForDate(date: string): Promise<Measurement | null> {
+  const db = await getDb();
+  return (await db.getFirstAsync<Measurement>(
+    'SELECT * FROM measurements WHERE date = ?',
+    [date],
+  )) ?? null;
+}
+
+export async function getAllMeasurements(): Promise<Measurement[]> {
+  const db = await getDb();
+  return db.getAllAsync<Measurement>('SELECT * FROM measurements ORDER BY date ASC');
+}
+
 export async function latestMeasurement(): Promise<Measurement | null> {
   const db = await getDb();
   return (await db.getFirstAsync<Measurement>(

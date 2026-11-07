@@ -1,12 +1,15 @@
 import Constants from "expo-constants";
 import { useRouter } from "expo-router";
 import {
+  Activity,
   Apple,
   Bell,
   ChevronLeft,
   ChevronRight,
   Download,
+  Dumbbell,
   ExternalLink,
+  HeartPulse,
   Mail,
   Ruler,
   ShieldCheck,
@@ -25,14 +28,26 @@ import {
 import { Screen } from "../src/components/Screen";
 import { SectionLabel } from "../src/components/SectionLabel";
 import {
+  getHealthReadWorkoutsEnabled,
+  getHealthWriteEnabled,
   getNutritionGoalForDate,
   getRestNotificationsEnabled,
   resetAllData,
   setBodyGoals,
+  setHealthReadWorkoutsEnabled,
+  setHealthWriteEnabled,
   setNutritionGoal,
   setRestNotificationsEnabled,
+  takeHealthWriteOffSince,
   type BodyGoals,
+  type HealthWriteCategory,
 } from "../src/db/queries";
+import {
+  isHealthKitAvailable,
+  requestHealthKitAccess,
+  requestMeasurementWriteAccess,
+  requestWorkoutWriteAccess,
+} from "../src/health";
 import {
   cancelAllRestNotifications,
   ensureNotificationPermission,
@@ -40,11 +55,17 @@ import {
 import { GoalSheet } from "../src/features/food";
 import {
   BodyGoalsSheet,
+  catchUpMeasurementsToHealth,
   HeightInputAccessory,
+  offerMeasurementBackfill,
   ProfileSection,
   useHeightField,
   useMeasurements,
 } from "../src/features/measure";
+import {
+  catchUpWorkoutsToHealth,
+  offerWorkoutBackfill,
+} from "../src/features/session";
 import { colors } from "../src/theme/colors";
 import { radius, typography } from "../src/theme/spacing";
 import { useStyles } from "../src/theme/useStyles";
@@ -91,6 +112,44 @@ export default function ProfileScreen() {
   useEffect(() => {
     getRestNotificationsEnabled().then(setRestNotifs);
   }, []);
+
+  // Hidden entirely where HealthKit doesn't exist (iPad builds, Android).
+  const healthAvailable = isHealthKitAvailable();
+
+  const [healthReadWorkouts, setHealthReadWorkouts] = useState(true);
+
+  useEffect(() => {
+    getHealthReadWorkoutsEnabled().then(setHealthReadWorkouts);
+  }, []);
+
+  const onToggleHealthReadWorkouts = async (next: boolean) => {
+    setHealthReadWorkouts(next);
+    await setHealthReadWorkoutsEnabled(next);
+    // iOS never tells an app whether reading was allowed, so there is no
+    // result to check here -- this only surfaces the sheet if the user has
+    // never answered it. A denial shows up later as an empty summary.
+    if (next) await requestHealthKitAccess();
+  };
+
+  const [healthMeasurements, onToggleHealthMeasurements] = useHealthWriteSwitch(
+    "measurements",
+    {
+      noun: "measurements",
+      requestAccess: requestMeasurementWriteAccess,
+      catchUp: catchUpMeasurementsToHealth,
+      offerBackfill: offerMeasurementBackfill,
+    },
+  );
+
+  const [healthWorkouts, onToggleHealthWorkouts] = useHealthWriteSwitch(
+    "workouts",
+    {
+      noun: "workouts",
+      requestAccess: requestWorkoutWriteAccess,
+      catchUp: catchUpWorkoutsToHealth,
+      offerBackfill: offerWorkoutBackfill,
+    },
+  );
 
   const onToggleRestNotifs = async (next: boolean) => {
     // Optimistic: the switch should not lag behind the finger while the write
@@ -289,6 +348,64 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {healthAvailable ? (
+          <>
+            <SectionLabel>Apple Health</SectionLabel>
+            <View style={styles.card}>
+              <RowButton
+                icon={
+                  <Activity size={16} color={colors.primary} strokeWidth={2} />
+                }
+                label="Read workouts"
+                sub="Show duration, heart rate and calories from your Apple Watch workout on the session summary."
+                trailing={
+                  <Switch
+                    value={healthReadWorkouts}
+                    onValueChange={onToggleHealthReadWorkouts}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                }
+                onPress={() => onToggleHealthReadWorkouts(!healthReadWorkouts)}
+              />
+              <Divider />
+              <RowButton
+                icon={
+                  <HeartPulse size={16} color={colors.primary} strokeWidth={2} />
+                }
+                label="Save measurements"
+                sub="Weight, body fat, waist, height, lean mass and BMI. Turning this off keeps what's already in Health."
+                trailing={
+                  <Switch
+                    value={healthMeasurements}
+                    onValueChange={onToggleHealthMeasurements}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                }
+                onPress={() => onToggleHealthMeasurements(!healthMeasurements)}
+              />
+              <Divider />
+              <RowButton
+                icon={
+                  <Dumbbell size={16} color={colors.primary} strokeWidth={2} />
+                }
+                label="Save workouts"
+                sub="Finished sessions as strength workouts. Skipped when your Apple Watch already recorded one at the same time."
+                trailing={
+                  <Switch
+                    value={healthWorkouts}
+                    onValueChange={onToggleHealthWorkouts}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#FFFFFF"
+                  />
+                }
+                onPress={() => onToggleHealthWorkouts(!healthWorkouts)}
+              />
+            </View>
+          </>
+        ) : null}
+
         <SectionLabel>Data</SectionLabel>
         <View style={styles.card}>
           <RowButton
@@ -378,6 +495,50 @@ export default function ProfileScreen() {
       />
     </>
   );
+}
+
+/**
+ * State and handler for one "Save ... to Apple Health" switch. Turning it on is
+ * what shows the iOS permission sheet, so the user sees it right after saying
+ * they want it. Once allowed: sends anything logged while it was off, then
+ * makes the one-time offer to send older history.
+ */
+function useHealthWriteSwitch(
+  category: HealthWriteCategory,
+  opts: {
+    noun: string;
+    requestAccess: () => Promise<boolean>;
+    catchUp: (offSince: string) => Promise<void>;
+    offerBackfill: () => Promise<void>;
+  },
+): [boolean, (next: boolean) => Promise<void>] {
+  const [enabled, setEnabled] = useState(false);
+
+  useEffect(() => {
+    getHealthWriteEnabled(category).then(setEnabled);
+  }, [category]);
+
+  const onToggle = async (next: boolean) => {
+    setEnabled(next);
+    if (!next) {
+      await setHealthWriteEnabled(category, false);
+      return;
+    }
+    if (!(await opts.requestAccess())) {
+      setEnabled(false);
+      Alert.alert(
+        "Apple Health access is off",
+        `Forge needs permission to save ${opts.noun}. Turn it on in Settings › Privacy & Security › Health › Forge.`,
+      );
+      return;
+    }
+    await setHealthWriteEnabled(category, true);
+    const offSince = await takeHealthWriteOffSince(category);
+    if (offSince) await opts.catchUp(offSince);
+    await opts.offerBackfill();
+  };
+
+  return [enabled, onToggle];
 }
 
 function RowButton({

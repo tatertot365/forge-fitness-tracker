@@ -47,6 +47,7 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
       date TEXT NOT NULL,
       completed_at TEXT,
       started_at TEXT,
+      last_set_at TEXT,
       hk_duration_minutes INTEGER,
       hk_avg_hr INTEGER,
       hk_calories INTEGER,
@@ -167,6 +168,9 @@ export async function initSchema(db: SQLiteDatabase): Promise<void> {
   // Add UNIQUE(name) to stretches for existing installs (schema_v5).
   await migrateStretchNameUnique(db);
 
+  // Add the last_set_at column for existing installs created before schema_v6.
+  await migrateAddSessionLastSetAt(db);
+
   // Insert default day_plan rows for all 7 days if not present
   const days = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
   for (const day of days) {
@@ -229,6 +233,29 @@ async function migrateAddSessionStartedAt(db: SQLiteDatabase): Promise<void> {
 
   await db.runAsync(
     `INSERT INTO settings (key, value) VALUES ('schema_v4', '4')
+     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+  );
+}
+
+// last_set_at records when the most recent set was checked off. Together with
+// started_at it bounds the work actually done, which is the window written to
+// Apple Health -- completed_at is when "Finish" was tapped, which can be long
+// after the last set.
+async function migrateAddSessionLastSetAt(db: SQLiteDatabase): Promise<void> {
+  const done = await db.getFirstAsync<{ value: string }>(
+    `SELECT value FROM settings WHERE key = 'schema_v6'`,
+  );
+  if (done?.value === '6') return;
+
+  const cols = await db.getAllAsync<{ name: string }>(
+    `PRAGMA table_info(sessions)`,
+  );
+  if (!cols.some((c) => c.name === 'last_set_at')) {
+    await db.execAsync(`ALTER TABLE sessions ADD COLUMN last_set_at TEXT`);
+  }
+
+  await db.runAsync(
+    `INSERT INTO settings (key, value) VALUES ('schema_v6', '6')
      ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
   );
 }
@@ -358,6 +385,7 @@ async function migrateToLibrarySchema(db: SQLiteDatabase): Promise<void> {
       date TEXT NOT NULL,
       completed_at TEXT,
       started_at TEXT,
+      last_set_at TEXT,
       hk_duration_minutes INTEGER,
       hk_avg_hr INTEGER,
       hk_calories INTEGER,

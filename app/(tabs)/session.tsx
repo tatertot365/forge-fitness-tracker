@@ -17,7 +17,9 @@ import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../../src/components/SwipeableExerciseRow";
 import {
+  readSessionHealthMetrics,
   SessionClock,
+  syncSessionToHealth,
   SummaryModal,
   SwipeableCatchupRow,
 } from "../../src/features/session";
@@ -37,10 +39,7 @@ import {
   getSkippedExerciseIds,
   skipCatchupItem,
 } from "../../src/db/queries";
-import {
-  fetchRecentWorkoutMetrics,
-  type HealthMetrics,
-} from "../../src/health";
+import { type HealthMetrics } from "../../src/health";
 import { colors, muscleAccent } from "../../src/theme/colors";
 import { radius, typography } from "../../src/theme/spacing";
 import { useStyles } from "../../src/theme/useStyles";
@@ -84,13 +83,13 @@ export default function SessionScreen() {
     completed: number;
     total: number;
     volume: number;
-    hk: HealthMetrics;
+    hk: HealthMetrics | null;
   }>(null);
   const [summary, setSummary] = useState<null | {
     completed: number;
     total: number;
     volume: number;
-    hk: HealthMetrics;
+    hk: HealthMetrics | null;
   }>(null);
 
   const load = useCallback(async () => {
@@ -276,8 +275,10 @@ export default function SessionScreen() {
 
   const finalizeAndShow = async () => {
     if (!sessionId) return;
-    const hk = await fetchRecentWorkoutMetrics();
+    const hk = await readSessionHealthMetrics();
     await finalizeSession(sessionId, hk);
+    // Not awaited: Health is a mirror and must never hold up the summary.
+    syncSessionToHealth(sessionId);
     hapticSuccess();
     setPendingSummary({
       completed: completedTotal,

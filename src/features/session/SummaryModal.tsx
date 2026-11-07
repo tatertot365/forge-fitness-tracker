@@ -10,7 +10,8 @@ export type SessionSummary = {
   completed: number;
   total: number;
   volume: number;
-  hk: HealthMetrics;
+  /** Null when "Read workouts" is off; the Health section is then hidden. */
+  hk: HealthMetrics | null;
 };
 
 type Props = {
@@ -24,6 +25,7 @@ type Props = {
  */
 export function SummaryModal({ summary, onClose }: Props) {
   const styles = useStyles(makeStyles);
+  const hk = summary?.hk ?? null;
   return (
     <Modal
       visible={!!summary}
@@ -54,45 +56,50 @@ export function SummaryModal({ summary, onClose }: Props) {
             </View>
           </View>
 
-          <View style={styles.hkHeader}>
-            <Heart size={13} color={colors.red} strokeWidth={2} />
-            <Text style={styles.hkHeaderText}>From Apple Health</Text>
-          </View>
+          {/* Hidden when the user has turned "Read workouts" off. */}
+          {hk ? (
+            <>
+              <View style={styles.hkHeader}>
+                <Heart size={13} color={colors.red} strokeWidth={2} />
+                <Text style={styles.hkHeaderText}>From Apple Health</Text>
+              </View>
 
-          <View style={styles.hkRow}>
-            <HkCell
-              icon={
-                <Timer size={16} color={colors.primary} strokeWidth={1.75} />
-              }
-              label="Duration"
-              value={
-                summary?.hk.durationMinutes != null
-                  ? `${summary.hk.durationMinutes} min`
-                  : "—"
-              }
-            />
-            <HkCell
-              icon={<Heart size={16} color={colors.red} strokeWidth={1.75} />}
-              label="Avg HR"
-              value={
-                summary?.hk.avgHr != null ? `${summary.hk.avgHr} bpm` : "—"
-              }
-            />
-            <HkCell
-              icon={<Flame size={16} color={colors.amber} strokeWidth={1.75} />}
-              label="Active"
-              value={
-                summary?.hk.calories != null
-                  ? `${summary.hk.calories} kcal`
-                  : "—"
-              }
-            />
-          </View>
+              <View style={styles.hkRow}>
+                <HkCell
+                  icon={
+                    <Timer size={16} color={colors.primary} strokeWidth={1.75} />
+                  }
+                  label="Duration"
+                  value={
+                    hk.durationMinutes != null
+                      ? `${hk.durationMinutes} min`
+                      : "—"
+                  }
+                />
+                <HkCell
+                  icon={<Heart size={16} color={colors.red} strokeWidth={1.75} />}
+                  label="Avg HR"
+                  value={
+                    hk.avgHr != null ? `${hk.avgHr} bpm` : "—"
+                  }
+                />
+                <HkCell
+                  icon={<Flame size={16} color={colors.amber} strokeWidth={1.75} />}
+                  label="Active"
+                  value={
+                    hk.calories != null
+                      ? `${hk.calories} kcal`
+                      : "—"
+                  }
+                />
+              </View>
 
-          {summary?.hk.durationMinutes == null &&
-          summary?.hk.avgHr == null &&
-          summary?.hk.calories == null ? (
-            <Text style={styles.hkHint}>Enable Health access in Settings</Text>
+              {hk.durationMinutes == null &&
+              hk.avgHr == null &&
+              hk.calories == null ? (
+                <Text style={styles.hkHint}>Enable Health access in Settings</Text>
+              ) : null}
+            </>
           ) : null}
 
           <Pressable

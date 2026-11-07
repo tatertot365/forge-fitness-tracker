@@ -14,7 +14,11 @@ import { AddExerciseSheet } from "../src/components/AddExerciseSheet";
 import { ExerciseRow } from "../src/components/ExerciseRow";
 import { SectionLabel } from "../src/components/SectionLabel";
 import { SwipeableExerciseRow } from "../src/components/SwipeableExerciseRow";
-import { SummaryModal } from "../src/features/session";
+import {
+  readSessionHealthMetrics,
+  SummaryModal,
+  syncSessionToHealth,
+} from "../src/features/session";
 import {
   bestSet,
   deleteExercise,
@@ -28,10 +32,7 @@ import {
   getSkippedExerciseIds,
   skipCatchupItem,
 } from "../src/db/queries";
-import {
-  fetchRecentWorkoutMetrics,
-  type HealthMetrics,
-} from "../src/health";
+import { type HealthMetrics } from "../src/health";
 import { colors, muscleAccent } from "../src/theme/colors";
 import { radius, spacing, typography } from "../src/theme/spacing";
 import { useStyles } from "../src/theme/useStyles";
@@ -69,7 +70,7 @@ export default function DaySessionScreen() {
     completed: number;
     total: number;
     volume: number;
-    hk: HealthMetrics;
+    hk: HealthMetrics | null;
   }>(null);
 
   const load = useCallback(async () => {
@@ -222,8 +223,10 @@ export default function DaySessionScreen() {
 
   const finalizeAndShow = async () => {
     if (!sessionId) return;
-    const hk = await fetchRecentWorkoutMetrics();
+    const hk = await readSessionHealthMetrics();
     await finalizeSession(sessionId, hk);
+    // Not awaited: Health is a mirror and must never hold up the summary.
+    syncSessionToHealth(sessionId);
     hapticSuccess();
     setSummary({ completed: completedTotal, total: totalSets, volume, hk });
   };

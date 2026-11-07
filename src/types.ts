@@ -61,6 +61,8 @@ export type Session = {
   completed_at: string | null;
   /** When the first set was logged. Null until the session is actually begun. */
   started_at: string | null;
+  /** When the most recent set was checked off. Null until a set is done. */
+  last_set_at: string | null;
   hk_duration_minutes: number | null;
   hk_avg_hr: number | null;
   hk_calories: number | null;

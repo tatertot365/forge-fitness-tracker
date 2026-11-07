@@ -22,6 +22,51 @@ export async function getOrCreateSession(day: Day, date: string): Promise<number
   return result.lastInsertRowId as number;
 }
 
+/** What Apple Health needs to know about one finished session. */
+export type SessionForHealth = {
+  id: number;
+  day: Day;
+  date: string;
+  /** The day plan's name, e.g. "Pull — heavy". Empty when unnamed. */
+  name: string;
+  started_at: string | null;
+  last_set_at: string | null;
+  completed_at: string | null;
+  sets_completed: number;
+  /** Same rule as the summary screen: completed sets with weight and reps. */
+  volume_lb: number;
+};
+
+const SESSION_FOR_HEALTH_SQL = `
+  SELECT s.id, s.day, s.date, COALESCE(dp.name, '') AS name,
+         s.started_at, s.last_set_at, s.completed_at,
+         COALESCE(SUM(sl.completed), 0) AS sets_completed,
+         COALESCE(SUM(CASE WHEN sl.completed = 1 AND sl.weight_lb > 0 AND sl.reps > 0
+                           THEN sl.weight_lb * sl.reps ELSE 0 END), 0) AS volume_lb
+    FROM sessions s
+    LEFT JOIN day_plans dp ON dp.day = s.day
+    LEFT JOIN set_logs sl ON sl.session_id = s.id`;
+
+export async function getSessionForHealth(id: number): Promise<SessionForHealth | null> {
+  const db = await getDb();
+  return (await db.getFirstAsync<SessionForHealth>(
+    `${SESSION_FOR_HEALTH_SQL} WHERE s.id = ? GROUP BY s.id`,
+    [id],
+  )) ?? null;
+}
+
+/** Every finished session in which at least one set was actually done. */
+export async function getFinishedSessionsForHealth(): Promise<SessionForHealth[]> {
+  const db = await getDb();
+  return db.getAllAsync<SessionForHealth>(
+    `${SESSION_FOR_HEALTH_SQL}
+     WHERE s.completed_at IS NOT NULL AND s.started_at IS NOT NULL
+     GROUP BY s.id
+     HAVING sets_completed > 0
+     ORDER BY s.date ASC`,
+  );
+}
+
 /**
  * When the session's first set was completed, or null if it has not started.
  * Separate from getOrCreateSession so that merely opening the Workout tab
@@ -46,11 +91,23 @@ export async function getSession(id: number): Promise<Session | null> {
   )) ?? null;
 }
 
+/**
+ * Marks the session finished. `hk` null means Health wasn't read ("Read
+ * workouts" is off), so any stats stored by an earlier finish are kept rather
+ * than blanked.
+ */
 export async function finalizeSession(
   sessionId: number,
-  hk: { durationMinutes: number | null; avgHr: number | null; calories: number | null },
+  hk: { durationMinutes: number | null; avgHr: number | null; calories: number | null } | null,
 ): Promise<void> {
   const db = await getDb();
+  if (!hk) {
+    await db.runAsync('UPDATE sessions SET completed_at = ? WHERE id = ?', [
+      new Date().toISOString(),
+      sessionId,
+    ]);
+    return;
+  }
   await db.runAsync(
     `UPDATE sessions
      SET completed_at = ?, hk_duration_minutes = ?, hk_avg_hr = ?, hk_calories = ?

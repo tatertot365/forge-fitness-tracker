@@ -16,7 +16,7 @@
         "CFBundleDisplayName": "Forge",
         "LSApplicationCategoryType": "public.app-category.healthcare-fitness",
         "NSHealthShareUsageDescription": "Forge reads your most recent Apple Watch workout to show duration, heart rate, and active calories on your session summary.",
-        "NSHealthUpdateUsageDescription": "Required by the HealthKit framework. Forge does not write any data to Apple Health.",
+        "NSHealthUpdateUsageDescription": "Forge saves your finished strength workouts and the body measurements you log (weight, body fat, waist, height, lean body mass and BMI) to Apple Health. You can turn each off anytime in Profile.",
         "NSCameraUsageDescription": "Forge uses the camera to scan food barcodes and look up nutrition information."
       }
     },
@@ -36,6 +36,7 @@
         "@kingstinct/react-native-healthkit",
         {
           "NSHealthShareUsageDescription": "Forge reads your most recent Apple Watch workout to show duration, heart rate, and active calories on your session summary.",
+          "NSHealthUpdateUsageDescription": "Forge saves your finished strength workouts and the body measurements you log (weight, body fat, waist, height, lean body mass and BMI) to Apple Health. You can turn each off anytime in Profile.",
           "background": false
         }
       ],

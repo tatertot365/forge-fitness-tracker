@@ -171,6 +171,62 @@ export async function markHealthKitAsked(): Promise<void> {
   );
 }
 
+// ─── Apple Health writing ─────────────────────────────────────────────
+
+/** Each kind of data Forge can write to Apple Health has its own switch. */
+export type HealthWriteCategory = 'measurements' | 'workouts';
+
+/** Off until the user turns it on; absent means never enabled. */
+export async function getHealthWriteEnabled(category: HealthWriteCategory): Promise<boolean> {
+  return (await getSetting(`health_write_${category}`)) === '1';
+}
+
+export async function setHealthWriteEnabled(
+  category: HealthWriteCategory,
+  enabled: boolean,
+): Promise<void> {
+  await setSetting(`health_write_${category}`, enabled ? '1' : '0');
+  // Remember when writing stopped, so re-enabling can send what was logged in
+  // the gap. Keeps the earliest time if it's switched off twice in a row.
+  if (!enabled && !(await getSetting(`health_write_off_since_${category}`))) {
+    await setSetting(`health_write_off_since_${category}`, new Date().toISOString());
+  }
+}
+
+/**
+ * When writing was switched off, or null if it never was (or the gap was
+ * already caught up). Clears it, so each gap is caught up once.
+ */
+export async function takeHealthWriteOffSince(
+  category: HealthWriteCategory,
+): Promise<string | null> {
+  const since = await getSetting(`health_write_off_since_${category}`);
+  if (since) await setSetting(`health_write_off_since_${category}`, '');
+  return since || null;
+}
+
+/**
+ * Whether finishing a session pulls the Apple Watch workout's duration, heart
+ * rate and calories. Absent reads as on: sessions always did this before the
+ * switch existed, so existing users keep the behaviour until they opt out.
+ */
+export async function getHealthReadWorkoutsEnabled(): Promise<boolean> {
+  return (await getSetting('health_read_workouts')) !== '0';
+}
+
+export async function setHealthReadWorkoutsEnabled(enabled: boolean): Promise<void> {
+  await setSetting('health_read_workouts', enabled ? '1' : '0');
+}
+
+/** Whether the one-time "send your history too?" offer has been shown. */
+export async function isHealthBackfillOffered(category: HealthWriteCategory): Promise<boolean> {
+  return (await getSetting(`health_backfill_offered_${category}`)) === '1';
+}
+
+export async function markHealthBackfillOffered(category: HealthWriteCategory): Promise<void> {
+  await setSetting(`health_backfill_offered_${category}`, '1');
+}
+
 export async function getCustomRestSeconds(): Promise<number | null> {
   const v = await getSetting('rest_custom_secs');
   if (v == null) return null;

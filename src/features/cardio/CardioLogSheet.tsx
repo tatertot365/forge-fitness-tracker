@@ -19,14 +19,14 @@ import {
   updateCardioSession,
 } from "../../db/queries";
 import { colors } from "../../theme/colors";
-import { radius } from "../../theme/spacing";
 import { useStyles } from "../../theme/useStyles";
 import { type CardioSession } from "../../types";
 import { fromISO, toISO, todayISO } from "../../utils/date";
 import { formatDuration, parseDuration } from "../../utils/duration";
 import { hapticSuccess, hapticTap } from "../../utils/haptics";
 import { makeSharedStyles } from "../home/sharedStyles";
-import { CARDIO_ACTIVITIES, DEFAULT_CARDIO_ACTIVITY } from "./activities";
+import { ActivityChips } from "./ActivityChips";
+import { DEFAULT_CARDIO_ACTIVITY } from "./activities";
 import { removeCardioFromHealth, syncCardioToHealth } from "./healthCardio";
 
 export type CardioLogTarget =
@@ -187,27 +187,7 @@ export function CardioLogSheet({
               ) : null}
 
               <Text style={styles.fieldLabel}>Activity</Text>
-              <View style={styles.chips}>
-                {CARDIO_ACTIVITIES.map((a) => {
-                  const selected = a.key === activity;
-                  return (
-                    <Pressable
-                      key={a.key}
-                      onPress={() => setActivity(a.key)}
-                      style={({ pressed }) => [
-                        styles.chip,
-                        selected && styles.chipSelected,
-                        pressed && { opacity: 0.7 },
-                      ]}
-                      accessibilityState={{ selected }}
-                    >
-                      <Text style={[styles.chipText, selected && styles.chipTextSelected]}>
-                        {a.label}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </View>
+              <ActivityChips value={activity} onChange={setActivity} />
 
               <View style={styles.dateRow}>
                 <Text style={[styles.fieldLabel, { marginTop: 0, marginBottom: 0 }]}>
@@ -286,7 +266,7 @@ export function CardioLogSheet({
 const makeStyles = (s: (n: number) => number) =>
   StyleSheet.create({
     ...makeSharedStyles(s),
-    // Matches EditCardioSheet's fields.
+    // Matches CardioPlanSheet's fields.
     fieldLabel: {
       fontSize: s(11),
       color: colors.textSecondary,
@@ -306,21 +286,6 @@ const makeStyles = (s: (n: number) => number) =>
       borderWidth: StyleSheet.hairlineWidth,
       borderColor: colors.border,
     },
-    chips: { flexDirection: "row", flexWrap: "wrap", gap: 6 },
-    chip: {
-      paddingVertical: 7,
-      paddingHorizontal: 12,
-      borderRadius: radius.pill,
-      backgroundColor: colors.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-    },
-    chipSelected: {
-      backgroundColor: colors.primary + "26",
-      borderColor: colors.primary,
-    },
-    chipText: { fontSize: s(13), color: colors.textSecondary, fontWeight: "500" },
-    chipTextSelected: { color: colors.primary, fontWeight: "600" },
     dateRow: {
       flexDirection: "row",
       alignItems: "center",

@@ -1,6 +1,8 @@
 export { CardioCard } from "./CardioCard";
 export { CardioHistorySheet } from "./CardioHistorySheet";
 export { CardioLogSheet, type CardioLogTarget } from "./CardioLogSheet";
+export { CardioPlanSheet } from "./CardioPlanSheet";
+export { getCardioPlan } from "./plan";
 export {
   CARDIO_ACTIVITIES,
   DEFAULT_CARDIO_ACTIVITY,

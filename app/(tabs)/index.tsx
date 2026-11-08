@@ -21,7 +21,6 @@ import { Screen } from "../../src/components/Screen";
 import { SectionLabel } from "../../src/components/SectionLabel";
 import {
   BodyStatsCard,
-  EditCardioSheet,
   MacroRingCard,
   MuscleGroupGrid,
   WeekStrip,
@@ -35,11 +34,9 @@ import {
   clearRunningCardio,
   getCardioCountThisWeek,
   getCardioMinutesThisWeek,
-  getLastCardioActivity,
   getRunningCardio,
   startRunningCardio,
   type RunningCardio,
-  getCardioInfo,
   getCatchupItems,
   getCompletedSetCountForSession,
   getDayPlans,
@@ -60,14 +57,14 @@ import {
   startingMeasurement,
   markHealthKitAsked,
   comparisonMeasurement,
-  setCardioInfo as saveCardioInfo,
+  setCardioPlan,
   setHealthWriteEnabled,
   skipCatchupItem,
   skipDay,
   unskipCatchupItem,
   unskipDay,
   type BodyGoals,
-  type CardioInfo,
+  type CardioPlan,
 } from "../../src/db/queries";
 import {
   isHealthKitAvailable,
@@ -80,7 +77,9 @@ import {
   CardioCard,
   CardioHistorySheet,
   CardioLogSheet,
+  CardioPlanSheet,
   DEFAULT_CARDIO_ACTIVITY,
+  getCardioPlan,
   getHealthCardioSuggestions,
   type CardioLogTarget,
 } from "../../src/features/cardio";
@@ -143,9 +142,10 @@ export default function TodayScreen() {
     Day,
     number
   > | null>(null);
-  const [cardioInfo, setCardioInfo] = useState<CardioInfo>({
-    name: "Incline treadmill walk",
-    description: "12° / 3 mph / 20–30 min",
+  const [cardioPlan, setCardioPlanState] = useState<CardioPlan>({
+    activity: DEFAULT_CARDIO_ACTIVITY,
+    minutes: null,
+    details: "",
   });
   const [editCardioOpen, setEditCardioOpen] = useState(false);
   const [cardioMinutes, setCardioMinutes] = useState(0);
@@ -214,7 +214,7 @@ export default function TodayScreen() {
       getSkippedDaysThisWeek(),
       getWeekSetLogCounts(),
       getWeekTotalSetCounts(),
-      getCardioInfo(),
+      getCardioPlan(),
       getMuscleGroupSetsThisWeek(),
       getFoodEntriesForDate(currentDate),
       getNutritionGoalForDate(currentDate),
@@ -247,7 +247,7 @@ export default function TodayScreen() {
     setSkippedDays(skips);
     setWeekLogCounts(logCounts);
     setWeekTotalSetCounts(totalCounts);
-    setCardioInfo(ci);
+    setCardioPlanState(ci);
     setMuscleGroupSets(mgSets);
     loadCardio();
     setTodayNutrition({
@@ -338,8 +338,7 @@ export default function TodayScreen() {
 
   const onStartCardio = async () => {
     hapticTap();
-    const activity = (await getLastCardioActivity()) ?? DEFAULT_CARDIO_ACTIVITY;
-    setCardioRunning(await startRunningCardio(activity));
+    setCardioRunning(await startRunningCardio(cardioPlan.activity));
   };
 
   const onFinishCardio = () => {
@@ -369,10 +368,14 @@ export default function TodayScreen() {
     ]);
   };
 
-  const onLogCardio = async () => {
+  const onLogCardio = () => {
     hapticTap();
     setFinishingRun(false);
-    setCardioLog({ kind: "new", activity: await getLastCardioActivity() });
+    setCardioLog({
+      kind: "new",
+      activity: cardioPlan.activity,
+      durationSeconds: cardioPlan.minutes ? cardioPlan.minutes * 60 : undefined,
+    });
   };
 
   const onCardioLogSaved = async () => {
@@ -666,7 +669,7 @@ export default function TodayScreen() {
         Cardio
       </SectionLabel>
       <CardioCard
-        info={cardioInfo}
+        plan={cardioPlan}
         count={cardioCount}
         target={cardioTarget}
         minutes={cardioMinutes}
@@ -709,13 +712,13 @@ export default function TodayScreen() {
         onChanged={loadCardio}
       />
 
-      <EditCardioSheet
+      <CardioPlanSheet
         visible={editCardioOpen}
-        current={cardioInfo}
+        current={cardioPlan}
         onClose={() => setEditCardioOpen(false)}
-        onSave={async (info) => {
-          await saveCardioInfo(info);
-          setCardioInfo(info);
+        onSave={async (plan) => {
+          await setCardioPlan(plan);
+          setCardioPlanState(plan);
           setEditCardioOpen(false);
         }}
       />

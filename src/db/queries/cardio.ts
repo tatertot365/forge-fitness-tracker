@@ -2,39 +2,57 @@ import { getDb } from '../client';
 import type { CardioSession } from '../../types';
 import { weekDates } from '../../utils/date';
 
-// ─── Cardio settings ──────────────────────────────────────────────────
+// ─── Cardio plan ──────────────────────────────────────────────────────
 
-export type CardioInfo = { name: string; description: string };
-
-const CARDIO_DEFAULTS: CardioInfo = {
-  name: 'Incline treadmill walk',
-  description: '12° / 3 mph / 20–30 min',
+/** The cardio the user means to do: what the card shows and Log/Start use. */
+export type CardioPlan = {
+  /** CardioActivity key, e.g. 'incline_walk'. */
+  activity: string;
+  /** Target length; pre-fills Log. Null when not set. */
+  minutes: number | null;
+  /** Free text for machine settings, e.g. "12° / 3 mph". */
+  details: string;
 };
 
-export async function getCardioInfo(): Promise<CardioInfo> {
+/**
+ * The stored plan as-is. Plans saved before the plan was structured have only
+ * the free-text `name`/`details` and no activity; the cardio feature converts
+ * those once (see getCardioPlan there).
+ */
+export async function getCardioPlanRaw(): Promise<{
+  activity: string | null;
+  minutes: number | null;
+  details: string | null;
+  legacyName: string | null;
+}> {
   const db = await getDb();
   const rows = await db.getAllAsync<{ key: string; value: string }>(
-    `SELECT key, value FROM settings WHERE key IN ('cardio_name', 'cardio_desc')`,
+    `SELECT key, value FROM settings
+     WHERE key IN ('cardio_activity', 'cardio_minutes', 'cardio_desc', 'cardio_name')`,
   );
   const map = Object.fromEntries(rows.map((r) => [r.key, r.value]));
+  const minutes = Number(map['cardio_minutes']);
   return {
-    name: map['cardio_name'] ?? CARDIO_DEFAULTS.name,
-    description: map['cardio_desc'] ?? CARDIO_DEFAULTS.description,
+    activity: map['cardio_activity'] || null,
+    minutes: Number.isFinite(minutes) && minutes > 0 ? minutes : null,
+    details: map['cardio_desc'] ?? null,
+    legacyName: map['cardio_name'] ?? null,
   };
 }
 
-export async function setCardioInfo(info: CardioInfo): Promise<void> {
+export async function setCardioPlan(plan: CardioPlan): Promise<void> {
   const db = await getDb();
-  await db.runAsync(
-    `INSERT INTO settings (key, value) VALUES ('cardio_name', ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [info.name],
-  );
-  await db.runAsync(
-    `INSERT INTO settings (key, value) VALUES ('cardio_desc', ?)
-     ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
-    [info.description],
-  );
+  const set = (key: string, value: string) =>
+    db.runAsync(
+      `INSERT INTO settings (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+      [key, value],
+    );
+  await set('cardio_activity', plan.activity);
+  await set('cardio_minutes', plan.minutes ? String(plan.minutes) : '');
+  await set('cardio_desc', plan.details);
+  // The free-text name is folded into activity/details on conversion.
+  await db.runAsync(`DELETE FROM settings WHERE key = 'cardio_name'`);
 }
 
 // ─── Cardio ───────────────────────────────────────────────────────────
@@ -169,15 +187,4 @@ export async function startRunningCardio(activity: string): Promise<RunningCardi
 export async function clearRunningCardio(): Promise<void> {
   const db = await getDb();
   await db.runAsync(`DELETE FROM settings WHERE key = 'cardio_running'`);
-}
-
-/** The activity picked last time, so the next log starts on it. */
-export async function getLastCardioActivity(): Promise<string | null> {
-  const db = await getDb();
-  const row = await db.getFirstAsync<{ activity: string | null }>(
-    `SELECT activity FROM cardio_sessions
-     WHERE activity IS NOT NULL AND source = 'forge'
-     ORDER BY created_at DESC LIMIT 1`,
-  );
-  return row?.activity ?? null;
 }

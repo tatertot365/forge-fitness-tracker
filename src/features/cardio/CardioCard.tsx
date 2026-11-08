@@ -3,15 +3,16 @@ import React, { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Card } from "../../components/Card";
 import { ProgressBar } from "../../components/ProgressBar";
-import { type CardioInfo, type RunningCardio } from "../../db/queries";
+import { type CardioPlan, type RunningCardio } from "../../db/queries";
 import { colors } from "../../theme/colors";
 import { radius, typography } from "../../theme/spacing";
 import { useStyles } from "../../theme/useStyles";
 import { formatDuration } from "../../utils/duration";
 import { cardioLabel } from "./activities";
+import { planTitle } from "./plan";
 
 type Props = {
-  info: CardioInfo;
+  plan: CardioPlan;
   count: number;
   target: number;
   minutes: number;
@@ -26,12 +27,12 @@ type Props = {
 };
 
 /**
- * Home's cardio card: the planned cardio, this week's progress toward the
+ * Home's cardio card: the plan, this week's progress toward the
  * phase's session goal, and either Start/Log or -- while a session is being
  * timed -- the live clock with Finish/Discard.
  */
 export function CardioCard({
-  info,
+  plan,
   count,
   target,
   minutes,
@@ -59,8 +60,8 @@ export function CardioCard({
 
   return (
     <Card>
-      <Text style={styles.title}>{info.name}</Text>
-      {info.description ? <Text style={styles.meta}>{info.description}</Text> : null}
+      <Text style={styles.title}>{planTitle(plan)}</Text>
+      {plan.details ? <Text style={styles.meta}>{plan.details}</Text> : null}
 
       {running ? (
         <View style={styles.liveBox}>
